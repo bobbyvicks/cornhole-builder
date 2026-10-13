@@ -3,11 +3,11 @@
 A site where people design their own cornhole boards and order them.
 
 - **Design live.** A regulation 24" x 48" board (6" hole, 9" from the top)
-  drawn on a canvas in inches, not pixels. Ten templates to start from
-  (weddings, anniversaries, birthdays, family, team, business, holidays).
+  drawn on a canvas in inches, not pixels. Twenty-six templates to start from
+  (weddings, engagements, anniversaries, birthdays, baby showers, graduations, family, cabins, camping, tailgates, golf, business, holidays).
   Painted, two-colour fade or stained-wood base, 40 swatches plus a custom
   colour, nineteen patterns, 35 fonts, curved text with spacing, outline and
-  shadow, 46 pieces of vector clip art in any colour, uploaded pictures with
+  shadow, 107 pieces of vector clip art in seven groups, any colour, uploaded pictures with
   flip, circle crop and white-background removal. Drag, resize and rotate
   on the board with handles, snap to centre, layer order, duplicate,
   undo/redo, and the design is kept in the browser across reloads. One
