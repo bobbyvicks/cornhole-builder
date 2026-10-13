@@ -11,13 +11,14 @@ import { quote } from '../lib/price.mjs';
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
 function goodOrder() {
-  const board = () => ({ base: { kind: 'paint', color: '#1f3a93', stain: 'walnut' }, pattern: { kind: 'stripes', color: '#ffffff', size: 3 }, elements: [
-    { type: 'text', id: 'e1', text: 'HELLO', font: 'Anton', size: 4, color: '#ffffff', outline: '#000000', outlineWidth: 0.1, x: 12, y: 30, rotation: 0 },
-    { type: 'image', id: 'e2', src: PNG, width: 8, x: 12, y: 20, rotation: 10, opacity: 1 },
+  const board = () => ({ base: { kind: 'gradient', color: '#1f3a93', color2: '#4fa3e3', angle: 180, stain: 'walnut' }, pattern: { kind: 'stripes', color: '#ffffff', size: 3 }, elements: [
+    { type: 'text', id: 'e1', text: 'HELLO', font: 'Great Vibes', size: 4, color: '#ffffff', outline: '#000000', outlineWidth: 0.1, x: 12, y: 30, rotation: 0, arc: 30, spacing: 0.1, shadow: true },
+    { type: 'image', id: 'e2', src: PNG, width: 8, x: 12, y: 20, rotation: 10, opacity: 1, flipH: false, circleCrop: true, knockout: true },
+    { type: 'clip', id: 'e3', name: 'laurel', width: 12, x: 12, y: 24, rotation: 0, color: '#9caf88', outline: '#000000', outlineWidth: 0, opacity: 1, flipH: false },
   ] });
   return {
-    options: { product: 'set', quantity: 2, finish: 'gloss', bags: 'regulation', bagColors: ['#c8102e', '#1f3a93'], rush: true },
-    design: { version: 1, same: true, a: board(), b: board() },
+    options: { product: 'set', quantity: 2, finish: 'guestbook', bags: 'regulation', bagColors: ['#c8102e', '#1f3a93'], rush: true, carryCase: true, occasion: 'wedding', needBy: '2999-06-14', giftNote: 'Congratulations!' },
+    design: { version: 2, same: true, a: board(), b: board() },
     previews: [PNG],
     customer: { name: 'Pat Example', email: 'pat@example.com', phone: '555-0100' },
     shipping: { line1: '1 Main St', line2: '', city: 'Austin', state: 'tx', postal: '78701', country: 'US' },
@@ -91,6 +92,11 @@ test('a good order is priced on the server, stored, sent to Stripe, and the Chec
   assert.equal(row.shipping.state, 'TX', 'the state is upper-cased');
   assert.equal(row.customer.email, 'pat@example.com');
   assert.deepEqual(row.options.bagColors, ['#c8102e', '#1f3a93']);
+  assert.equal(row.options.occasion, 'wedding');
+  assert.equal(row.options.needBy, '2999-06-14');
+  assert.equal(row.options.giftNote, 'Congratulations!');
+  assert.equal(row.options.carryCase, true);
+  assert.equal(row.design.a.elements[2].type, 'clip');
   assert.equal(row.options.lines.length, expected.lines.length);
 
   const stripe = calls.find((c) => c.url.startsWith('https://api.stripe.com'));
@@ -176,7 +182,16 @@ test('bad orders are refused with the field named, before anything is stored', a
     [(o) => { o.previews = []; }, /previews/],
     [(o) => { delete o.options.bagColors; }, /bagColors/],
     [(o) => { o.design.same = false; }, /previews/],
-    [(o) => { o.design.a.elements = Array.from({ length: 5 }, (_, i) => ({ type: 'image', id: 'i' + i, src: PNG, width: 4, x: 12, y: 12, rotation: 0, opacity: 1 })); }, /too many images/],
+    [(o) => { o.design.a.elements = Array.from({ length: 5 }, (_, i) => ({ type: 'image', id: 'i' + i, src: PNG, width: 4, x: 12, y: 12, rotation: 0, opacity: 1, flipH: false, circleCrop: false, knockout: false })); }, /too many images/],
+    [(o) => { o.design.version = 1; }, /design\.version/],
+    [(o) => { o.design.a.elements[2].name = 'Laurel Wreath!'; }, /design\.a\.elements\.2\.name/],
+    [(o) => { o.design.a.elements[0].arc = 200; }, /design\.a\.elements\.0\.arc/],
+    [(o) => { o.design.a.base.kind = 'metal'; }, /design\.a\.base\.kind/],
+    [(o) => { o.options.occasion = 'funeral'; }, /options\.occasion/],
+    [(o) => { o.options.needBy = '2020-01-01'; }, /options\.needBy/],
+    [(o) => { o.options.needBy = 'next june'; }, /options\.needBy/],
+    [(o) => { o.options.giftNote = 'x'.repeat(301); }, /options\.giftNote/],
+    [(o) => { o.options.finish = 'chrome'; }, /options\.finish/],
   ];
   for (const [mutate, re] of cases) {
     const calls = stub();

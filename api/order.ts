@@ -36,7 +36,7 @@ const STRIPE_DEADLINE_MS = 15_000;
 const MAX_BODY_BYTES = 4 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 1_500_000;
 const MAX_IMAGES_PER_BOARD = 4;
-const MAX_TEXTS_PER_BOARD = 8;
+const MAX_TEXTS_PER_BOARD = 10;
 
 /* A brake on a public endpoint that writes rows. Per-instance and therefore
    leaky (serverless spins up many), which is enough to stop one tab
@@ -57,34 +57,57 @@ function overLimit(who: string): boolean {
 
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/, "colour must be #rrggbb");
 const inches = (lo: number, hi: number) => z.number().finite().min(lo).max(hi);
+const degrees = z.number().finite().min(-180).max(180);
 const dataUrl = z.string().regex(/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/, "image must be a PNG, JPEG or WebP data URL")
   .refine((s) => s.length <= MAX_IMAGE_BYTES * 1.4, "image is too large");
 
+/* Shared by everything that sits on the board. */
+const placed = {
+  id: z.string().max(16),
+  x: inches(-6, 30), y: inches(-6, 54),
+  rotation: degrees,
+};
 const textEl = z.object({
   type: z.literal("text"),
-  id: z.string().max(16),
+  ...placed,
   text: z.string().min(1).max(60),
   font: z.string().min(1).max(40),
   size: inches(0.5, 20),
   color: hex,
   outline: hex,
   outlineWidth: inches(0, 1),
-  x: inches(-6, 30), y: inches(-6, 54),
-  rotation: z.number().finite().min(-180).max(180),
+  arc: degrees,
+  spacing: z.number().finite().min(-0.5).max(2),
+  shadow: z.boolean(),
 });
 const imageEl = z.object({
   type: z.literal("image"),
-  id: z.string().max(16),
+  ...placed,
   src: dataUrl,
   width: inches(0.5, 30),
-  x: inches(-6, 30), y: inches(-6, 54),
-  rotation: z.number().finite().min(-180).max(180),
   opacity: z.number().finite().min(0).max(1),
+  flipH: z.boolean(),
+  circleCrop: z.boolean(),
+  knockout: z.boolean(),
 });
+const clipEl = z.object({
+  type: z.literal("clip"),
+  ...placed,
+  name: z.string().min(1).max(40).regex(/^[a-z0-9-]+$/, "clip art name"),
+  width: inches(0.5, 30),
+  color: hex,
+  outline: hex,
+  outlineWidth: inches(0, 1),
+  opacity: z.number().finite().min(0).max(1),
+  flipH: z.boolean(),
+});
+const MAX_CLIPS_PER_BOARD = 12;
 const board = z.object({
   base: z.object({
-    kind: z.enum(["paint", "wood"]),
+    kind: z.enum(["paint", "wood", "gradient"]),
     color: hex,
+    color2: hex,
+    angle: z.number().finite().min(0).max(360),
     stain: z.string().max(20),
   }),
   pattern: z.object({
@@ -92,12 +115,13 @@ const board = z.object({
     color: hex,
     size: inches(0.5, 12),
   }),
-  elements: z.array(z.discriminatedUnion("type", [textEl, imageEl])).max(MAX_TEXTS_PER_BOARD + MAX_IMAGES_PER_BOARD)
+  elements: z.array(z.discriminatedUnion("type", [textEl, imageEl, clipEl])).max(MAX_TEXTS_PER_BOARD + MAX_IMAGES_PER_BOARD + MAX_CLIPS_PER_BOARD)
     .refine((els) => els.filter((e) => e.type === "image").length <= MAX_IMAGES_PER_BOARD, "too many images on one board")
-    .refine((els) => els.filter((e) => e.type === "text").length <= MAX_TEXTS_PER_BOARD, "too many text items on one board"),
+    .refine((els) => els.filter((e) => e.type === "text").length <= MAX_TEXTS_PER_BOARD, "too many text items on one board")
+    .refine((els) => els.filter((e) => e.type === "clip").length <= MAX_CLIPS_PER_BOARD, "too much clip art on one board"),
 });
 const design = z.object({
-  version: z.literal(1),
+  version: z.literal(2),
   same: z.boolean(),
   a: board,
   b: board,
@@ -108,10 +132,17 @@ const orderIn = z.object({
   options: z.object({
     product: z.enum(["set", "single"]),
     quantity: z.number().int().min(1).max(PRICING.maxQuantity),
-    finish: z.enum(["satin", "gloss"]),
+    finish: z.enum(["satin", "gloss", "guestbook"]),
     bags: z.enum(["none", "regulation"]),
     bagColors: z.tuple([hex, hex]).optional(),
     rush: z.boolean(),
+    carryCase: z.boolean().optional().default(false),
+    occasion: z.enum(PRICING.occasions as unknown as [string, ...string[]]).optional().default("other"),
+    /* A date, not a deadline the server enforces: the shop reads it. It
+       only has to be a real calendar day on or after today. */
+    needBy: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "a date as YYYY-MM-DD").optional()
+      .refine((d) => !d || (!Number.isNaN(Date.parse(d)) && d >= new Date().toISOString().slice(0, 10)), "a date from today on"),
+    giftNote: z.string().trim().max(300).optional().default(""),
   }),
   design,
   previews: z.array(dataUrl).min(1).max(2),

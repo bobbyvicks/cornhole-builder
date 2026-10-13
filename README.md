@@ -3,15 +3,22 @@
 A site where people design their own cornhole boards and order them.
 
 - **Design live.** A regulation 24" x 48" board (6" hole, 9" from the top)
-  drawn on a canvas in inches, not pixels. Painted or stained-wood base,
-  eleven patterns, text in eight fonts with outline and rotation, uploaded
-  logos, drag to place, undo/redo, and the design is kept in the browser
-  across reloads. One design for both boards, or a different one each.
+  drawn on a canvas in inches, not pixels. Ten templates to start from
+  (weddings, anniversaries, birthdays, family, team, business, holidays).
+  Painted, two-colour fade or stained-wood base, 40 swatches plus a custom
+  colour, nineteen patterns, 35 fonts, curved text with spacing, outline and
+  shadow, 46 pieces of vector clip art in any colour, uploaded pictures with
+  flip, circle crop and white-background removal. Drag, resize and rotate
+  on the board with handles, snap to centre, layer order, duplicate,
+  undo/redo, and the design is kept in the browser across reloads. One
+  design for both boards, or a different one each.
 - **Print file.** The same drawing code renders a 2400 x 4800 PNG at 100
   pixels per inch, with the hole marked as a hairline for the shop.
-- **Order.** Options (set or single, finish, bags, rush, quantity), a live
-  quote, a shipping form, and payment on Stripe Checkout. Orders land in a
-  Supabase table; the Stripe webhook marks them paid.
+- **Order.** Options (set or single, satin, gloss or a matte guest-book
+  finish that wedding guests sign, bags in your colours, a carrying case,
+  rush, quantity), the occasion and the date it is needed by, a gift note,
+  a live quote, a shipping form, and payment on Stripe Checkout. Orders land
+  in a Supabase table; the Stripe webhook marks them paid.
 
 Everything the customer sees is one static file, `index.html`, plus
 `lib/price.mjs`. Two serverless functions in `api/` do the parts that need
@@ -83,6 +90,14 @@ same file, so a change there shows in the quote and is what gets charged.
 The browser specs read pixels off the preview canvases and drive the page
 through `window.cornhole`, the one global the page exposes on purpose. If
 the environment ships its own Chromium, point `PLAYWRIGHT_CHROMIUM` at it.
+
+## Adding clip art or a template
+
+Clip art lives in the `CLIPS` table in `index.html`: each piece is a function
+that draws paths into a 100 x 100 box, so it scales to any size and prints as
+vectors. Templates are the `TEMPLATES` list next to it, built from the same
+element helpers the page uses. The browser suite draws every piece and loads
+every template, so a broken addition fails a test rather than a customer.
 
 ## Still to do
 

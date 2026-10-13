@@ -20,38 +20,55 @@ export async function open(page, { query = '' } = {}) {
   return errors;
 }
 
-/** A fresh, known design: painted navy, no pattern, one text. */
+/** A fresh, known design: painted navy, no pattern, one text in a system font. */
 export const reset = (page) => page.evaluate(() => {
-  cornhole.setDesign({ version: 1, same: true,
-    a: { base: { kind: 'paint', color: '#1f3a93', stain: 'walnut' }, pattern: { kind: 'none', color: '#f5f5f0', size: 3 },
-      elements: [{ type: 'text', id: 't1', text: 'HELLO', font: 'Impact', size: 4, color: '#ffffff', outline: '#000000', outlineWidth: 0, x: 12, y: 30, rotation: 0 }] },
-    b: { base: { kind: 'paint', color: '#1f3a93', stain: 'walnut' }, pattern: { kind: 'none', color: '#f5f5f0', size: 3 }, elements: [] } });
-  cornhole.setOrder({ product: 'set', quantity: 1, finish: 'satin', bags: 'none', rush: false });
+  cornhole.setDesign({ version: 2, same: true,
+    a: { base: { kind: 'paint', color: '#1f3a93', color2: '#4fa3e3', angle: 180, stain: 'walnut' }, pattern: { kind: 'none', color: '#f5f5f0', size: 3 },
+      elements: [{ type: 'text', id: 't1', text: 'HELLO', font: 'Impact', size: 4, color: '#ffffff', outline: '#000000', outlineWidth: 0, x: 12, y: 30, rotation: 0, arc: 0, spacing: 0, shadow: false }] },
+    b: { base: { kind: 'paint', color: '#1f3a93', color2: '#4fa3e3', angle: 180, stain: 'walnut' }, pattern: { kind: 'none', color: '#f5f5f0', size: 3 }, elements: [] } });
+  cornhole.setOrder({ product: 'set', quantity: 1, finish: 'satin', bags: 'none', rush: false, carryCase: false, occasion: 'other', needBy: '', giftNote: '' });
+  cornhole.showTab('board');
   cornhole.paint();
 });
 
-/** The colour under a point given in inches on a board's preview canvas. */
-export const pixelAt = (page, key, x, y) => page.evaluate(([key, x, y]) => {
+/* The pixel readers below measure the ARTWORK: the selection outline and
+   its handles are white and navy too, so they are taken down for the
+   read and put back after. */
+const ART = `const __prev = cornhole.selected; if (__prev) cornhole.select(null); cornhole.paint();`;
+const BACK = `if (__prev) { cornhole.select(__prev); cornhole.paint(); }`;
+
+
+/** Client coordinates of a selected element's handle: 'resize' or 'rotate'. */
+export const handlePoint = (page, id, which) => page.evaluate(([id, which]) => {
   cornhole.paint();
+  const el = cornhole.activeBoard().elements.find((e) => e.id === id), box = cornhole.boxes.get(id);
+  const lx = which === 'resize' ? box.w / 2 + 0.15 : 0;
+  const ly = which === 'resize' ? box.h / 2 + 0.15 + box.oy : -box.h / 2 - 0.15 + box.oy - 0.9;
+  const a = el.rotation * Math.PI / 180;
+  const x = el.x + lx * Math.cos(a) - ly * Math.sin(a), y = el.y + lx * Math.sin(a) + ly * Math.cos(a);
+  const r = document.getElementById('canvasA').getBoundingClientRect();
+  return { x: r.left + x / 24 * r.width, y: r.top + y / 48 * r.height, bx: x, by: y };
+}, [id, which]);
+
+/** The colour under a point given in inches on a board's preview canvas. */
+export const pixelAt = (page, key, x, y) => page.evaluate(new Function('a', `const [key, x, y] = a; ${ART}
   const c = document.getElementById('canvas' + key.toUpperCase());
   const ppi = c.width / 24;
   const d = c.getContext('2d').getImageData(Math.round(x * ppi), Math.round(y * ppi), 1, 1).data;
-  return [d[0], d[1], d[2], d[3]];
-}, [key, x, y]);
+  ${BACK}
+  return [d[0], d[1], d[2], d[3]];`), [key, x, y]);
 
 /** How many pixels on a board's preview are exactly this colour. */
-export const count = (page, key, rgb) => page.evaluate(([key, rgb]) => {
-  cornhole.paint();
+export const count = (page, key, rgb) => page.evaluate(new Function('a', `const [key, rgb] = a; ${ART}
   const c = document.getElementById('canvas' + key.toUpperCase());
   const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
   let n = 0;
   for (let i = 0; i < d.length; i += 4) if (d[i] === rgb[0] && d[i + 1] === rgb[1] && d[i + 2] === rgb[2] && d[i + 3] === 255) n++;
-  return n;
-}, [key, rgb]);
+  ${BACK}
+  return n;`), [key, rgb]);
 
 /** Bounding box of pixels of one colour, in inches. */
-export const bounds = (page, key, rgb) => page.evaluate(([key, rgb]) => {
-  cornhole.paint();
+export const bounds = (page, key, rgb) => page.evaluate(new Function('a', `const [key, rgb] = a; ${ART}
   const c = document.getElementById('canvas' + key.toUpperCase());
   const W = c.width, H = c.height, ppi = W / 24;
   const d = c.getContext('2d').getImageData(0, 0, W, H).data;
@@ -62,8 +79,8 @@ export const bounds = (page, key, rgb) => page.evaluate(([key, rgb]) => {
       if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
     }
   }
-  return x1 < 0 ? null : { x0: x0 / ppi, y0: y0 / ppi, x1: x1 / ppi, y1: y1 / ppi, cx: (x0 + x1) / 2 / ppi, cy: (y0 + y1) / 2 / ppi };
-}, [key, rgb]);
+  ${BACK}
+  return x1 < 0 ? null : { x0: x0 / ppi, y0: y0 / ppi, x1: x1 / ppi, y1: y1 / ppi, cx: (x0 + x1) / 2 / ppi, cy: (y0 + y1) / 2 / ppi };`), [key, rgb]);
 
 /** Drive a range/colour/text input the way typing or dragging would. */
 export const setInput = (page, id, value) => page.evaluate(([id, value]) => {

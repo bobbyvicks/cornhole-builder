@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { open, reset, pixelAt, count, bounds, setInput, chip, clientPoint, WHITE, NAVY, RED, CREAM } from './helpers.js';
+import { open, reset, pixelAt, count, bounds, setInput, chip, clientPoint, handlePoint, WHITE, NAVY, RED, CREAM } from './helpers.js';
 
 test.describe('the designer', () => {
   test('loads clean and paints the default board: navy base, a hole, and white text', async ({ page }) => {
@@ -281,7 +281,8 @@ test.describe('the quote and the order', () => {
     await page.click('#checkout');
     await page.waitForURL(/order=success/);
     expect(posted).not.toBeNull();
-    expect(posted.options).toEqual({ product: 'set', quantity: 1, finish: 'satin', bags: 'regulation', rush: false, bagColors: ['#c8102e', '#1f3a93'] });
+    expect(posted.options).toEqual({ product: 'set', quantity: 1, finish: 'satin', bags: 'regulation', rush: false, bagColors: ['#c8102e', '#1f3a93'], carryCase: false, occasion: 'other', giftNote: '' });
+    expect(posted.options.needBy, 'no date, no field').toBeUndefined();
     expect(posted.customer).toEqual({ name: 'Pat Example', email: 'pat@example.com', phone: '' });
     expect(posted.shipping).toEqual({ line1: '1 Main St', line2: '', city: 'Austin', state: 'TX', postal: '78701', country: 'US' });
     expect(posted.design.a.elements[0].text).toBe('HELLO');
@@ -346,5 +347,303 @@ test.describe('the quote and the order', () => {
     expect(await page.textContent('#donetitle')).toContain('cancelled');
     expect(await page.textContent('#donebody')).toContain('CH-ABC234');
     expect(await page.textContent('#donebody')).toContain('No charge');
+  });
+});
+
+test.describe('templates, clip art and the richer tools', () => {
+  test('the Start tab offers the templates, and one click loads a design with its occasion', async ({ page }) => {
+    await open(page); await reset(page);
+    expect(await page.locator('#templates .tpl').count()).toBeGreaterThanOrEqual(10);
+    await page.evaluate(() => cornhole.showTab('templates'));
+    /* The design has one edit in its history after reset, so the template
+       asks before replacing it; the test answers yes. */
+    page.once('dialog', (d) => d.accept());
+    await page.click('#templates .tpl[data-id="wedding"]');
+    await page.waitForTimeout(150);
+    const d = await page.evaluate(() => cornhole.design);
+    expect(d.a.elements.length).toBeGreaterThan(3);
+    expect(d.a.elements.some((e) => e.type === 'clip' && e.name === 'laurel')).toBe(true);
+    expect(d.a.base.color).toBe('#fffaf0');
+    expect(await page.evaluate(() => cornhole.order.occasion)).toBe('wedding');
+    expect(await pixelAt(page, 'a', 12, 44)).toEqual([255, 250, 240, 255]);
+  });
+
+  test('every template renders without error and keeps its ink on the board', async ({ page }) => {
+    await open(page); await reset(page);
+    const ids = await page.evaluate(() => cornhole.TEMPLATES.map((t) => t.id));
+    for (const id of ids) {
+      await page.evaluate((id) => cornhole.applyTemplate(id), id);
+      const els = await page.evaluate(() => cornhole.design.a.elements);
+      for (const el of els) {
+        expect(el.x, id + ' ' + el.id + ' across').toBeGreaterThan(0); expect(el.x).toBeLessThan(24);
+        expect(el.y, id + ' ' + el.id + ' down').toBeGreaterThan(0); expect(el.y).toBeLessThan(48);
+      }
+    }
+  });
+
+  test('clip art: added in a colour, recoloured, outlined, flipped, and listed', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => { cornhole.activeBoard().elements = []; cornhole.render(); });
+    await page.evaluate(() => cornhole.addClip('heart', { color: '#ff0000', width: 10, x: 12, y: 30 }));
+    const red = await count(page, 'a', [255, 0, 0]);
+    expect(red).toBeGreaterThan(2000);
+    const b = await bounds(page, 'a', [255, 0, 0]);
+    expect(b.x1 - b.x0).toBeGreaterThan(8); expect(b.x1 - b.x0).toBeLessThan(10.5);
+    expect(Math.abs(b.cx - 12)).toBeLessThan(0.5);
+    await setInput(page, 'ccolor', '#00ff00');
+    expect(await count(page, 'a', [255, 0, 0])).toBe(0);
+    expect(await count(page, 'a', [0, 255, 0])).toBeGreaterThan(2000);
+    await setInput(page, 'coutline', '#000000');
+    await setInput(page, 'coutlinew', 0.3);
+    expect(await count(page, 'a', [0, 0, 0])).toBeGreaterThan(300);
+    expect(await page.locator('#images .item').count()).toBe(1);
+    expect(await page.textContent('#images .item .name')).toContain('Heart');
+    /* An asymmetric piece flips: the fish's tail is on the right, so a
+       point in the tail has ink before the flip and bare board after. */
+    await page.evaluate(() => cornhole.addClip('fish', { color: '#ff00ff', width: 10, x: 12, y: 10 }));
+    expect(await pixelAt(page, 'a', 16.2, 10)).toEqual([255, 0, 255, 255]);
+    await page.check('#cflip');
+    expect(await pixelAt(page, 'a', 16.2, 10)).toEqual([...NAVY, 255]);
+    expect(await pixelAt(page, 'a', 7.8, 10)).toEqual([255, 0, 255, 255]);
+  });
+
+  test('the clip art grid shows one category at a time and clicking a piece adds it', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => cornhole.showTab('art'));
+    const love = await page.locator('#clips .clip').count();
+    expect(love).toBeGreaterThan(8);
+    expect(await page.locator('#clips .clip[data-name="heart"]').count()).toBe(1);
+    await chip(page, 'clipcats', 'shape');
+    expect(await page.locator('#clips .clip[data-name="heart"]').count()).toBe(0);
+    expect(await page.locator('#clips .clip[data-name="circle"]').count()).toBe(1);
+    await page.click('#clips .clip[data-name="circle"]');
+    const el = await page.evaluate(() => cornhole.activeBoard().elements.find((e) => e.type === 'clip'));
+    expect(el.name).toBe('circle');
+    expect(await page.evaluate(() => cornhole.selected)).toBe(el.id);
+    expect(await page.isHidden('#cliponly')).toBe(false);
+    expect(await page.isHidden('#imageonly')).toBe(true);
+  });
+
+  test('every piece of clip art draws some ink', async ({ page }) => {
+    await open(page); await reset(page);
+    const names = await page.evaluate(() => Object.keys(cornhole.CLIPS));
+    for (const name of names) {
+      await page.evaluate((name) => { cornhole.activeBoard().elements = []; cornhole.addClip(name, { color: '#ff00ff', width: 12, x: 12, y: 30 }); }, name);
+      expect(await count(page, 'a', [255, 0, 255]), name).toBeGreaterThan(400);
+    }
+  });
+
+  test('curved text bends up or down and its box follows', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => { const t = cornhole.activeBoard().elements[0]; t.text = 'CURVED WORDS'; t.size = 2.5; cornhole.select('t1'); });
+    const straight = await page.evaluate(() => { cornhole.paint(); return { ...cornhole.boxes.get('t1') }; });
+    await setInput(page, 'tarc', 90);
+    const up = await page.evaluate(() => { cornhole.paint(); return { ...cornhole.boxes.get('t1') }; });
+    expect(up.h).toBeGreaterThan(straight.h + 1);
+    expect(up.oy).toBeGreaterThan(0.3);
+    /* The ends of an upward arch droop below the middle: ink spans well
+       below y = 30 and the middle letters stay near it. */
+    await page.evaluate(() => cornhole.select(null));
+    const ink = await bounds(page, 'a', WHITE);
+    expect(ink.y1).toBeGreaterThan(31.5);
+    await page.evaluate(() => cornhole.select('t1'));
+    await setInput(page, 'tarc', -90);
+    const down = await page.evaluate(() => { cornhole.paint(); return { ...cornhole.boxes.get('t1') }; });
+    expect(down.oy).toBeLessThan(-0.3);
+    await page.evaluate(() => cornhole.select(null));
+    const ink2 = await bounds(page, 'a', WHITE);
+    expect(ink2.y0).toBeLessThan(28.5);
+  });
+
+  test('letter spacing widens a word and a drop shadow adds dark pixels', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => { cornhole.select('t1'); cornhole.showTab('text'); });
+    const before = await bounds(page, 'a', WHITE);
+    await setInput(page, 'tspacing', 0.5);
+    await page.evaluate(() => cornhole.select(null));
+    const after = await bounds(page, 'a', WHITE);
+    expect(after.x1 - after.x0).toBeGreaterThan(before.x1 - before.x0 + 1.5);
+    const navyBefore = await count(page, 'a', NAVY);
+    await page.evaluate(() => cornhole.select('t1'));
+    await page.check('#tshadow');
+    await page.evaluate(() => cornhole.select(null));
+    expect(await count(page, 'a', NAVY), 'the shadow darkened some navy').toBeLessThan(navyBefore - 200);
+  });
+
+  test('a two-colour fade runs from one colour to the other', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => { cornhole.activeBoard().elements = []; });
+    await chip(page, 'basekind', 'gradient');
+    await setInput(page, 'paintcustom', '#ff0000');
+    await setInput(page, 'paint2', '#0000ff');
+    await setInput(page, 'gradangle', 180);
+    const top = await pixelAt(page, 'a', 2, 1), bottom = await pixelAt(page, 'a', 2, 47), mid = await pixelAt(page, 'a', 2, 24);
+    expect(top[0]).toBeGreaterThan(230); expect(top[2]).toBeLessThan(30);
+    expect(bottom[2]).toBeGreaterThan(230); expect(bottom[0]).toBeLessThan(30);
+    expect(Math.abs(mid[0] - mid[2])).toBeLessThan(40);
+    await setInput(page, 'gradangle', 90);
+    const left = await pixelAt(page, 'a', 1, 40), right = await pixelAt(page, 'a', 23, 40);
+    expect(left[0]).toBeGreaterThan(200); expect(right[2]).toBeGreaterThan(200);
+    expect(await page.isHidden('#gradopts')).toBe(false);
+  });
+
+  test('the new patterns put the pattern colour on the board without covering it', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => { cornhole.activeBoard().elements = []; });
+    await setInput(page, 'patcolor', '#ffffff');
+    const total = 480 * 960;
+    for (const kind of ['dots', 'diamonds', 'hearts', 'sunburst', 'bottom', 'right', 'cross']) {
+      await page.selectOption('#pattern', kind);
+      const white = await count(page, 'a', WHITE), navy = await count(page, 'a', NAVY);
+      expect(white, kind + ' draws').toBeGreaterThan(total * 0.02);
+      expect(navy, kind + ' leaves base').toBeGreaterThan(total * 0.2);
+    }
+    /* Buffalo check is translucent bands, so it tints rather than paints:
+       no pure white, but much less pure navy, and the crossings darker
+       than the single bands. */
+    await page.selectOption('#pattern', 'plaid');
+    expect(await count(page, 'a', WHITE)).toBe(0);
+    expect(await count(page, 'a', NAVY)).toBeLessThan(total * 0.4);
+    expect(await count(page, 'a', NAVY)).toBeGreaterThan(total * 0.1);
+    await page.selectOption('#pattern', 'bottom');
+    expect(await pixelAt(page, 'a', 12, 40)).toEqual([...WHITE, 255]);
+    expect(await pixelAt(page, 'a', 12, 20)).toEqual([...NAVY, 255]);
+  });
+
+  test('the corner handle resizes and the round handle rotates', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => cornhole.select('t1'));
+    const h = await handlePoint(page, 't1', 'resize');
+    const centre = await clientPoint(page, 'a', 12, 30);
+    await page.mouse.move(h.x, h.y); await page.mouse.down();
+    /* Pull the corner away from the centre to half again the distance. */
+    await page.mouse.move(centre.x + (h.x - centre.x) * 1.5, centre.y + (h.y - centre.y) * 1.5, { steps: 6 });
+    await page.mouse.up();
+    const size = await page.evaluate(() => cornhole.activeBoard().elements[0].size);
+    expect(size).toBeGreaterThan(5.4); expect(size).toBeLessThan(6.6);
+    expect(await page.evaluate(() => cornhole.selected), 'still selected').toBe('t1');
+    const r = await handlePoint(page, 't1', 'rotate');
+    await page.mouse.move(r.x, r.y); await page.mouse.down();
+    const right = await clientPoint(page, 'a', 22, 30);
+    await page.mouse.move(right.x, right.y, { steps: 6 });
+    await page.mouse.up();
+    expect(await page.evaluate(() => cornhole.activeBoard().elements[0].rotation)).toBe(90);
+    expect(await page.evaluate(() => cornhole.activeBoard().elements[0].x), 'rotating did not move it').toBe(12);
+  });
+
+  test('dragging near the centre line snaps to it', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => { cornhole.activeBoard().elements[0].x = 8; cornhole.paint(); });
+    const from = await clientPoint(page, 'a', 8, 30), to = await clientPoint(page, 'a', 11.8, 20.2);
+    await page.mouse.move(from.x, from.y); await page.mouse.down();
+    await page.mouse.move(to.x, to.y, { steps: 8 });
+    await page.mouse.up();
+    const el = await page.evaluate(() => cornhole.activeBoard().elements[0]);
+    expect(el.x).toBe(12);
+    expect(Math.abs(el.y - 20.2)).toBeLessThan(0.3);
+  });
+
+  test('duplicate, forward and back change the stack; + and - resize from the keyboard', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => cornhole.addClip('circle', { color: '#ff0000', width: 6, x: 12, y: 30 }));
+    await page.click('#idup');
+    const els = await page.evaluate(() => cornhole.activeBoard().elements.map((e) => ({ type: e.type, x: e.x })));
+    expect(els.length).toBe(3);
+    expect(els[2].x).toBe(13);
+    await page.evaluate(() => cornhole.select(cornhole.activeBoard().elements[1].id));
+    await page.click('#iback');
+    expect(await page.evaluate(() => cornhole.activeBoard().elements[0].type)).toBe('clip');
+    await page.click('#iforward');
+    expect(await page.evaluate(() => cornhole.activeBoard().elements[0].type)).toBe('text');
+    await page.evaluate(() => { document.activeElement && document.activeElement.blur(); });
+    const w0 = await page.evaluate(() => cornhole.activeBoard().elements.find((e) => e.id === cornhole.selected).width);
+    await page.keyboard.press('+');
+    await page.keyboard.press('+');
+    const w1 = await page.evaluate(() => cornhole.activeBoard().elements.find((e) => e.id === cornhole.selected).width);
+    expect(w1).toBeGreaterThan(w0);
+    await page.keyboard.press('-');
+    expect(await page.evaluate(() => cornhole.activeBoard().elements.find((e) => e.id === cornhole.selected).width)).toBeLessThan(w1);
+  });
+
+  test('a picture can be flipped, circle-cropped and have its white background removed', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => { cornhole.activeBoard().elements = []; });
+    /* A 400 x 400 picture: white, with a red square in its top-left quarter. */
+    const png = await page.evaluate(async () => {
+      const c = document.createElement('canvas'); c.width = 400; c.height = 400;
+      const g = c.getContext('2d'); g.fillStyle = '#ffffff'; g.fillRect(0, 0, 400, 400); g.fillStyle = '#ff0000'; g.fillRect(0, 0, 200, 200);
+      const b = await new Promise((r) => c.toBlob(r, 'image/png'));
+      return Array.from(new Uint8Array(await b.arrayBuffer()));
+    });
+    await page.setInputFiles('#addimage', { name: 'logo.png', mimeType: 'image/png', buffer: Buffer.from(png) });
+    await page.waitForFunction(() => cornhole.activeBoard().elements.some((e) => e.type === 'image'));
+    await page.waitForTimeout(300);
+    /* 10" wide at (12, 30): spans 7..17 across and 25..35 down. Red is the
+       top-left quarter, white the rest. */
+    expect(await pixelAt(page, 'a', 9, 27)).toEqual([255, 0, 0, 255]);
+    expect(await pixelAt(page, 'a', 15, 33)).toEqual([...WHITE, 255]);
+    await page.check('#iknockout');
+    await page.waitForTimeout(100);
+    expect(await pixelAt(page, 'a', 15, 33), 'white became the board').toEqual([...NAVY, 255]);
+    expect(await pixelAt(page, 'a', 9, 27), 'red stayed').toEqual([255, 0, 0, 255]);
+    await page.uncheck('#iknockout');
+    await page.check('#iflip');
+    await page.waitForTimeout(100);
+    expect(await pixelAt(page, 'a', 15, 27), 'red moved to the right').toEqual([255, 0, 0, 255]);
+    expect(await pixelAt(page, 'a', 9, 27)).toEqual([...WHITE, 255]);
+    await page.check('#icircle');
+    await page.waitForTimeout(100);
+    expect(await pixelAt(page, 'a', 7.3, 25.3), 'the corner is cropped away').toEqual([...NAVY, 255]);
+    expect(await pixelAt(page, 'a', 12, 30)).not.toEqual([...NAVY, 255]);
+  });
+
+  test('a design saved by the first version of the page loads with the new fields filled in', async ({ page }) => {
+    await open(page);
+    await page.evaluate(() => {
+      localStorage.setItem('cornhole.design.v1', JSON.stringify({ version: 1, same: true,
+        a: { base: { kind: 'paint', color: '#c8102e', stain: 'walnut' }, pattern: { kind: 'checker', color: '#ffffff', size: 3 },
+          elements: [{ type: 'text', id: 'old1', text: 'OLD', font: 'Anton', size: 4, color: '#ffffff', outline: '#000000', outlineWidth: 0, x: 12, y: 30, rotation: 0 },
+                     { type: 'image', id: 'old2', src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', width: 8, x: 12, y: 20, rotation: 0, opacity: 1 }] },
+        b: { base: { kind: 'paint', color: '#1f3a93', stain: 'walnut' }, pattern: { kind: 'none', color: '#f5f5f0', size: 3 }, elements: [] } }));
+    });
+    await page.reload();
+    await page.waitForFunction(() => window.cornhole && window.cornhole.design);
+    const d = await page.evaluate(() => cornhole.design);
+    expect(d.version).toBe(2);
+    expect(d.a.base.color).toBe('#c8102e');
+    expect(d.a.base.color2).toBeDefined();
+    expect(d.a.elements[0]).toMatchObject({ text: 'OLD', arc: 0, spacing: 0, shadow: false });
+    expect(d.a.elements[1]).toMatchObject({ flipH: false, circleCrop: false, knockout: false });
+    expect(await pixelAt(page, 'a', 1.5, 1.5)).toEqual([...WHITE, 255]);
+    /* And what the page sends is the version the server accepts. */
+    expect((await page.evaluate(() => cornhole.orderPayload())).design.version).toBe(2);
+  });
+
+  test('the order carries the occasion, the date, the gift note, the case and the guest-book finish', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => cornhole.showTab('order'));
+    await chip(page, 'finish', 'guestbook');
+    await page.check('#carrycase');
+    await page.selectOption('#occasion', 'wedding');
+    await setInput(page, 'needby', '2999-06-14');
+    await page.fill('#giftnote', 'Congratulations, both of you');
+    const expected = 24900 + 2000 + 3500 + 5900;
+    expect(await page.textContent('#headtotal')).toBe('$' + (expected / 100).toFixed(2));
+    await expect(page.locator('#needbyhint')).toContainText('Plenty of time');
+    await page.fill('#name', 'Pat Example'); await page.fill('#email', 'pat@example.com'); await page.fill('#line1', '1 Main St');
+    await page.fill('#city', 'Austin'); await page.selectOption('#state', 'TX'); await page.fill('#postal', '78701');
+    let posted = null;
+    await page.route('**/api/order', async (route) => {
+      posted = route.request().postDataJSON();
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 'CH-TEST03', url: null, total: expected, payment: 'invoice' }) });
+    });
+    await page.click('#checkout');
+    await expect(page.locator('#orderstatus')).toContainText('CH-TEST03');
+    expect(posted.options).toEqual({ product: 'set', quantity: 1, finish: 'guestbook', bags: 'none', rush: false, carryCase: true, occasion: 'wedding', needBy: '2999-06-14', giftNote: 'Congratulations, both of you' });
+    expect(posted.design.version).toBe(2);
+    /* A date too soon nudges toward rush. */
+    const soon = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
+    await setInput(page, 'needby', soon);
+    await expect(page.locator('#needbyhint')).toContainText('Rush');
   });
 });

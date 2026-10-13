@@ -7,7 +7,7 @@ test('a plain set is the set price plus first-unit shipping', () => {
   assert.equal(q.subtotal, PRICING.products.set.cents);
   assert.equal(q.shipping, PRICING.shipping.first);
   assert.equal(q.total, PRICING.products.set.cents + PRICING.shipping.first);
-  assert.deepEqual(q.options, { product: 'set', quantity: 1, finish: 'satin', bags: 'none', rush: false });
+  assert.deepEqual(q.options, { product: 'set', quantity: 1, finish: 'satin', bags: 'none', rush: false, carryCase: false });
 });
 
 test('every option adds its own line, per unit, and rush once', () => {
@@ -21,6 +21,14 @@ test('every option adds its own line, per unit, and rush once', () => {
   assert.equal(q.shipping, PRICING.shipping.first + 2 * PRICING.shipping.additional);
   assert.equal(q.total, q.lines.reduce((n, l) => n + l.cents, 0));
   for (const l of q.lines) assert.equal(l.cents, l.unit * l.qty, l.label + ' line does not equal unit x qty');
+});
+
+test('the carrying case is per unit and the guest-book finish is a finish', () => {
+  const q = quote({ product: 'set', quantity: 2, finish: 'guestbook', carryCase: true });
+  const by = Object.fromEntries(q.lines.map((l) => [l.label, l]));
+  assert.equal(by[PRICING.carryCase.label].cents, 2 * PRICING.carryCase.cents);
+  assert.equal(by[PRICING.finishes.guestbook.label].cents, 2 * PRICING.finishes.guestbook.cents);
+  assert.equal(quote({ product: 'set', quantity: 1, carryCase: 'yes' }).options.carryCase, false);
 });
 
 test('free options do not produce a zero line', () => {

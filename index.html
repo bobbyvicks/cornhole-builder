@@ -4,15 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cornhole Board Builder</title>
-<meta name="description" content="Design your own regulation cornhole boards - colours, patterns, text and your logo - see them live, and order the set.">
+<meta name="description" content="Design your own regulation cornhole boards for the backyard, the tailgate or the wedding - colours, patterns, fonts, clip art and your own pictures - see them live, and order the set.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo+Black&family=Bangers&family=Lobster&family=Oswald:wght@700&family=Pacifico&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo+Black&family=Bangers&family=Bebas+Neue&family=Oswald:wght@700&family=Alfa+Slab+One&family=Black+Ops+One&family=Bungee&family=Righteous&family=Luckiest+Guy&family=Permanent+Marker&family=Rye&family=Special+Elite&family=Pacifico&family=Lobster&family=Great+Vibes&family=Dancing+Script:wght@700&family=Satisfy&family=Parisienne&family=Allura&family=Sacramento&family=Kaushan+Script&family=Courgette&family=Tangerine:wght@700&family=Playfair+Display:wght@700&family=Cinzel:wght@700&family=Cormorant+Garamond:wght@600&family=Libre+Baskerville:wght@700&family=Abril+Fatface&family=Montserrat:wght@800&family=Poppins:wght@700&family=Raleway:wght@800&family=Fredoka:wght@700&family=Chewy&family=Monoton&family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #f4f1ea; --panel: #ffffff; --ink: #1d1b18; --muted: #6b655c; --line: #e3ddd2;
     --accent: #1f3a93; --accent-ink: #ffffff; --ok: #1f7a3a; --warn: #a3540b; --bad: #b3261e;
-    --radius: 12px; --shadow: 0 10px 30px rgba(40, 30, 10, .12);
+    --radius: 12px;
   }
   * { box-sizing: border-box; }
   /* The attribute wins over any display rule, or a flex row marked hidden
@@ -22,7 +22,7 @@
   button, input, select, textarea { font: inherit; color: inherit; }
   h1, h2, h3 { margin: 0; line-height: 1.15; }
   a { color: var(--accent); }
-  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 16px; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 0 16px; }
 
   header.top { background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
   header.top .wrap { display: flex; align-items: center; justify-content: space-between; min-height: 60px; gap: 16px; }
@@ -34,7 +34,7 @@
 
   .hero { padding: 28px 0 10px; }
   .hero h1 { font-size: clamp(26px, 4vw, 40px); font-weight: 800; }
-  .hero p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
+  .hero p { margin: 8px 0 0; color: var(--muted); max-width: 64ch; }
 
   #done { margin: 18px auto 0; background: var(--panel); border: 1px solid var(--line); border-left: 6px solid var(--ok); border-radius: var(--radius); padding: 18px 20px; }
   #done.cancelled { border-left-color: var(--warn); }
@@ -42,11 +42,11 @@
   #done p { margin: 4px 0; }
   #done code { background: var(--bg); padding: 2px 8px; border-radius: 6px; font-weight: 700; }
 
-  .builder { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 20px; padding: 18px 0 40px; align-items: start; }
-  @media (max-width: 920px) { .builder { grid-template-columns: 1fr; } }
+  .builder { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 20px; padding: 18px 0 40px; align-items: start; }
+  @media (max-width: 940px) { .builder { grid-template-columns: 1fr; } }
 
   .stage { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; position: sticky; top: 72px; }
-  @media (max-width: 920px) { .stage { position: static; } }
+  @media (max-width: 940px) { .stage { position: static; } }
   .boards { display: flex; gap: 24px; justify-content: center; align-items: flex-start; flex-wrap: wrap; padding: 12px 0 4px; }
   .board { display: flex; flex-direction: column; align-items: center; gap: 8px; width: min(100%, 260px); flex: 1 1 200px; max-width: 300px; }
   .board canvas { width: 100%; aspect-ratio: 1 / 2; display: block; border-radius: 6px; box-shadow: 0 14px 28px rgba(30, 20, 5, .25), 0 2px 4px rgba(0,0,0,.2); cursor: grab; touch-action: none; background: #ccc; }
@@ -68,7 +68,7 @@
 
   .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
   .tabs { display: flex; border-bottom: 1px solid var(--line); background: #faf8f4; }
-  .tabs button { flex: 1; border: 0; background: transparent; padding: 12px 6px; font-weight: 700; color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; }
+  .tabs button { flex: 1; border: 0; background: transparent; padding: 12px 4px; font-weight: 700; color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; font-size: 14px; }
   .tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); background: var(--panel); }
   .pane { padding: 16px; display: none; }
   .pane[data-open="true"] { display: block; }
@@ -76,29 +76,45 @@
   .pane h3:first-child { margin-top: 0; }
   .row { display: flex; gap: 10px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
   .row label { min-width: 84px; font-weight: 600; font-size: 13.5px; }
-  .row input[type=range] { flex: 1; min-width: 120px; }
+  .row label.auto { min-width: 0; }
+  .row input[type=range] { flex: 1; min-width: 110px; }
   .row .val { width: 54px; text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); }
-  .row input[type=text], .row input[type=number], .row select, .row textarea { flex: 1; min-width: 100px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #fff; }
+  .row input[type=text], .row input[type=number], .row input[type=date], .row select, .row textarea { flex: 1; min-width: 100px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #fff; }
   input[type=color] { width: 36px; height: 32px; border: 1px solid var(--line); border-radius: 8px; padding: 2px; background: #fff; cursor: pointer; }
+  .toggles { display: flex; gap: 12px; flex-wrap: wrap; font-size: 13.5px; }
+  .toggles label { font-weight: 600; }
 
   .chips { display: flex; gap: 6px; flex-wrap: wrap; }
   .chip { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 6px 12px; cursor: pointer; font-weight: 600; font-size: 13.5px; }
   .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .chip small { font-weight: 500; opacity: .8; }
 
-  .swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
-  .sw { aspect-ratio: 1; border-radius: 8px; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
+  .swatches { display: grid; grid-template-columns: repeat(10, 1fr); gap: 5px; }
+  .swlabel { font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
+  .sw { aspect-ratio: 1; border-radius: 7px; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
   .sw[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--accent); }
   .stain { background-image: repeating-linear-gradient(100deg, rgba(0,0,0,.08) 0 2px, transparent 2px 7px); }
+  .stains { grid-template-columns: repeat(6, 1fr); }
 
   .items { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
   .item { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: #fff; cursor: pointer; text-align: left; }
   .item[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-  .item .thumb { width: 28px; height: 28px; border-radius: 6px; background: #eee center/cover no-repeat; flex: none; }
+  .item .thumb { width: 28px; height: 28px; border-radius: 6px; background: #eee center/contain no-repeat; flex: none; }
   .item .name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .props { border-top: 1px dashed var(--line); padding-top: 8px; margin-top: 8px; }
-  .props[hidden] { display: none; }
   .empty { color: var(--muted); font-size: 13.5px; padding: 6px 0; }
+
+  .templates { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .tpl { border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 8px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .tpl:hover { border-color: var(--accent); }
+  .tpl canvas { width: 64px; height: 128px; border-radius: 4px; box-shadow: 0 3px 8px rgba(0,0,0,.2); }
+  .tpl span { font-size: 12.5px; font-weight: 600; text-align: center; }
+
+  .clipcats { margin-bottom: 8px; }
+  .clips { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .clip { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 4px; cursor: pointer; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; }
+  .clip:hover { border-color: var(--accent); background: #faf8f4; }
+  .clip canvas { width: 100%; height: 100%; }
 
   table.quote { width: 100%; border-collapse: collapse; margin: 6px 0 10px; font-size: 14px; }
   table.quote td { padding: 5px 0; border-bottom: 1px solid var(--line); }
@@ -142,7 +158,7 @@
 <main class="wrap">
   <section class="hero">
     <h1>Design your own cornhole boards.</h1>
-    <p>Regulation 2' x 4' boards, built from Baltic birch and finished by hand. Pick your colours, add text and your logo, watch it come together live, then order the set.</p>
+    <p>Regulation 2' x 4' boards, built from Baltic birch and finished by hand. For the backyard, the tailgate, the big day: start from a template or a blank board, add your words, your colours, clip art and pictures, and order the set.</p>
   </section>
 
   <section id="done" hidden>
@@ -172,21 +188,28 @@
           <button class="btn small" id="download" title="A 2400 x 4800 PNG at 100 pixels per inch">Download print file</button>
         </div>
       </div>
-      <p class="hint" id="stagehint">Drag text and logos on the board. Arrow keys nudge the selected item; Delete removes it.</p>
+      <p class="hint" id="stagehint">Drag anything on the board. Pull the corner square to resize and the round handle to rotate. Arrow keys nudge, + and - resize, Delete removes.</p>
     </section>
 
     <aside class="panel" aria-label="Design options">
       <div class="tabs" role="tablist">
-        <button role="tab" data-tab="board" aria-selected="true">Board</button>
+        <button role="tab" data-tab="templates" aria-selected="true">Start</button>
+        <button role="tab" data-tab="board" aria-selected="false">Board</button>
         <button role="tab" data-tab="text" aria-selected="false">Text</button>
-        <button role="tab" data-tab="logo" aria-selected="false">Logo</button>
+        <button role="tab" data-tab="art" aria-selected="false">Art</button>
         <button role="tab" data-tab="order" aria-selected="false">Order</button>
       </div>
 
-      <div class="pane" id="tab-board" data-open="true">
+      <div class="pane" id="tab-templates" data-open="true">
+        <h3>Start from a template</h3>
+        <div class="templates" id="templates"></div>
+        <p class="hint" style="margin-top:10px">Every word, colour and picture on a template can be changed. Or skip this and build from the Board tab.</p>
+      </div>
+
+      <div class="pane" id="tab-board" data-open="false">
         <h3>Boards</h3>
         <div class="row" id="samerow">
-          <label for="same" style="min-width:0">
+          <label for="same" class="auto">
             <input type="checkbox" id="same" checked> Same design on both boards
           </label>
         </div>
@@ -201,54 +224,94 @@
         <h3>Base</h3>
         <div class="chips" id="basekind">
           <button class="chip" data-v="paint" aria-pressed="true">Painted</button>
+          <button class="chip" data-v="gradient" aria-pressed="false">Two-colour fade</button>
           <button class="chip" data-v="wood" aria-pressed="false">Stained wood</button>
         </div>
         <div id="paintopts" style="margin-top:10px">
+          <div class="swlabel">Classic</div>
           <div class="swatches" id="paints"></div>
+          <div class="swlabel">Wedding and soft</div>
+          <div class="swatches" id="paints2"></div>
           <div class="row"><label for="paintcustom">Custom</label><input type="color" id="paintcustom" value="#1f3a93"><span class="val" id="paintval">#1f3a93</span></div>
+          <div class="row" id="gradopts" hidden>
+            <label for="paint2">Fades to</label><input type="color" id="paint2" value="#4fa3e3">
+            <label for="gradangle" class="auto">Angle</label><input type="range" id="gradangle" min="0" max="360" step="15" value="180"><span class="val" id="gradangleval">180°</span>
+          </div>
         </div>
         <div id="woodopts" hidden style="margin-top:10px">
-          <div class="swatches" id="stains"></div>
+          <div class="swatches stains" id="stains"></div>
         </div>
 
         <h3>Pattern</h3>
         <div class="row"><label for="pattern">Style</label><select id="pattern"></select></div>
         <div class="row" id="patternopts">
           <label for="patcolor">Colour</label><input type="color" id="patcolor" value="#f5f5f0">
-          <label for="patsize" style="min-width:0">Size</label><input type="range" id="patsize" min="0.5" max="12" step="0.5" value="3"><span class="val" id="patsizeval">3"</span>
+          <label for="patsize" class="auto">Size</label><input type="range" id="patsize" min="0.5" max="12" step="0.5" value="3"><span class="val" id="patsizeval">3"</span>
         </div>
       </div>
 
       <div class="pane" id="tab-text" data-open="false">
-        <h3>Text on <span class="activename">board A</span></h3>
+        <h3>Text on <span class="activename">your board</span></h3>
         <div class="items" id="texts"></div>
         <button class="btn" id="addtext">+ Add text</button>
         <div class="props" id="textprops" hidden>
           <div class="row"><label for="ttext">Text</label><input type="text" id="ttext" maxlength="60"></div>
           <div class="row"><label for="tfont">Font</label><select id="tfont"></select></div>
           <div class="row"><label for="tsize">Size</label><input type="range" id="tsize" min="0.5" max="16" step="0.25"><span class="val" id="tsizeval"></span></div>
-          <div class="row"><label for="tcolor">Colour</label><input type="color" id="tcolor"><label for="toutline" style="min-width:0">Outline</label><input type="color" id="toutline"><input type="range" id="toutlinew" min="0" max="0.5" step="0.025" style="min-width:80px"><span class="val" id="toutlinewval"></span></div>
+          <div class="row"><label for="tcolor">Colour</label><input type="color" id="tcolor"><label for="toutline" class="auto">Outline</label><input type="color" id="toutline"><input type="range" id="toutlinew" min="0" max="0.5" step="0.025" style="min-width:70px"><span class="val" id="toutlinewval"></span></div>
+          <div class="row"><label for="tarc">Curve</label><input type="range" id="tarc" min="-180" max="180" step="5"><span class="val" id="tarcval"></span></div>
+          <div class="row"><label for="tspacing">Spacing</label><input type="range" id="tspacing" min="-0.2" max="1.5" step="0.05"><span class="val" id="tspacingval"></span></div>
           <div class="row"><label for="trot">Rotate</label><input type="range" id="trot" min="-180" max="180" step="1"><span class="val" id="trotval"></span></div>
           <div class="row"><label for="tx">Across</label><input type="range" id="tx" min="0" max="24" step="0.1"><span class="val" id="txval"></span></div>
           <div class="row"><label for="ty">Down</label><input type="range" id="ty" min="0" max="48" step="0.1"><span class="val" id="tyval"></span></div>
-          <div class="row"><button class="btn small danger" id="tdel">Remove</button><button class="btn small" id="tcopy" title="Put a copy of this on the other board">Copy to other board</button></div>
+          <div class="row toggles"><label><input type="checkbox" id="tshadow"> Drop shadow</label></div>
+          <div class="row">
+            <button class="btn small" id="tforward" title="Bring forward">Forward</button>
+            <button class="btn small" id="tback" title="Send back">Back</button>
+            <button class="btn small" id="tdup">Duplicate</button>
+            <button class="btn small" id="tcopy" title="Put a copy of this on the other board">To other board</button>
+            <button class="btn small danger" id="tdel">Remove</button>
+          </div>
         </div>
       </div>
 
-      <div class="pane" id="tab-logo" data-open="false">
-        <h3>Logos and pictures on <span class="activename">board A</span></h3>
+      <div class="pane" id="tab-art" data-open="false">
+        <h3>On <span class="activename">your board</span></h3>
         <div class="items" id="images"></div>
-        <label class="btn" for="addimage" style="display:inline-block">+ Add an image</label>
-        <input type="file" id="addimage" class="sr" accept="image/png,image/jpeg,image/webp,image/svg+xml">
-        <p class="hint">PNG with transparency looks best. We print whatever you upload at this size, so send the biggest file you have. Up to 4 per board.</p>
         <div class="props" id="imageprops" hidden>
           <div class="row"><label for="iwidth">Width</label><input type="range" id="iwidth" min="1" max="24" step="0.25"><span class="val" id="iwidthval"></span></div>
           <div class="row"><label for="irot">Rotate</label><input type="range" id="irot" min="-180" max="180" step="1"><span class="val" id="irotval"></span></div>
           <div class="row"><label for="iopacity">Opacity</label><input type="range" id="iopacity" min="0.1" max="1" step="0.05"><span class="val" id="iopacityval"></span></div>
           <div class="row"><label for="ix">Across</label><input type="range" id="ix" min="0" max="24" step="0.1"><span class="val" id="ixval"></span></div>
           <div class="row"><label for="iy">Down</label><input type="range" id="iy" min="0" max="48" step="0.1"><span class="val" id="iyval"></span></div>
-          <div class="row"><button class="btn small danger" id="idel">Remove</button><button class="btn small" id="icopy">Copy to other board</button></div>
+          <div class="row toggles" id="imageonly">
+            <label><input type="checkbox" id="iflip"> Flip</label>
+            <label><input type="checkbox" id="icircle"> Circle crop</label>
+            <label><input type="checkbox" id="iknockout"> Remove white background</label>
+          </div>
+          <div class="row" id="cliponly">
+            <label for="ccolor">Colour</label><input type="color" id="ccolor">
+            <label for="coutline" class="auto">Outline</label><input type="color" id="coutline"><input type="range" id="coutlinew" min="0" max="0.5" step="0.025" style="min-width:70px"><span class="val" id="coutlinewval"></span>
+            <label class="auto"><input type="checkbox" id="cflip"> Flip</label>
+          </div>
+          <div class="row">
+            <button class="btn small" id="iforward" title="Bring forward">Forward</button>
+            <button class="btn small" id="iback" title="Send back">Back</button>
+            <button class="btn small" id="idup">Duplicate</button>
+            <button class="btn small" id="icopy">To other board</button>
+            <button class="btn small danger" id="idel">Remove</button>
+          </div>
         </div>
+
+        <h3>Your pictures</h3>
+        <label class="btn" for="addimage" style="display:inline-block">+ Add a picture or logo</label>
+        <input type="file" id="addimage" class="sr" accept="image/png,image/jpeg,image/webp,image/svg+xml">
+        <p class="hint">PNG with transparency looks best; for a logo on white, tick "Remove white background" after adding it. We print what you upload at the size you set, so send the biggest file you have. Up to 4 per board.</p>
+
+        <h3>Clip art</h3>
+        <div class="chips clipcats" id="clipcats"></div>
+        <div class="clips" id="clips"></div>
+        <p class="hint" style="margin-top:8px">Clip art is drawn as vectors, so it prints razor-sharp at any size, in any colour.</p>
       </div>
 
       <div class="pane" id="tab-order" data-open="false">
@@ -257,14 +320,24 @@
         <div class="row" style="margin-top:10px"><label for="qty">Quantity</label><input type="number" id="qty" min="1" max="10" value="1" style="max-width:90px"></div>
         <h3>Finish</h3>
         <div class="chips" id="finish"></div>
-        <h3>Bags</h3>
+        <p class="hint" id="finishhint"></p>
+        <h3>Extras</h3>
         <div class="chips" id="bags"></div>
         <div class="row" id="bagcolors" hidden>
           <label>Bag colours</label>
           <input type="color" id="bag1" value="#c8102e"> <input type="color" id="bag2" value="#1f3a93">
           <span class="hint">4 of each</span>
         </div>
-        <div class="row"><label for="rush" style="min-width:0"><input type="checkbox" id="rush"> <span id="rushlabel"></span></label></div>
+        <div class="row toggles">
+          <label><input type="checkbox" id="carrycase"> <span id="caselabel"></span></label>
+        </div>
+        <div class="row toggles"><label><input type="checkbox" id="rush"> <span id="rushlabel"></span></label></div>
+
+        <h3>The occasion</h3>
+        <div class="row"><label for="occasion">It's for</label><select id="occasion"></select></div>
+        <div class="row"><label for="needby">Needed by</label><input type="date" id="needby"><span class="hint">optional</span></div>
+        <p class="hint" id="needbyhint"></p>
+        <div class="row"><label for="giftnote">Gift note</label><input type="text" id="giftnote" maxlength="300" placeholder="Printed on a card in the box (optional)"></div>
 
         <h3>Price</h3>
         <table class="quote" id="quote"></table>
@@ -293,9 +366,9 @@
   <section class="how" id="how">
     <h2>How it works</h2>
     <div class="steps">
-      <div class="step"><b>1. Design it</b><p>Pick a painted or stained base, a pattern, your words in your font, and your logo. What you see is what we print.</p></div>
-      <div class="step"><b>2. We build it</b><p>Regulation 24" x 48" boards, 3/4" Baltic birch tops on a solid frame, folding legs, 6" hole 9" from the top. Your design is printed and sealed under a clear coat.</p></div>
-      <div class="step"><b>3. It ships</b><p>Built to order in about three weeks (or five business days with the rush option) and shipped freight to your door.</p></div>
+      <div class="step"><b>1. Design it</b><p>Pick a template or a blank board. Colours, fades and wood stains, patterns, 35 fonts, curved text, clip art and your own pictures. What you see is what we print.</p></div>
+      <div class="step"><b>2. We build it</b><p>Regulation 24" x 48" boards, 3/4" Baltic birch tops on a solid frame, folding legs, 6" hole 9" from the top. Your design is printed and sealed under a clear coat - or a matte guest-book finish your wedding guests can sign.</p></div>
+      <div class="step"><b>3. It ships</b><p>Built to order in about three weeks (five business days with the rush option) and shipped freight to your door. Tell us the date you need it by and we plan around it.</p></div>
     </div>
   </section>
 </main>
@@ -312,9 +385,12 @@ import { PRICING, quote, money } from './lib/price.mjs';
    ==================================================================== */
 const BOARD = Object.freeze({ w: 24, h: 48, hole: { d: 6, cy: 9 }, radius: 0.6 });
 const PRINT_PPI = 100;
+const DESIGN_VERSION = 2;
 
-const PAINTS = ['#1f3a93', '#1e5bc6', '#4fa3e3', '#0f8b8d', '#1f7a3a', '#7ac943', '#f2b705', '#ffe44d',
-                '#f26b1d', '#c8102e', '#6b1d2b', '#e75480', '#5b2a86', '#8d8d8d', '#111111', '#f5f5f0'];
+const PAINTS = ['#1f3a93', '#1e5bc6', '#4fa3e3', '#0f8b8d', '#1f7a3a', '#7ac943', '#f2b705', '#ffe44d', '#f26b1d', '#c8102e',
+                '#6b1d2b', '#e75480', '#5b2a86', '#8d8d8d', '#36393b', '#111111', '#f5f5f0', '#ffffff', '#0b1b3a', '#2e7d32'];
+const PAINTS_SOFT = ['#f4c2c2', '#d8a1a6', '#b48ea0', '#c9b7dc', '#9caf88', '#6b8f71', '#8fa9c4', '#5d7a8c', '#f1e3c6', '#fffaf0',
+                     '#f5f0e6', '#b8a089', '#6e1423', '#0f6b4a', '#1f4d2e', '#c66a47', '#d4a017', '#b87333', '#d8b25c', '#c0c0c0'];
 const STAINS = {
   natural: { label: 'Natural', color: '#dcb98a', grain: '#8a5a2b' },
   honey:   { label: 'Honey',   color: '#c68f4a', grain: '#6e4414' },
@@ -323,52 +399,280 @@ const STAINS = {
   grey:    { label: 'Driftwood', color: '#8d8a82', grain: '#4c4943' },
   ebony:   { label: 'Ebony',   color: '#2b2622', grain: '#0d0b0a' },
 };
-const FONTS = ['Anton', 'Archivo Black', 'Bangers', 'Lobster', 'Oswald', 'Pacifico', 'Impact', 'Georgia'];
+/* Every family in the <link> above, with the weight that was loaded, so
+   the canvas asks for the face that exists rather than a synthesised one. */
+const FONTS = [
+  ['Bold and sporty', [['Anton', 400], ['Archivo Black', 400], ['Bebas Neue', 400], ['Oswald', 700], ['Alfa Slab One', 400], ['Black Ops One', 400], ['Bungee', 400], ['Righteous', 400], ['Impact', 400]]],
+  ['Script and wedding', [['Great Vibes', 400], ['Parisienne', 400], ['Allura', 400], ['Sacramento', 400], ['Tangerine', 700], ['Dancing Script', 700], ['Satisfy', 400], ['Pacifico', 400], ['Lobster', 400], ['Kaushan Script', 400], ['Courgette', 400]]],
+  ['Elegant serif', [['Playfair Display', 700], ['Cinzel', 700], ['Cormorant Garamond', 600], ['Libre Baskerville', 700], ['Abril Fatface', 400], ['Georgia', 700]]],
+  ['Modern', [['Montserrat', 800], ['Poppins', 700], ['Raleway', 800], ['Fredoka', 700]]],
+  ['Fun', [['Bangers', 400], ['Luckiest Guy', 400], ['Permanent Marker', 400], ['Chewy', 400], ['Rye', 400], ['Special Elite', 400], ['Monoton', 400], ['Press Start 2P', 400]]],
+];
+const FONT_WEIGHT = Object.fromEntries(FONTS.flatMap(([, fs]) => fs));
 const PATTERNS = {
-  none: 'None', top: 'Top half', left: 'Left half', diagonal: 'Diagonal split', stripes: 'Stripes',
-  vstripes: 'Vertical stripes', dstripes: 'Diagonal stripes', border: 'Border', checker: 'Checkerboard',
-  chevron: 'Chevrons', rings: 'Rings around the hole',
+  none: 'None', top: 'Top half', bottom: 'Bottom half', left: 'Left half', right: 'Right half', diagonal: 'Diagonal split',
+  stripes: 'Stripes', vstripes: 'Vertical stripes', dstripes: 'Diagonal stripes', border: 'Border', checker: 'Checkerboard',
+  plaid: 'Buffalo check', dots: 'Polka dots', diamonds: 'Diamonds', hearts: 'Hearts', chevron: 'Chevrons',
+  rings: 'Rings around the hole', sunburst: 'Sunburst from the hole', cross: 'Cross',
 };
+const OCCASIONS = { wedding: 'A wedding', anniversary: 'An anniversary', birthday: 'A birthday', family: 'The family', business: 'A business', team: 'A team or school', holiday: 'A holiday', other: 'Just because' };
 const US_STATES = 'AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY'.split(' ');
-const MAX_IMAGES = 4, MAX_TEXTS = 8, MAX_IMAGE_BYTES = 1_500_000;
+const MAX_IMAGES = 4, MAX_TEXTS = 10, MAX_CLIPS = 12, MAX_IMAGE_BYTES = 1_500_000;
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const uid = () => 'e' + Math.random().toString(36).slice(2, 8);
+const rad = (d) => d * Math.PI / 180;
+const r1 = (v) => Math.round(v * 10) / 10;
+
+/* ====================================================================
+   CLIP ART. Each piece is drawn into a 100 x 100 box, centred on (50,50),
+   as vector paths: it is scaled to inches at render time, so it is as
+   sharp on the 2400 x 4800 print file as in the preview. `aspect` is the
+   ink's height over its width, for the hit box. `mode: 'stroke'` pieces
+   are drawn as a line of width `lw` instead of filled.
+   ==================================================================== */
+const poly = (p, pts) => { pts.forEach(([x, y], i) => (i ? p.lineTo(x, y) : p.moveTo(x, y))); p.closePath(); };
+const circle = (p, cx, cy, r, ccw = false) => { p.moveTo(cx + r, cy); p.arc(cx, cy, r, 0, Math.PI * 2, ccw); p.closePath(); };
+const ring = (p, cx, cy, ro, ri) => { circle(p, cx, cy, ro); circle(p, cx, cy, ri, true); };
+const ellipse = (p, cx, cy, rx, ry, rot = 0) => { p.moveTo(cx + rx * Math.cos(rot), cy + rx * Math.sin(rot)); p.ellipse(cx, cy, rx, ry, rot, 0, Math.PI * 2); p.closePath(); };
+const rrect = (p, x, y, w, h, r) => { p.roundRect(x, y, w, h, r); };
+const rect = (p, x, y, w, h) => poly(p, [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]);
+const star = (p, cx, cy, ro, ri, n = 5, rot = -90) => { const pts = []; for (let i = 0; i < n * 2; i++) { const a = rad(rot + i * 180 / n), r = i % 2 ? ri : ro; pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); } poly(p, pts); };
+const ngon = (p, cx, cy, r, n, rot = -90) => { const pts = []; for (let i = 0; i < n; i++) { const a = rad(rot + i * 360 / n); pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); } poly(p, pts); };
+const rotPts = (pts, cx, cy, deg) => { const a = rad(deg), c = Math.cos(a), s = Math.sin(a); return pts.map(([x, y]) => [cx + (x - cx) * c - (y - cy) * s, cy + (x - cx) * s + (y - cy) * c]); };
+function heart(p, cx, cy, s) {
+  const X = (x) => cx + (x - 50) * s, Y = (y) => cy + (y - 50) * s;
+  p.moveTo(X(50), Y(90));
+  p.bezierCurveTo(X(18), Y(66), X(4), Y(46), X(4), Y(30)); p.bezierCurveTo(X(4), Y(13), X(18), Y(5), X(31), Y(5));
+  p.bezierCurveTo(X(41), Y(5), X(48), Y(12), X(50), Y(20)); p.bezierCurveTo(X(52), Y(12), X(59), Y(5), X(69), Y(5));
+  p.bezierCurveTo(X(82), Y(5), X(96), Y(13), X(96), Y(30)); p.bezierCurveTo(X(96), Y(46), X(82), Y(66), X(50), Y(90));
+  p.closePath();
+}
+/* The part of circle 1 that lies outside circle 2: the two circles'
+   intersection points, then the outer arc of one and the inner arc of
+   the other, each direction chosen by testing its midpoint. */
+function crescent(p, c1, r1_, c2, r2) {
+  const dx = c2[0] - c1[0], dy = c2[1] - c1[1], d = Math.hypot(dx, dy);
+  const a = (r1_ * r1_ - r2 * r2 + d * d) / (2 * d), h = Math.sqrt(Math.max(0, r1_ * r1_ - a * a));
+  const mx = c1[0] + a * dx / d, my = c1[1] + a * dy / d;
+  const i1 = [mx + h * dy / d, my - h * dx / d], i2 = [mx - h * dy / d, my + h * dx / d];
+  const ang = (c, q) => Math.atan2(q[1] - c[1], q[0] - c[0]);
+  const mid = (a1, a2, ccw) => ccw ? a1 - ((a1 - a2 + Math.PI * 2) % (Math.PI * 2)) / 2 : a1 + ((a2 - a1 + Math.PI * 2) % (Math.PI * 2)) / 2;
+  const pt = (c, r, t) => [c[0] + r * Math.cos(t), c[1] + r * Math.sin(t)];
+  const a1 = ang(c1, i1), a2 = ang(c1, i2);
+  const ccw1 = Math.hypot(...[pt(c1, r1_, mid(a1, a2, true))].map((q) => q[0] - c2[0])) === 0 ? false
+    : (Math.hypot(pt(c1, r1_, mid(a1, a2, true))[0] - c2[0], pt(c1, r1_, mid(a1, a2, true))[1] - c2[1]) > r2);
+  const b2 = ang(c2, i2), b1 = ang(c2, i1);
+  const ccw2 = Math.hypot(pt(c2, r2, mid(b2, b1, true))[0] - c1[0], pt(c2, r2, mid(b2, b1, true))[1] - c1[1]) < r1_;
+  p.moveTo(i1[0], i1[1]);
+  p.arc(c1[0], c1[1], r1_, a1, a2, ccw1);
+  p.arc(c2[0], c2[1], r2, b2, b1, ccw2);
+  p.closePath();
+}
+function flute(p, cx, tilt) {
+  const pivot = [cx, 80];
+  poly(p, rotPts([[cx - 8, 8], [cx + 8, 8], [cx + 4, 46], [cx - 4, 46]], ...pivot, tilt));
+  poly(p, rotPts([[cx - 1.6, 46], [cx + 1.6, 46], [cx + 1.6, 81], [cx - 1.6, 81]], ...pivot, tilt));
+  const [bx, by] = rotPts([[cx, 84]], ...pivot, tilt)[0];
+  ellipse(p, bx, by, 11, 3.5, rad(tilt));
+}
+function laurel(p) {
+  for (const side of [-1, 1]) for (let i = 0; i < 9; i++) {
+    const t = rad(90 + side * (12 + i * 16.5)), r = 34 + (i % 2 ? 2.5 : -2.5);
+    ellipse(p, 50 + r * Math.cos(t), 52 + r * Math.sin(t), 9, 4, t + Math.PI / 2);
+  }
+}
+function sun(p) {
+  circle(p, 50, 50, 21);
+  for (let i = 0; i < 12; i++) {
+    const a = rad(i * 30), b = rad(6);
+    poly(p, [[50 + 46 * Math.cos(a), 50 + 46 * Math.sin(a)], [50 + 27 * Math.cos(a + b), 50 + 27 * Math.sin(a + b)], [50 + 27 * Math.cos(a - b), 50 + 27 * Math.sin(a - b)]]);
+  }
+}
+function snowflake(p) {
+  for (let k = 0; k < 6; k++) {
+    const a = rad(k * 60);
+    p.moveTo(50, 50); p.lineTo(50 + 42 * Math.cos(a), 50 + 42 * Math.sin(a));
+    const bx = 50 + 27 * Math.cos(a), by = 50 + 27 * Math.sin(a);
+    for (const s of [-1, 1]) { p.moveTo(bx, by); p.lineTo(bx + 11 * Math.cos(a + s * rad(55)), by + 11 * Math.sin(a + s * rad(55))); }
+  }
+}
+function pine(p) {
+  poly(p, [[50, 4], [25, 40], [75, 40]]); poly(p, [[50, 24], [18, 64], [82, 64]]); poly(p, [[50, 44], [10, 88], [90, 88]]);
+  rect(p, 44, 88, 12, 10);
+}
+const CLIPS = {
+  // love and weddings
+  heart: { label: 'Heart', cat: 'love', path: (p) => heart(p, 50, 50, 0.95) },
+  hearts: { label: 'Two hearts', cat: 'love', path: (p) => { heart(p, 36, 58, 0.62); heart(p, 64, 40, 0.62); } },
+  'heart-outline': { label: 'Heart outline', cat: 'love', mode: 'stroke', lw: 8, path: (p) => heart(p, 50, 50, 0.86) },
+  rings: { label: 'Wedding rings', cat: 'love', aspect: 0.85, path: (p) => { ring(p, 37, 55, 25, 18); ring(p, 63, 45, 25, 18); } },
+  'diamond-ring': { label: 'Diamond ring', cat: 'love', path: (p) => { ring(p, 50, 62, 30, 22); poly(p, [[50, 6], [68, 22], [50, 42], [32, 22]]); } },
+  infinity: { label: 'Infinity', cat: 'love', mode: 'stroke', lw: 9, aspect: 0.5, path: (p) => { p.moveTo(50, 50); p.bezierCurveTo(50, 22, 8, 22, 8, 50); p.bezierCurveTo(8, 78, 50, 78, 50, 50); p.bezierCurveTo(50, 22, 92, 22, 92, 50); p.bezierCurveTo(92, 78, 50, 78, 50, 50); } },
+  champagne: { label: 'Champagne', cat: 'love', path: (p) => { flute(p, 38, 14); flute(p, 62, -14); } },
+  wine: { label: 'Wine glass', cat: 'love', aspect: 0.8, path: (p) => { p.moveTo(30, 10); p.lineTo(70, 10); p.bezierCurveTo(72, 45, 55, 50, 52, 52); p.lineTo(52, 80); p.lineTo(66, 88); p.lineTo(34, 88); p.lineTo(48, 80); p.lineTo(48, 52); p.bezierCurveTo(45, 50, 28, 45, 30, 10); p.closePath(); } },
+  laurel: { label: 'Laurel wreath', cat: 'love', path: laurel },
+  flower: { label: 'Flower', cat: 'love', path: (p) => { for (let i = 0; i < 6; i++) { const a = rad(i * 60); ellipse(p, 50 + 18 * Math.cos(a), 50 + 18 * Math.sin(a), 21, 10, a); } circle(p, 50, 50, 10); } },
+  'bow-tie': { label: 'Bow tie', cat: 'love', aspect: 0.6, path: (p) => { poly(p, [[6, 22], [46, 44], [46, 56], [6, 78]]); poly(p, [[94, 22], [54, 44], [54, 56], [94, 78]]); rrect(p, 43, 40, 14, 20, 4); } },
+  cross: { label: 'Cross', cat: 'love', path: (p) => poly(p, [[40, 5], [60, 5], [60, 35], [90, 35], [90, 55], [60, 55], [60, 95], [40, 95], [40, 55], [10, 55], [10, 35], [40, 35]]) },
+  // celebrations
+  balloons: { label: 'Balloons', cat: 'party', path: (p) => { ellipse(p, 30, 40, 19, 24); poly(p, [[25, 63], [35, 63], [30, 58]]); ellipse(p, 70, 40, 19, 24); poly(p, [[65, 63], [75, 63], [70, 58]]); ellipse(p, 50, 28, 19, 24); poly(p, [[45, 51], [55, 51], [50, 46]]); poly(p, [[29, 63], [31, 63], [51, 96], [49, 96]]); poly(p, [[69, 63], [71, 63], [51, 96], [49, 96]]); poly(p, [[49, 51], [51, 51], [51, 96], [49, 96]]); } },
+  cake: { label: 'Cake', cat: 'party', aspect: 0.9, path: (p) => { rrect(p, 14, 62, 72, 30, 4); rrect(p, 26, 40, 48, 24, 4); rect(p, 33, 20, 4, 20); rect(p, 48, 14, 4, 26); rect(p, 63, 20, 4, 20); ellipse(p, 35, 14, 3, 5); ellipse(p, 50, 8, 3, 5); ellipse(p, 65, 14, 3, 5); } },
+  gift: { label: 'Gift', cat: 'party', path: (p) => { rrect(p, 16, 42, 68, 50, 3); rrect(p, 10, 30, 80, 14, 3); ellipse(p, 38, 22, 12, 7, -0.6); ellipse(p, 62, 22, 12, 7, 0.6); circle(p, 50, 24, 6); } },
+  trophy: { label: 'Trophy', cat: 'party', path: (p) => { poly(p, [[24, 12], [76, 12], [68, 56], [32, 56]]); ring(p, 21, 30, 13, 7); ring(p, 79, 30, 13, 7); rect(p, 45, 56, 10, 16); rrect(p, 32, 72, 36, 9, 2); rrect(p, 26, 82, 48, 9, 2); } },
+  crown: { label: 'Crown', cat: 'party', aspect: 0.8, path: (p) => { poly(p, [[10, 82], [10, 36], [30, 56], [50, 20], [70, 56], [90, 36], [90, 82]]); circle(p, 10, 36, 5); circle(p, 50, 20, 5); circle(p, 90, 36, 5); } },
+  star: { label: 'Star', cat: 'party', path: (p) => star(p, 50, 52, 46, 19) },
+  'star-outline': { label: 'Star outline', cat: 'party', mode: 'stroke', lw: 7, path: (p) => star(p, 50, 52, 42, 17) },
+  'three-stars': { label: 'Three stars', cat: 'party', aspect: 0.7, path: (p) => { star(p, 22, 56, 20, 8); star(p, 50, 40, 27, 11); star(p, 78, 56, 20, 8); } },
+  badge: { label: 'Badge', cat: 'party', rule: 'evenodd', path: (p) => { star(p, 50, 50, 47, 41, 16); circle(p, 50, 50, 33); } },
+  banner: { label: 'Banner', cat: 'party', aspect: 0.4, path: (p) => poly(p, [[4, 32], [96, 32], [86, 50], [96, 68], [4, 68], [14, 50]]) },
+  'grad-cap': { label: 'Graduation', cat: 'party', aspect: 0.6, path: (p) => { poly(p, [[50, 18], [96, 38], [50, 58], [4, 38]]); rrect(p, 32, 48, 36, 22, 3); rect(p, 88, 38, 3, 24); circle(p, 89.5, 64, 3); } },
+  'music-note': { label: 'Music note', cat: 'party', path: (p) => { ellipse(p, 34, 78, 15, 10, -0.35); rect(p, 45, 18, 5, 60); p.moveTo(50, 18); p.bezierCurveTo(62, 28, 80, 30, 70, 56); p.bezierCurveTo(73, 42, 60, 40, 50, 36); p.closePath(); } },
+  // sports and fun
+  football: { label: 'Football', cat: 'sport', aspect: 0.56, rule: 'evenodd', path: (p) => { ellipse(p, 50, 50, 46, 26); rect(p, 35, 48.5, 30, 3); for (let i = 0; i < 5; i++) rect(p, 38 + i * 6, 43, 2.5, 14); } },
+  beer: { label: 'Beer', cat: 'sport', path: (p) => { rrect(p, 18, 24, 48, 64, 5); ring(p, 72, 56, 16, 9); circle(p, 26, 24, 9); circle(p, 42, 19, 12); circle(p, 58, 24, 9); } },
+  paw: { label: 'Paw print', cat: 'sport', path: (p) => { ellipse(p, 50, 66, 22, 18); ellipse(p, 25, 44, 9, 13, -0.35); ellipse(p, 42, 30, 9, 13, -0.12); ellipse(p, 58, 30, 9, 13, 0.12); ellipse(p, 75, 44, 9, 13, 0.35); } },
+  lightning: { label: 'Lightning', cat: 'sport', path: (p) => poly(p, [[56, 4], [24, 54], [45, 54], [38, 96], [76, 40], [55, 40], [70, 4]]) },
+  flame: { label: 'Flame', cat: 'sport', path: (p) => { p.moveTo(50, 95); p.bezierCurveTo(20, 95, 15, 70, 30, 55); p.bezierCurveTo(32, 65, 40, 68, 42, 62); p.bezierCurveTo(30, 40, 45, 20, 50, 5); p.bezierCurveTo(55, 25, 75, 35, 70, 55); p.bezierCurveTo(65, 50, 62, 48, 60, 52); p.bezierCurveTo(85, 65, 80, 95, 50, 95); p.closePath(); } },
+  horseshoe: { label: 'Horseshoe', cat: 'sport', mode: 'stroke', lw: 11, path: (p) => { p.moveTo(50 + 32 * Math.cos(rad(150)), 54 + 32 * Math.sin(rad(150))); p.arc(50, 54, 32, rad(150), rad(390)); } },
+  fish: { label: 'Fish', cat: 'sport', aspect: 0.7, path: (p) => { ellipse(p, 42, 50, 30, 17); poly(p, [[66, 50], [94, 30], [94, 70]]); } },
+  anchor: { label: 'Anchor', cat: 'sport', mode: 'stroke', lw: 8, path: (p) => { p.moveTo(57, 14); p.arc(50, 14, 7, 0, Math.PI * 2); p.moveTo(50, 21); p.lineTo(50, 86); p.moveTo(30, 36); p.lineTo(70, 36); p.moveTo(50 + 34 * Math.cos(rad(25)), 52 + 34 * Math.sin(rad(25))); p.arc(50, 52, 34, rad(25), rad(155)); } },
+  // nature and home
+  sun: { label: 'Sun', cat: 'nature', path: sun },
+  moon: { label: 'Moon', cat: 'nature', path: (p) => crescent(p, [48, 50], 40, [64, 44], 33) },
+  pine: { label: 'Pine tree', cat: 'nature', path: pine },
+  'xmas-tree': { label: 'Christmas tree', cat: 'nature', path: (p) => { pine(p); star(p, 50, 9, 9, 4); } },
+  mountains: { label: 'Mountains', cat: 'nature', aspect: 0.75, path: (p) => poly(p, [[2, 88], [30, 30], [44, 52], [64, 14], [98, 88]]) },
+  cactus: { label: 'Cactus', cat: 'nature', path: (p) => { rrect(p, 42, 12, 16, 84, 8); rrect(p, 16, 34, 12, 30, 6); rect(p, 22, 56, 20, 10); rrect(p, 72, 22, 12, 32, 6); rect(p, 58, 46, 20, 10); } },
+  snowflake: { label: 'Snowflake', cat: 'nature', mode: 'stroke', lw: 6, path: snowflake },
+  house: { label: 'House', cat: 'nature', path: (p) => { poly(p, [[50, 8], [4, 50], [96, 50]]); rect(p, 18, 50, 64, 44); rect(p, 66, 16, 10, 20); } },
+  // shapes
+  circle: { label: 'Circle', cat: 'shape', path: (p) => circle(p, 50, 50, 46) },
+  square: { label: 'Square', cat: 'shape', path: (p) => rect(p, 8, 8, 84, 84) },
+  'rounded-square': { label: 'Rounded square', cat: 'shape', path: (p) => rrect(p, 8, 8, 84, 84, 14) },
+  diamond: { label: 'Diamond', cat: 'shape', path: (p) => poly(p, [[50, 4], [96, 50], [50, 96], [4, 50]]) },
+  triangle: { label: 'Triangle', cat: 'shape', path: (p) => poly(p, [[50, 6], [96, 90], [4, 90]]) },
+  hexagon: { label: 'Hexagon', cat: 'shape', path: (p) => ngon(p, 50, 50, 46, 6, 0) },
+  octagon: { label: 'Octagon', cat: 'shape', path: (p) => ngon(p, 50, 50, 48, 8, 22.5) },
+  shield: { label: 'Shield', cat: 'shape', path: (p) => { p.moveTo(50, 5); p.lineTo(90, 18); p.bezierCurveTo(90, 60, 70, 85, 50, 95); p.bezierCurveTo(30, 85, 10, 60, 10, 18); p.closePath(); } },
+  arrow: { label: 'Arrow', cat: 'shape', aspect: 0.65, path: (p) => poly(p, [[5, 38], [60, 38], [60, 20], [95, 50], [60, 80], [60, 62], [5, 62]]) },
+  check: { label: 'Check mark', cat: 'shape', mode: 'stroke', lw: 13, aspect: 0.7, path: (p) => { p.moveTo(14, 54); p.lineTo(40, 80); p.lineTo(88, 24); } },
+};
+const CLIP_CATS = { love: 'Love and weddings', party: 'Celebrate', sport: 'Sports and fun', nature: 'Nature', shape: 'Shapes' };
 
 /* ====================================================================
    STATE
    ==================================================================== */
-function freshBoard() {
+const TEXT_DEFAULTS = { outline: '#111111', outlineWidth: 0, rotation: 0, arc: 0, spacing: 0, shadow: false };
+const IMAGE_DEFAULTS = { rotation: 0, opacity: 1, flipH: false, circleCrop: false, knockout: false };
+const CLIP_DEFAULTS = { color: '#f5f5f0', outline: '#111111', outlineWidth: 0, rotation: 0, opacity: 1, flipH: false, width: 8 };
+function withDefaults(el) {
+  const d = el.type === 'text' ? TEXT_DEFAULTS : el.type === 'image' ? IMAGE_DEFAULTS : CLIP_DEFAULTS;
+  return { ...d, ...el, id: el.id || uid() };
+}
+const T = (text, o) => withDefaults({ type: 'text', text, font: 'Anton', size: 4, color: '#f5f5f0', x: 12, y: 30, ...o });
+const C = (name, o) => withDefaults({ type: 'clip', name, x: 12, y: 20, ...o });
+
+function freshBoard(o = {}) {
   return {
-    base: { kind: 'paint', color: '#1f3a93', stain: 'walnut' },
-    pattern: { kind: 'none', color: '#f5f5f0', size: 3 },
-    elements: [],
+    base: { kind: 'paint', color: '#1f3a93', color2: '#4fa3e3', angle: 180, stain: 'walnut', ...(o.base || {}) },
+    pattern: { kind: 'none', color: '#f5f5f0', size: 3, ...(o.pattern || {}) },
+    elements: (o.elements || []).map(withDefaults),
   };
 }
 function freshDesign() {
-  const a = freshBoard();
-  a.elements.push({ type: 'text', id: uid(), text: 'YOUR TEAM', font: 'Anton', size: 4, color: '#f5f5f0',
-    outline: '#111111', outlineWidth: 0, x: 12, y: 30, rotation: 0 });
-  return { version: 1, same: true, a, b: freshBoard() };
+  return { version: DESIGN_VERSION, same: true, a: freshBoard({ elements: [T('YOUR TEAM', {})] }), b: freshBoard() };
 }
+/* Designs saved by the first version of the page, and designs handed in
+   by tests, are brought up to date rather than refused. */
+function migrate(d) {
+  if (!d || !d.a || !d.b) return freshDesign();
+  const out = { version: DESIGN_VERSION, same: d.same !== false, a: freshBoard(d.a), b: freshBoard(d.b) };
+  return out;
+}
+
+const TEMPLATES = [
+  { id: 'team', label: 'Team', occasion: 'team', board: () => freshBoard({ base: { color: '#1f3a93' }, elements: [
+    C('star', { color: '#f2b705', width: 8, y: 20 }),
+    T('YOUR TEAM', { font: 'Anton', size: 4.5, y: 30 }),
+    T('EST. 2026', { font: 'Oswald', size: 1.5, color: '#f2b705', y: 36, spacing: 0.25 }),
+  ] }) },
+  { id: 'wedding', label: 'Wedding', occasion: 'wedding', board: () => freshBoard({ base: { color: '#fffaf0' }, pattern: { kind: 'border', color: '#9caf88', size: 0.75 }, elements: [
+    T('Mr & Mrs', { font: 'Great Vibes', size: 3.2, color: '#6e1423', y: 16 }),
+    C('laurel', { color: '#9caf88', width: 16, y: 27.5 }),
+    T('SMITH', { font: 'Cinzel', size: 2.5, color: '#36393b', y: 26.5, spacing: 0.2 }),
+    T('June 14, 2026', { font: 'Cormorant Garamond', size: 1.4, color: '#36393b', y: 30.5 }),
+    C('rings', { color: '#d8b25c', width: 4.5, y: 41 }),
+  ] }) },
+  { id: 'rustic', label: 'Rustic wedding', occasion: 'wedding', board: () => freshBoard({ base: { kind: 'wood', stain: 'natural' }, elements: [
+    T('the', { font: 'Parisienne', size: 2.2, color: '#36393b', y: 18 }),
+    T('Johnsons', { font: 'Dancing Script', size: 4.2, color: '#36393b', y: 24 }),
+    C('heart', { color: '#6e1423', width: 3.5, y: 31 }),
+    T('established', { font: 'Cinzel', size: 1, color: '#36393b', y: 36, spacing: 0.3 }),
+    T('06 . 14 . 2026', { font: 'Cormorant Garamond', size: 1.8, color: '#36393b', y: 39.5 }),
+  ] }) },
+  { id: 'anniversary', label: 'Anniversary', occasion: 'anniversary', board: () => freshBoard({ base: { kind: 'gradient', color: '#0b1b3a', color2: '#5b2a86', angle: 160 }, elements: [
+    C('infinity', { color: '#d8b25c', width: 9, y: 17 }),
+    T('Mike & Dana', { font: 'Allura', size: 3.8, color: '#fffaf0', y: 26 }),
+    T('25 YEARS', { font: 'Cinzel', size: 2.2, color: '#d8b25c', y: 33, spacing: 0.3 }),
+    T('and still winning', { font: 'Cormorant Garamond', size: 1.5, color: '#fffaf0', y: 37.5 }),
+  ] }) },
+  { id: 'birthday', label: 'Birthday', occasion: 'birthday', board: () => freshBoard({ base: { kind: 'gradient', color: '#e75480', color2: '#f2b705', angle: 160 }, elements: [
+    C('balloons', { color: '#ffffff', width: 9, y: 19 }),
+    T('HAPPY', { font: 'Luckiest Guy', size: 3.2, color: '#ffffff', y: 29, outline: '#111111', outlineWidth: 0.08 }),
+    T('40TH', { font: 'Luckiest Guy', size: 5.5, color: '#ffe44d', y: 35, outline: '#111111', outlineWidth: 0.1 }),
+    T('Sarah', { font: 'Pacifico', size: 2.6, color: '#ffffff', y: 42 }),
+  ] }) },
+  { id: 'family', label: 'Family', occasion: 'family', board: () => freshBoard({ base: { color: '#1f4d2e' }, elements: [
+    C('mountains', { color: '#f5f0e6', width: 20, y: 20 }),
+    T('THE MILLERS', { font: 'Alfa Slab One', size: 2.9, color: '#f5f0e6', y: 32 }),
+    T('EST. 2018', { font: 'Montserrat', size: 1.4, color: '#f5f0e6', y: 36.5, spacing: 0.35 }),
+    C('pine', { color: '#f5f0e6', width: 3.5, x: 5, y: 44 }), C('pine', { color: '#f5f0e6', width: 3.5, x: 19, y: 44 }),
+  ] }) },
+  { id: 'patriotic', label: 'Stars and stripes', occasion: 'holiday', board: () => freshBoard({ base: { color: '#c8102e' }, pattern: { kind: 'stripes', color: '#ffffff', size: 2.4 }, elements: [
+    C('rounded-square', { color: '#1f3a93', width: 18, y: 24 }),
+    C('three-stars', { color: '#ffffff', width: 15, y: 20 }),
+    T('USA', { font: 'Bungee', size: 4, color: '#ffffff', y: 29 }),
+  ] }) },
+  { id: 'business', label: 'Business', occasion: 'business', board: () => freshBoard({ base: { color: '#36393b' }, elements: [
+    C('badge', { color: '#d8b25c', width: 10, y: 20 }),
+    T('LOGO', { font: 'Bebas Neue', size: 2.4, color: '#36393b', y: 20 }),
+    T('COMPANY NAME', { font: 'Montserrat', size: 2.2, color: '#ffffff', y: 31, spacing: 0.1 }),
+    T('SINCE 1999', { font: 'Oswald', size: 1.3, color: '#d8b25c', y: 35, spacing: 0.3 }),
+    T('www.yoursite.com', { font: 'Poppins', size: 1.1, color: '#ffffff', y: 45 }),
+  ] }) },
+  { id: 'beach', label: 'Lake and beach', occasion: 'other', board: () => freshBoard({ base: { kind: 'gradient', color: '#4fa3e3', color2: '#f5f0e6', angle: 180 }, elements: [
+    C('sun', { color: '#f2b705', width: 9, y: 19 }),
+    T('LAKE DAYS', { font: 'Righteous', size: 3.4, color: '#1f3a93', y: 32, arc: 25 }),
+    T('Summer 2026', { font: 'Satisfy', size: 2.2, color: '#0f8b8d', y: 40 }),
+  ] }) },
+  { id: 'holiday', label: 'Holidays', occasion: 'holiday', board: () => freshBoard({ base: { color: '#6e1423' }, elements: [
+    C('xmas-tree', { color: '#1f7a3a', width: 12, y: 20 }),
+    T('Merry & Bright', { font: 'Lobster', size: 3, color: '#f5f0e6', y: 34 }),
+    C('snowflake', { color: '#ffffff', width: 3, x: 5, y: 42 }), C('snowflake', { color: '#ffffff', width: 2.2, x: 19, y: 44 }), C('snowflake', { color: '#ffffff', width: 2.5, x: 20, y: 9 }),
+  ] }) },
+];
 
 let design = freshDesign();
 let active = 'a';           // which board the panel edits
 let selected = null;        // element id, on the active board
 let history = [], future = [];
-const order = { product: 'set', quantity: 1, finish: 'satin', bags: 'none', bagColors: ['#c8102e', '#1f3a93'], rush: false };
+const order = { product: 'set', quantity: 1, finish: 'satin', bags: 'none', bagColors: ['#c8102e', '#1f3a93'], rush: false, carryCase: false, occasion: 'other', needBy: '', giftNote: '' };
 
 const activeBoard = () => design[active];
 const boardFor = (key) => design[design.same ? 'a' : key];
 const findEl = (id) => activeBoard().elements.find((e) => e.id === id) || null;
 const selectedEl = () => (selected ? findEl(selected) : null);
+const countOf = (b, type) => b.elements.filter((e) => e.type === type).length;
+const limitOf = (type) => ({ text: MAX_TEXTS, image: MAX_IMAGES, clip: MAX_CLIPS })[type];
 
 /* ====================================================================
    RENDERING. ctx is scaled so one unit is one inch.
    ==================================================================== */
-const boxes = new Map();  // element id -> { w, h } in inches, measured at the last render, for hit testing
+const boxes = new Map();  // element id -> { w, h, oy } in inches, from the last render, for hit testing
 const imgCache = new Map();
+let curPpi = 20;
 
 function imageFor(src) {
   let img = imgCache.get(src);
@@ -379,6 +683,25 @@ function imageFor(src) {
     imgCache.set(src, img);
   }
   return img.complete && img.naturalWidth ? img : null;
+}
+/* "Remove white background": a logo on a white JPEG becomes a cut-out.
+   Anything near white goes transparent, fading in over the last few
+   levels so edges stay soft. Done once per picture and kept. */
+const knockCache = new Map();
+function knockedOut(src) {
+  if (knockCache.has(src)) return knockCache.get(src);
+  const img = imageFor(src); if (!img) return null;
+  const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+  const d = g.getImageData(0, 0, c.width, c.height);
+  const px = d.data;
+  for (let i = 0; i < px.length; i += 4) {
+    const m = Math.min(px[i], px[i + 1], px[i + 2]);
+    if (m > 200) px[i + 3] = Math.round(px[i + 3] * clamp((238 - m) / 38, 0, 1));
+  }
+  g.putImageData(d, 0, 0);
+  knockCache.set(src, c);
+  return c;
 }
 
 function boardPath(ctx) {
@@ -395,6 +718,10 @@ function boardPath(ctx) {
 function prng(seed) {
   let s = 0; for (const c of seed) s = (s * 31 + c.charCodeAt(0)) >>> 0;
   return () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+function hexA(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a.toFixed(3) + ')';
 }
 function drawWood(ctx, stain) {
   const st = STAINS[stain] || STAINS.walnut;
@@ -415,9 +742,18 @@ function drawWood(ctx, stain) {
     ctx.stroke();
   }
 }
-function hexA(hex, a) {
-  const n = parseInt(hex.slice(1), 16);
-  return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a.toFixed(3) + ')';
+function drawBase(ctx, base) {
+  if (base.kind === 'wood') { drawWood(ctx, base.stain); return; }
+  if (base.kind === 'gradient') {
+    /* The angle is the direction the second colour lies in: 180 is a
+       fade from the top colour down to the bottom one. */
+    const a = rad((Number(base.angle) || 0) - 90), cx = BOARD.w / 2, cy = BOARD.h / 2;
+    const L = Math.abs(Math.cos(a)) * BOARD.w / 2 + Math.abs(Math.sin(a)) * BOARD.h / 2;
+    const g = ctx.createLinearGradient(cx - Math.cos(a) * L, cy - Math.sin(a) * L, cx + Math.cos(a) * L, cy + Math.sin(a) * L);
+    g.addColorStop(0, base.color); g.addColorStop(1, base.color2 || base.color);
+    ctx.fillStyle = g;
+  } else ctx.fillStyle = base.color;
+  ctx.fillRect(0, 0, BOARD.w, BOARD.h);
 }
 
 function drawPattern(ctx, p) {
@@ -427,7 +763,9 @@ function drawPattern(ctx, p) {
   const bands = (len, step, draw) => { for (let v = 0; v < len; v += 2 * step) draw(v); };
   switch (p.kind) {
     case 'top': ctx.fillRect(0, 0, w, h / 2); break;
+    case 'bottom': ctx.fillRect(0, h / 2, w, h / 2); break;
     case 'left': ctx.fillRect(0, 0, w / 2, h); break;
+    case 'right': ctx.fillRect(w / 2, 0, w / 2, h); break;
     case 'diagonal': ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(w, 0); ctx.lineTo(0, h); ctx.closePath(); ctx.fill(); break;
     case 'stripes': bands(h, s, (y) => ctx.fillRect(0, y, w, s)); break;
     case 'vstripes': bands(w, s, (x) => ctx.fillRect(x, 0, s, h)); break;
@@ -439,6 +777,27 @@ function drawPattern(ctx, p) {
       ctx.beginPath(); ctx.rect(0, 0, w, h); ctx.rect(s, s, w - 2 * s, h - 2 * s); ctx.fill('evenodd'); break;
     case 'checker':
       for (let r = 0; r * s < h; r++) for (let c = 0; c * s < w; c++) if ((r + c) % 2 === 0) ctx.fillRect(c * s, r * s, s, s);
+      break;
+    case 'plaid':
+      ctx.globalAlpha = 0.55;
+      bands(h, s, (y) => ctx.fillRect(0, y, w, s)); bands(w, s, (x) => ctx.fillRect(x, 0, s, h));
+      ctx.globalAlpha = 1; break;
+    case 'dots':
+      for (let r = 0; r * s <= h + s; r++) for (let c = 0; c * s <= w + s; c++) {
+        ctx.beginPath(); ctx.arc(c * s + (r % 2 ? s / 2 : 0), r * s, s * 0.28, 0, Math.PI * 2); ctx.fill();
+      }
+      break;
+    case 'diamonds':
+      for (let r = 0; r * s <= h + s; r++) for (let c = 0; c * s <= w + s; c++) {
+        const x = c * s + (r % 2 ? s / 2 : 0), y = r * s, d = s * 0.32;
+        ctx.beginPath(); ctx.moveTo(x, y - d); ctx.lineTo(x + d, y); ctx.lineTo(x, y + d); ctx.lineTo(x - d, y); ctx.closePath(); ctx.fill();
+      }
+      break;
+    case 'hearts':
+      for (let r = 0; r * s <= h + s; r++) for (let c = 0; c * s <= w + s; c++) {
+        const x = c * s + (r % 2 ? s / 2 : 0), y = r * s, pth = new Path2D(); heart(pth, 0, 0, s * 0.006);
+        ctx.save(); ctx.translate(x, y); ctx.fill(pth); ctx.restore();
+      }
       break;
     case 'chevron':
       for (let y = -8; y < h + 8; y += 2 * s) {
@@ -452,43 +811,98 @@ function drawPattern(ctx, p) {
       }
       break;
     }
+    case 'sunburst': {
+      const cx = w / 2, cy = BOARD.hole.cy, n = Math.max(6, Math.round(36 / s)) * 2;
+      for (let i = 0; i < n; i += 2) {
+        const a0 = i * Math.PI * 2 / n, a1 = (i + 1) * Math.PI * 2 / n;
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + 80 * Math.cos(a0), cy + 80 * Math.sin(a0)); ctx.lineTo(cx + 80 * Math.cos(a1), cy + 80 * Math.sin(a1)); ctx.closePath(); ctx.fill();
+      }
+      break;
+    }
+    case 'cross': ctx.fillRect(w / 2 - s / 2, 0, s, h); ctx.fillRect(0, h / 2 - s / 2, w, s); break;
   }
 }
 
-function fontString(el) { return el.size + 'px "' + el.font + '", Impact, sans-serif'; }
+const fontString = (el) => (FONT_WEIGHT[el.font] || 400) + ' ' + el.size + 'px "' + el.font + '", Impact, sans-serif';
 
+/* Text: straight, or bent along an arc. Each glyph is measured, so a bent
+   word keeps its spacing, and the hit box is the chord plus the sagitta. */
 function drawText(ctx, el) {
   ctx.save();
   ctx.translate(el.x, el.y);
-  ctx.rotate(el.rotation * Math.PI / 180);
+  ctx.rotate(rad(el.rotation));
   ctx.font = fontString(el);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const m = ctx.measureText(el.text);
   const asc = m.actualBoundingBoxAscent || el.size * 0.7, desc = m.actualBoundingBoxDescent || el.size * 0.2;
-  boxes.set(el.id, { w: Math.max(0.5, m.width + el.outlineWidth * 2), h: Math.max(0.5, asc + desc + el.outlineWidth * 2) });
   const dy = (asc - desc) / 2;   // centre the ink, not the em box
-  if (el.outlineWidth > 0) {
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = el.outlineWidth * 2;
-    ctx.strokeStyle = el.outline;
-    ctx.strokeText(el.text, 0, dy);
+  const ow = el.outlineWidth || 0, spacing = el.spacing || 0, arc = el.arc || 0;
+  const chars = [...el.text], widths = chars.map((c) => ctx.measureText(c).width);
+  const total = (spacing || arc) ? widths.reduce((n, w) => n + w, 0) + spacing * (chars.length - 1) : m.width;
+  const draw = (str, x, y, rot) => {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+    if (el.shadow) { ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 0.1 * curPpi; ctx.shadowOffsetX = 0.07 * curPpi; ctx.shadowOffsetY = 0.09 * curPpi; }
+    if (ow > 0) { ctx.lineJoin = 'round'; ctx.lineWidth = ow * 2; ctx.strokeStyle = el.outline; ctx.strokeText(str, 0, dy); ctx.shadowColor = 'transparent'; }
+    ctx.fillStyle = el.color; ctx.fillText(str, 0, dy);
+    ctx.restore();
+  };
+  if (!arc && !spacing) {
+    draw(el.text, 0, 0, 0);
+    boxes.set(el.id, { w: Math.max(0.5, total + 2 * ow), h: Math.max(0.5, asc + desc + 2 * ow), oy: 0 });
+  } else if (!arc) {
+    let x = -total / 2;
+    chars.forEach((c, i) => { draw(c, x + widths[i] / 2, 0, 0); x += widths[i] + spacing; });
+    boxes.set(el.id, { w: Math.max(0.5, total + 2 * ow), h: Math.max(0.5, asc + desc + 2 * ow), oy: 0 });
+  } else {
+    const theta = rad(Math.abs(arc)), r = total / theta, up = arc > 0 ? 1 : -1;
+    let s = -total / 2;
+    chars.forEach((c, i) => {
+      const phi = (s + widths[i] / 2) / r;
+      draw(c, r * Math.sin(phi), up * (r - r * Math.cos(phi)), up * phi);
+      s += widths[i] + spacing;
+    });
+    const chord = 2 * r * Math.sin(Math.min(theta, Math.PI) / 2), sag = r * (1 - Math.cos(Math.min(theta, Math.PI) / 2));
+    boxes.set(el.id, { w: Math.max(0.5, chord + asc + desc + 2 * ow), h: Math.max(0.5, sag + asc + desc + 2 * ow), oy: up * sag / 2 });
   }
-  ctx.fillStyle = el.color;
-  ctx.fillText(el.text, 0, dy);
   ctx.restore();
 }
 
 function drawImage(ctx, el) {
-  const img = imageFor(el.src);
-  const w = el.width, h = img ? w * img.naturalHeight / img.naturalWidth : w;
-  boxes.set(el.id, { w, h });
+  const img = el.knockout ? knockedOut(el.src) : imageFor(el.src);
+  const iw = img ? (img.naturalWidth || img.width) : 1, ih = img ? (img.naturalHeight || img.height) : 1;
+  let w = el.width, h = img ? w * ih / iw : w;
+  if (el.circleCrop) { const d = Math.min(w, h); boxes.set(el.id, { w: d, h: d, oy: 0 }); }
+  else boxes.set(el.id, { w, h, oy: 0 });
   ctx.save();
   ctx.translate(el.x, el.y);
-  ctx.rotate(el.rotation * Math.PI / 180);
+  ctx.rotate(rad(el.rotation));
   ctx.globalAlpha = el.opacity;
+  if (el.flipH) ctx.scale(-1, 1);
+  if (el.circleCrop) { ctx.beginPath(); ctx.arc(0, 0, Math.min(w, h) / 2, 0, Math.PI * 2); ctx.clip(); }
   if (img) ctx.drawImage(img, -w / 2, -h / 2, w, h);
   else { ctx.fillStyle = 'rgba(255,255,255,.4)'; ctx.fillRect(-w / 2, -h / 2, w, h); }
+  ctx.restore();
+}
+
+function drawClip(ctx, el) {
+  const def = CLIPS[el.name]; if (!def) return;
+  const w = el.width, h = w * (def.aspect || 1);
+  boxes.set(el.id, { w, h, oy: 0 });
+  ctx.save();
+  ctx.translate(el.x, el.y);
+  ctx.rotate(rad(el.rotation));
+  ctx.globalAlpha = el.opacity;
+  if (el.flipH) ctx.scale(-1, 1);
+  const k = w / 100;
+  ctx.scale(k, k); ctx.translate(-50, -50);
+  const p = new Path2D(); def.path(p);
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  if (def.mode === 'stroke') { ctx.lineWidth = def.lw || 8; ctx.strokeStyle = el.color; ctx.stroke(p); }
+  else {
+    if (el.outlineWidth > 0) { ctx.lineWidth = el.outlineWidth * 2 / k; ctx.strokeStyle = el.outline; ctx.stroke(p); }
+    ctx.fillStyle = el.color; ctx.fill(p, def.rule || 'nonzero');
+  }
   ctx.restore();
 }
 
@@ -511,17 +925,19 @@ function drawHole(ctx, print) {
   ctx.restore();
 }
 
+const DRAWERS = { text: drawText, image: drawImage, clip: drawClip };
+
 /* Draw one board onto a context whose (0,0) is the board's top-left, at
    `ppi` pixels per inch. */
 function renderBoard(ctx, b, ppi, { print = false } = {}) {
+  curPpi = ppi;
   ctx.save();
   ctx.scale(ppi, ppi);
   boardPath(ctx);
   ctx.clip();
-  if (b.base.kind === 'wood') drawWood(ctx, b.base.stain);
-  else { ctx.fillStyle = b.base.color; ctx.fillRect(0, 0, BOARD.w, BOARD.h); }
+  drawBase(ctx, b.base);
   drawPattern(ctx, b.pattern);
-  for (const el of b.elements) (el.type === 'text' ? drawText : drawImage)(ctx, el);
+  for (const el of b.elements) (DRAWERS[el.type] || (() => {}))(ctx, el);
   drawHole(ctx, print);
   if (!print) {
     /* A soft bevel so the preview reads as an object, not a flat rectangle. */
@@ -532,6 +948,8 @@ function renderBoard(ctx, b, ppi, { print = false } = {}) {
   ctx.restore();
 }
 
+const HANDLE = { size: 0.6, rotateGap: 0.9, hit: 0.9 };
+const guides = { v: false, h: false };
 let raf = 0;
 function render() { if (!raf) raf = requestAnimationFrame(paint); }
 function paint() {
@@ -547,14 +965,30 @@ function paint() {
     ctx.clearRect(0, 0, W, H);
     renderBoard(ctx, boardFor(key), ppi);
     const el = selectedEl();
-    if (el && (design.same ? key === 'a' : key === active)) {
+    const editingHere = design.same ? key === 'a' : key === active;
+    if (el && editingHere) {
       const box = boxes.get(el.id);
       if (box) {
         ctx.save(); ctx.scale(ppi, ppi);
-        ctx.translate(el.x, el.y); ctx.rotate(el.rotation * Math.PI / 180);
+        if (drag && (guides.v || guides.h)) {
+          ctx.setLineDash([0.3, 0.2]); ctx.lineWidth = 2 / ppi; ctx.strokeStyle = '#e75480';
+          if (guides.v) { ctx.beginPath(); ctx.moveTo(BOARD.w / 2, 0); ctx.lineTo(BOARD.w / 2, BOARD.h); ctx.stroke(); }
+          if (guides.h) { ctx.beginPath(); ctx.moveTo(0, BOARD.h / 2); ctx.lineTo(BOARD.w, BOARD.h / 2); ctx.stroke(); }
+          ctx.setLineDash([]);
+        }
+        ctx.translate(el.x, el.y); ctx.rotate(rad(el.rotation));
+        const x0 = -box.w / 2 - 0.15, y0 = -box.h / 2 - 0.15 + box.oy, bw = box.w + 0.3, bh = box.h + 0.3;
         ctx.setLineDash([8 / ppi, 5 / ppi]); ctx.lineWidth = 2 / ppi;
-        ctx.strokeStyle = '#ffffff'; ctx.strokeRect(-box.w / 2 - 0.15, -box.h / 2 - 0.15, box.w + 0.3, box.h + 0.3);
-        ctx.lineDashOffset = 8 / ppi; ctx.strokeStyle = '#1f3a93'; ctx.strokeRect(-box.w / 2 - 0.15, -box.h / 2 - 0.15, box.w + 0.3, box.h + 0.3);
+        ctx.strokeStyle = '#ffffff'; ctx.strokeRect(x0, y0, bw, bh);
+        ctx.lineDashOffset = 8 / ppi; ctx.strokeStyle = '#1f3a93'; ctx.strokeRect(x0, y0, bw, bh);
+        ctx.setLineDash([]);
+        /* The handles: a square at the bottom-right corner to resize, a
+           circle above the top edge to rotate. */
+        const hs = HANDLE.size;
+        ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#1f3a93'; ctx.lineWidth = 2 / ppi;
+        ctx.fillRect(x0 + bw - hs / 2, y0 + bh - hs / 2, hs, hs); ctx.strokeRect(x0 + bw - hs / 2, y0 + bh - hs / 2, hs, hs);
+        ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(0, y0 - HANDLE.rotateGap + hs / 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, y0 - HANDLE.rotateGap, hs / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
         ctx.restore();
       }
     }
@@ -611,40 +1045,57 @@ function load() {
     const s = localStorage.getItem(SAVE_KEY);
     if (!s) return false;
     const d = JSON.parse(s);
-    if (d && d.version === 1 && d.a && d.b) { design = d; return true; }
+    if (d && d.a && d.b) { design = migrate(d); return true; }
   } catch (_) {}
   return false;
 }
 
 /* ====================================================================
-   POINTER: pick up and drag elements on the preview
+   POINTER: pick up, drag, resize and rotate elements on the preview
    ==================================================================== */
+function toLocal(el, ix, iy) {
+  const a = -rad(el.rotation), dx = ix - el.x, dy = iy - el.y;
+  return { x: dx * Math.cos(a) - dy * Math.sin(a), y: dx * Math.sin(a) + dy * Math.cos(a) };
+}
 function hitTest(b, ix, iy) {
   for (let i = b.elements.length - 1; i >= 0; i--) {
     const el = b.elements[i], box = boxes.get(el.id);
     if (!box) continue;
-    const a = -el.rotation * Math.PI / 180, dx = ix - el.x, dy = iy - el.y;
-    const lx = dx * Math.cos(a) - dy * Math.sin(a), ly = dx * Math.sin(a) + dy * Math.cos(a);
+    const l = toLocal(el, ix, iy);
     const hw = Math.max(box.w, 1) / 2 + 0.2, hh = Math.max(box.h, 1) / 2 + 0.2;
-    if (Math.abs(lx) <= hw && Math.abs(ly) <= hh) return el;
+    if (Math.abs(l.x) <= hw && Math.abs(l.y - box.oy) <= hh) return el;
   }
+  return null;
+}
+function handleAt(el, ix, iy) {
+  const box = boxes.get(el.id); if (!box) return null;
+  const l = toLocal(el, ix, iy);
+  const rx = box.w / 2 + 0.15, ry = box.h / 2 + 0.15 + box.oy;
+  if (Math.hypot(l.x - rx, l.y - ry) <= HANDLE.hit) return 'resize';
+  if (Math.hypot(l.x, l.y - (-box.h / 2 - 0.15 + box.oy - HANDLE.rotateGap)) <= HANDLE.hit) return 'rotate';
   return null;
 }
 function toInches(c, ev) {
   const r = c.getBoundingClientRect();
   return { x: (ev.clientX - r.left) / r.width * BOARD.w, y: (ev.clientY - r.top) / r.height * BOARD.h };
 }
+const sizeKey = (el) => (el.type === 'text' ? 'size' : 'width');
+const sizeMax = (el) => (el.type === 'text' ? 16 : 24);
 let drag = null;
 for (const c of [$('canvasA'), $('canvasB')]) {
   c.addEventListener('pointerdown', (ev) => {
     const key = c.dataset.board;
     if (!design.same && order.product === 'set' && key !== active) setActive(key);
-    if (design.same && key === 'b') { /* board B is a mirror; edits happen on A */ }
     const p = toInches(c, ev);
-    const el = hitTest(activeBoard(), p.x, p.y);
-    select(el ? el.id : null);
+    const sel = selectedEl();
+    const handle = sel && (design.same ? key === 'a' : key === active) ? handleAt(sel, p.x, p.y) : null;
+    let el = sel;
+    if (!handle) { el = hitTest(activeBoard(), p.x, p.y); select(el ? el.id : null); }
     if (!el) return;
-    drag = { id: el.id, dx: el.x - p.x, dy: el.y - p.y, moved: false };
+    const box = boxes.get(el.id) || { oy: 0 };
+    const l = toLocal(el, p.x, p.y);
+    drag = { id: el.id, mode: handle || 'move', dx: el.x - p.x, dy: el.y - p.y, moved: false,
+      d0: Math.max(0.2, Math.hypot(l.x, l.y - box.oy)), size0: el[sizeKey(el)] };
     c.setPointerCapture(ev.pointerId);
     c.classList.add('dragging');
     ev.preventDefault();
@@ -653,12 +1104,26 @@ for (const c of [$('canvasA'), $('canvasB')]) {
     if (!drag) return;
     const el = findEl(drag.id); if (!el) return;
     const p = toInches(c, ev);
-    el.x = clamp(Math.round((p.x + drag.dx) * 10) / 10, -4, BOARD.w + 4);
-    el.y = clamp(Math.round((p.y + drag.dy) * 10) / 10, -4, BOARD.h + 4);
+    if (drag.mode === 'move') {
+      let x = clamp(r1(p.x + drag.dx), -4, BOARD.w + 4), y = clamp(r1(p.y + drag.dy), -4, BOARD.h + 4);
+      /* Snap to the board's centre lines, and show them while it is snapped. */
+      guides.v = Math.abs(x - BOARD.w / 2) < 0.35; if (guides.v) x = BOARD.w / 2;
+      guides.h = Math.abs(y - BOARD.h / 2) < 0.35; if (guides.h) y = BOARD.h / 2;
+      el.x = x; el.y = y;
+    } else if (drag.mode === 'resize') {
+      const box = boxes.get(el.id) || { oy: 0 }, l = toLocal(el, p.x, p.y);
+      const k = Math.hypot(l.x, l.y - box.oy) / drag.d0;
+      el[sizeKey(el)] = clamp(Math.round(drag.size0 * k * 20) / 20, 0.5, sizeMax(el));
+    } else {
+      let a = Math.atan2(p.y - el.y, p.x - el.x) * 180 / Math.PI + 90;
+      a = ((a + 180) % 360 + 360) % 360 - 180;
+      for (const snap of [-180, -90, 0, 90, 180]) if (Math.abs(a - snap) < 4) a = snap;
+      el.rotation = Math.round(a === -180 ? 180 : a);
+    }
     drag.moved = true;
     render(); syncProps();
   });
-  const end = () => { if (!drag) return; const moved = drag.moved; drag = null; c.classList.remove('dragging'); if (moved) commit(); };
+  const end = () => { if (!drag) return; const moved = drag.moved; drag = null; guides.v = guides.h = false; c.classList.remove('dragging'); render(); if (moved) commit(); };
   c.addEventListener('pointerup', end);
   c.addEventListener('pointercancel', end);
 }
@@ -669,7 +1134,11 @@ document.addEventListener('keydown', (ev) => {
   const el = selectedEl(); if (!el) return;
   const step = ev.shiftKey ? 1 : 0.1;
   const nudge = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[ev.key];
-  if (nudge) { el.x = Math.round((el.x + nudge[0]) * 10) / 10; el.y = Math.round((el.y + nudge[1]) * 10) / 10; render(); syncProps(); commit(); ev.preventDefault(); }
+  if (nudge) { el.x = r1(el.x + nudge[0]); el.y = r1(el.y + nudge[1]); render(); syncProps(); commit(); ev.preventDefault(); }
+  else if (ev.key === '+' || ev.key === '=' || ev.key === '-') {
+    const k = sizeKey(el); el[k] = clamp(Math.round(el[k] * (ev.key === '-' ? 0.95 : 1.05) * 20) / 20, 0.5, sizeMax(el));
+    render(); syncProps(); commit(); ev.preventDefault();
+  }
   else if (ev.key === 'Delete' || ev.key === 'Backspace') { removeElement(el.id); ev.preventDefault(); }
 });
 
@@ -694,14 +1163,49 @@ function showTab(name) {
 }
 document.querySelector('.tabs').addEventListener('click', (ev) => { const b = ev.target.closest('[role=tab]'); if (b) showTab(b.dataset.tab); });
 
+// -- templates
+function applyTemplate(id) {
+  const t = TEMPLATES.find((x) => x.id === id); if (!t) return;
+  design = { version: DESIGN_VERSION, same: true, a: t.board(), b: freshBoard() };
+  selected = null; active = 'a';
+  order.occasion = t.occasion;
+  syncAll(); commit(); showTab('text');
+}
+for (const t of TEMPLATES) {
+  const b = document.createElement('button'); b.className = 'tpl'; b.type = 'button'; b.dataset.id = t.id;
+  const c = document.createElement('canvas'); c.width = 64 * 2; c.height = 128 * 2;
+  renderBoard(c.getContext('2d'), t.board(), 128 * 2 / BOARD.h);
+  const s = document.createElement('span'); s.textContent = t.label;
+  b.append(c, s);
+  b.addEventListener('click', () => {
+    const untouched = history.length < 2;
+    if (untouched || confirm('Replace your current design with the ' + t.label + ' template?')) applyTemplate(t.id);
+  });
+  $('templates').appendChild(b);
+}
+
 // -- board tab
-for (const hex of PAINTS) { const b = document.createElement('button'); b.className = 'sw'; b.dataset.v = hex; b.style.background = hex; b.title = hex; $('paints').appendChild(b); }
-for (const [k, st] of Object.entries(STAINS)) { const b = document.createElement('button'); b.className = 'sw stain'; b.dataset.v = k; b.style.backgroundColor = st.color; b.title = st.label; $('stains').appendChild(b); }
+function swatch(parent, v, title, extra) {
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'sw' + (extra ? ' ' + extra : ''); b.dataset.v = v; b.title = title; parent.appendChild(b); return b;
+}
+for (const hex of PAINTS) swatch($('paints'), hex, hex).style.background = hex;
+for (const hex of PAINTS_SOFT) swatch($('paints2'), hex, hex).style.background = hex;
+for (const [k, st] of Object.entries(STAINS)) swatch($('stains'), k, st.label, 'stain').style.backgroundColor = st.color;
 for (const [k, label] of Object.entries(PATTERNS)) { const o = document.createElement('option'); o.value = k; o.textContent = label; $('pattern').appendChild(o); }
-$('paints').addEventListener('click', (ev) => { const b = ev.target.closest('.sw'); if (!b) return; activeBoard().base.color = b.dataset.v; activeBoard().base.kind = 'paint'; syncBoard(); render(); commit(); });
+const pickPaint = (ev) => {
+  const b = ev.target.closest('.sw'); if (!b) return;
+  const base = activeBoard().base; base.color = b.dataset.v; if (base.kind === 'wood') base.kind = 'paint';
+  syncBoard(); render(); commit();
+};
+$('paints').addEventListener('click', pickPaint);
+$('paints2').addEventListener('click', pickPaint);
 $('stains').addEventListener('click', (ev) => { const b = ev.target.closest('.sw'); if (!b) return; activeBoard().base.stain = b.dataset.v; activeBoard().base.kind = 'wood'; syncBoard(); render(); commit(); });
-$('paintcustom').addEventListener('input', () => { activeBoard().base.color = $('paintcustom').value; activeBoard().base.kind = 'paint'; syncBoard(); render(); });
+$('paintcustom').addEventListener('input', () => { const base = activeBoard().base; base.color = $('paintcustom').value; if (base.kind === 'wood') base.kind = 'paint'; syncBoard(); render(); });
 $('paintcustom').addEventListener('change', commit);
+$('paint2').addEventListener('input', () => { activeBoard().base.color2 = $('paint2').value; render(); });
+$('paint2').addEventListener('change', commit);
+$('gradangle').addEventListener('input', () => { activeBoard().base.angle = Number($('gradangle').value); $('gradangleval').textContent = $('gradangle').value + '°'; render(); });
+$('gradangle').addEventListener('change', commit);
 chips('basekind', (v) => { activeBoard().base.kind = v; syncBoard(); render(); commit(); });
 $('pattern').addEventListener('change', () => { activeBoard().pattern.kind = $('pattern').value; syncBoard(); render(); commit(); });
 $('patcolor').addEventListener('input', () => { activeBoard().pattern.color = $('patcolor').value; render(); });
@@ -724,12 +1228,15 @@ chips('which', (v) => setActive(v));
 function syncBoard() {
   const b = activeBoard();
   setChip('basekind', b.base.kind);
-  $('paintopts').hidden = b.base.kind !== 'paint';
+  $('paintopts').hidden = b.base.kind === 'wood';
+  $('gradopts').hidden = b.base.kind !== 'gradient';
   $('woodopts').hidden = b.base.kind !== 'wood';
-  for (const s of $('paints').querySelectorAll('.sw')) s.setAttribute('aria-pressed', String(b.base.kind === 'paint' && s.dataset.v === b.base.color));
+  for (const s of document.querySelectorAll('#paints .sw, #paints2 .sw')) s.setAttribute('aria-pressed', String(b.base.kind !== 'wood' && s.dataset.v === b.base.color));
   for (const s of $('stains').querySelectorAll('.sw')) s.setAttribute('aria-pressed', String(b.base.kind === 'wood' && s.dataset.v === b.base.stain));
   if (/^#[0-9a-f]{6}$/i.test(b.base.color)) $('paintcustom').value = b.base.color;
+  if (/^#[0-9a-f]{6}$/i.test(b.base.color2 || '')) $('paint2').value = b.base.color2;
   $('paintval').textContent = b.base.color;
+  $('gradangle').value = b.base.angle; $('gradangleval').textContent = b.base.angle + '°';
   $('pattern').value = b.pattern.kind;
   $('patcolor').value = b.pattern.color;
   $('patsize').value = b.pattern.size; $('patsizeval').textContent = b.pattern.size + '"';
@@ -744,40 +1251,56 @@ function syncBoard() {
 }
 
 // -- text tab
-for (const f of FONTS) { const o = document.createElement('option'); o.value = f; o.textContent = f; o.style.fontFamily = f; $('tfont').appendChild(o); }
+for (const [cat, fonts] of FONTS) {
+  const g = document.createElement('optgroup'); g.label = cat;
+  for (const [f] of fonts) { const o = document.createElement('option'); o.value = f; o.textContent = f; o.style.fontFamily = '"' + f + '"'; g.appendChild(o); }
+  $('tfont').appendChild(g);
+}
+function addElement(el, tab) {
+  const b = activeBoard();
+  if (countOf(b, el.type) >= limitOf(el.type)) { alert('Up to ' + limitOf(el.type) + ' of those per board.'); return null; }
+  b.elements.push(el); select(el.id); if (tab) showTab(tab); commit();
+  return el;
+}
 $('addtext').addEventListener('click', () => {
   const b = activeBoard();
-  if (b.elements.filter((e) => e.type === 'text').length >= MAX_TEXTS) return;
-  const el = { type: 'text', id: uid(), text: 'NEW TEXT', font: 'Anton', size: 3, color: b.base.kind === 'wood' ? '#f5f5f0' : '#f5f5f0',
-    outline: '#111111', outlineWidth: 0, x: 12, y: 36, rotation: 0 };
-  b.elements.push(el); select(el.id); showTab('text'); commit(); $('ttext').focus(); $('ttext').select();
+  const el = addElement(T('NEW TEXT', { size: 3, y: 36, color: b.base.kind === 'wood' ? '#36393b' : '#f5f5f0' }), 'text');
+  if (el) { $('ttext').focus(); $('ttext').select(); }
 });
-const textField = (id, key, map = (v) => v, label = null) => {
+const field = (id, key, map = (v) => v, label = null) => {
   $(id).addEventListener('input', () => { const el = selectedEl(); if (!el) return; el[key] = map($(id).value); if (label) $(id + 'val').textContent = label(el[key]); render(); syncLists(); });
   $(id).addEventListener('change', commit);
 };
-textField('ttext', 'text', (v) => v || ' ');
-textField('tfont', 'font');
-textField('tsize', 'size', Number, (v) => v + '"');
-textField('tcolor', 'color');
-textField('toutline', 'outline');
-textField('toutlinew', 'outlineWidth', Number, (v) => v + '"');
-textField('trot', 'rotation', Number, (v) => v + '°');
-textField('tx', 'x', Number, (v) => v + '"');
-textField('ty', 'y', Number, (v) => v + '"');
+const toggle = (id, key) => {
+  $(id).addEventListener('change', () => { const el = selectedEl(); if (!el) return; el[key] = $(id).checked; render(); commit(); });
+};
+const inch = (v) => v + '"', deg = (v) => v + '°';
+field('ttext', 'text', (v) => v || ' ');
+field('tfont', 'font');
+field('tsize', 'size', Number, inch);
+field('tcolor', 'color');
+field('toutline', 'outline');
+field('toutlinew', 'outlineWidth', Number, inch);
+field('tarc', 'arc', Number, deg);
+field('tspacing', 'spacing', Number, inch);
+field('trot', 'rotation', Number, deg);
+field('tx', 'x', Number, inch);
+field('ty', 'y', Number, inch);
+toggle('tshadow', 'shadow');
 $('tdel').addEventListener('click', () => { if (selected) removeElement(selected); });
 $('tcopy').addEventListener('click', copyToOther);
+$('tdup').addEventListener('click', duplicate);
+$('tforward').addEventListener('click', () => moveLayer(1));
+$('tback').addEventListener('click', () => moveLayer(-1));
 
-// -- logo tab
+// -- art tab: pictures and clip art
 $('addimage').addEventListener('change', async () => {
   const f = $('addimage').files[0]; $('addimage').value = '';
   if (!f) return;
-  const b = activeBoard();
-  if (b.elements.filter((e) => e.type === 'image').length >= MAX_IMAGES) { alert('Up to ' + MAX_IMAGES + ' images per board.'); return; }
+  if (countOf(activeBoard(), 'image') >= MAX_IMAGES) { alert('Up to ' + MAX_IMAGES + ' pictures per board.'); return; }
   try {
     const src = await shrinkImage(f);
-    const el = { type: 'image', id: uid(), src, width: 10, x: 12, y: 30, rotation: 0, opacity: 1 };
-    b.elements.push(el); select(el.id); showTab('logo'); commit();
+    addElement(withDefaults({ type: 'image', src, width: 10, x: 12, y: 30 }), 'art');
   } catch (e) { alert('Could not read that image: ' + (e && e.message ? e.message : e)); }
 });
 /* Shrunk before it is kept: a phone photo is 12 MB and the whole order has
@@ -801,17 +1324,46 @@ async function shrinkImage(file) {
     return out;
   } finally { URL.revokeObjectURL(url); }
 }
-const imageField = (id, key, label) => {
-  $(id).addEventListener('input', () => { const el = selectedEl(); if (!el) return; el[key] = Number($(id).value); $(id + 'val').textContent = label(el[key]); render(); });
-  $(id).addEventListener('change', commit);
-};
-imageField('iwidth', 'width', (v) => v + '"');
-imageField('irot', 'rotation', (v) => v + '°');
-imageField('iopacity', 'opacity', (v) => Math.round(v * 100) + '%');
-imageField('ix', 'x', (v) => v + '"');
-imageField('iy', 'y', (v) => v + '"');
+field('iwidth', 'width', Number, inch);
+field('irot', 'rotation', Number, deg);
+field('iopacity', 'opacity', Number, (v) => Math.round(v * 100) + '%');
+field('ix', 'x', Number, inch);
+field('iy', 'y', Number, inch);
+toggle('iflip', 'flipH'); toggle('icircle', 'circleCrop'); toggle('iknockout', 'knockout');
+field('ccolor', 'color'); field('coutline', 'outline'); field('coutlinew', 'outlineWidth', Number, inch);
+toggle('cflip', 'flipH');
 $('idel').addEventListener('click', () => { if (selected) removeElement(selected); });
 $('icopy').addEventListener('click', copyToOther);
+$('idup').addEventListener('click', duplicate);
+$('iforward').addEventListener('click', () => moveLayer(1));
+$('iback').addEventListener('click', () => moveLayer(-1));
+
+let clipCat = 'love';
+function clipThumb(name, color = '#1d1b18') {
+  const def = CLIPS[name], c = document.createElement('canvas'); c.width = c.height = 72;
+  const g = c.getContext('2d'); g.scale(0.72, 0.72);
+  const p = new Path2D(); def.path(p); g.lineJoin = g.lineCap = 'round';
+  if (def.mode === 'stroke') { g.lineWidth = def.lw || 8; g.strokeStyle = color; g.stroke(p); } else { g.fillStyle = color; g.fill(p, def.rule || 'nonzero'); }
+  return c;
+}
+function fillClips() {
+  const box = $('clips'); box.textContent = '';
+  for (const [name, def] of Object.entries(CLIPS)) {
+    if (def.cat !== clipCat) continue;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'clip'; b.dataset.name = name; b.title = def.label;
+    b.appendChild(clipThumb(name)); box.appendChild(b);
+  }
+}
+for (const [k, label] of Object.entries(CLIP_CATS)) { const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.dataset.v = k; b.textContent = label; b.setAttribute('aria-pressed', String(k === clipCat)); $('clipcats').appendChild(b); }
+chips('clipcats', (v) => { clipCat = v; fillClips(); });
+fillClips();
+function addClip(name, o = {}) {
+  if (!CLIPS[name]) return null;
+  const b = activeBoard();
+  const color = b.base.kind === 'wood' || b.base.color === '#fffaf0' || b.base.color === '#f5f0e6' || b.base.color === '#ffffff' ? '#36393b' : '#f5f5f0';
+  return addElement(C(name, { color, width: 8, x: 12, y: 36, ...o }), 'art');
+}
+$('clips').addEventListener('click', (ev) => { const b = ev.target.closest('.clip'); if (b) addClip(b.dataset.name); });
 
 function removeElement(id) {
   const b = activeBoard();
@@ -822,53 +1374,72 @@ function removeElement(id) {
 function copyToOther() {
   const el = selectedEl(); if (!el || design.same) return;
   const other = design[active === 'a' ? 'b' : 'a'];
-  const limit = el.type === 'image' ? MAX_IMAGES : MAX_TEXTS;
-  if (other.elements.filter((e) => e.type === el.type).length >= limit) return;
+  if (countOf(other, el.type) >= limitOf(el.type)) return;
   other.elements.push({ ...JSON.parse(JSON.stringify(el)), id: uid() });
   render(); commit();
+}
+function duplicate() {
+  const el = selectedEl(); if (!el) return;
+  const copy = { ...JSON.parse(JSON.stringify(el)), id: uid(), x: r1(el.x + 1), y: r1(el.y + 1) };
+  addElement(copy, null);
+}
+function moveLayer(dir) {
+  const el = selectedEl(); if (!el) return;
+  const els = activeBoard().elements, i = els.indexOf(el), j = i + dir;
+  if (j < 0 || j >= els.length) return;
+  els.splice(i, 1); els.splice(j, 0, el);
+  render(); syncLists(); commit();
 }
 
 function itemButton(el, pressed, onClick) {
   const b = document.createElement('button'); b.className = 'item'; b.type = 'button'; b.dataset.id = el.id; b.setAttribute('aria-pressed', String(pressed));
   const t = document.createElement('span'); t.className = 'thumb';
   if (el.type === 'image') t.style.backgroundImage = 'url("' + el.src + '")';
+  else if (el.type === 'clip') { t.style.background = 'transparent'; const c = clipThumb(el.name, el.color); c.style.width = c.style.height = '28px'; t.appendChild(c); }
   else { t.style.background = el.color; t.style.boxShadow = 'inset 0 0 0 1px rgba(0,0,0,.15)'; }
   const n = document.createElement('span'); n.className = 'name';
-  n.textContent = el.type === 'image' ? 'Image, ' + el.width + '" wide' : el.text;
+  n.textContent = el.type === 'image' ? 'Picture, ' + el.width + '" wide' : el.type === 'clip' ? (CLIPS[el.name] || {}).label + ', ' + el.width + '"' : el.text;
   if (el.type === 'text') n.style.fontFamily = '"' + el.font + '", Impact, sans-serif';
   b.append(t, n); b.addEventListener('click', onClick);
   return b;
 }
 function syncLists() {
   const b = activeBoard();
-  for (const [listId, type, emptyText] of [['texts', 'text', 'No text yet.'], ['images', 'image', 'No images yet.']]) {
+  for (const [listId, types, emptyText] of [['texts', ['text'], 'No text yet.'], ['images', ['image', 'clip'], 'No pictures or clip art yet.']]) {
     const list = $(listId); list.textContent = '';
-    const els = b.elements.filter((e) => e.type === type);
+    const els = b.elements.filter((e) => types.includes(e.type));
     if (!els.length) { const p = document.createElement('div'); p.className = 'empty'; p.textContent = emptyText; list.appendChild(p); }
     for (const el of els) list.appendChild(itemButton(el, el.id === selected, () => select(el.id)));
   }
-  $('addtext').disabled = b.elements.filter((e) => e.type === 'text').length >= MAX_TEXTS;
+  $('addtext').disabled = countOf(b, 'text') >= MAX_TEXTS;
 }
 function syncProps() {
   const el = selectedEl();
   $('textprops').hidden = !(el && el.type === 'text');
-  $('imageprops').hidden = !(el && el.type === 'image');
+  $('imageprops').hidden = !(el && el.type !== 'text');
   if (!el) return;
   const copyOk = !design.same && order.product === 'set';
   $('tcopy').hidden = $('icopy').hidden = !copyOk;
   if (el.type === 'text') {
     if (document.activeElement !== $('ttext')) $('ttext').value = el.text;
     $('tfont').value = el.font;
-    setRange('tsize', el.size, el.size + '"');
+    setRange('tsize', el.size, inch(el.size));
     $('tcolor').value = el.color; $('toutline').value = el.outline;
-    setRange('toutlinew', el.outlineWidth, el.outlineWidth + '"');
-    setRange('trot', el.rotation, el.rotation + '°');
-    setRange('tx', el.x, el.x + '"'); setRange('ty', el.y, el.y + '"');
+    setRange('toutlinew', el.outlineWidth, inch(el.outlineWidth));
+    setRange('tarc', el.arc, deg(el.arc));
+    setRange('tspacing', el.spacing, inch(el.spacing));
+    setRange('trot', el.rotation, deg(el.rotation));
+    setRange('tx', el.x, inch(el.x)); setRange('ty', el.y, inch(el.y));
+    $('tshadow').checked = !!el.shadow;
   } else {
-    setRange('iwidth', el.width, el.width + '"');
-    setRange('irot', el.rotation, el.rotation + '°');
+    $('imageonly').hidden = el.type !== 'image';
+    $('cliponly').hidden = el.type !== 'clip';
+    setRange('iwidth', el.width, inch(el.width));
+    setRange('irot', el.rotation, deg(el.rotation));
     setRange('iopacity', el.opacity, Math.round(el.opacity * 100) + '%');
-    setRange('ix', el.x, el.x + '"'); setRange('iy', el.y, el.y + '"');
+    setRange('ix', el.x, inch(el.x)); setRange('iy', el.y, inch(el.y));
+    if (el.type === 'image') { $('iflip').checked = !!el.flipH; $('icircle').checked = !!el.circleCrop; $('iknockout').checked = !!el.knockout; }
+    else { $('ccolor').value = el.color; $('coutline').value = el.outline; setRange('coutlinew', el.outlineWidth, inch(el.outlineWidth)); $('cflip').checked = !!el.flipH; }
   }
 }
 
@@ -885,20 +1456,38 @@ function fillChips(id, table) {
 }
 fillChips('product', PRICING.products); fillChips('finish', PRICING.finishes); fillChips('bags', PRICING.bags);
 $('rushlabel').textContent = PRICING.rush.label + ' (+' + money(PRICING.rush.cents) + ')';
+$('caselabel').textContent = PRICING.carryCase.label + ' (+' + money(PRICING.carryCase.cents) + ' each)';
 $('leadtime').textContent = 'Built to order. Standard orders ship in about ' + PRICING.leadTimeDays + ' business days.';
+$('finishhint').textContent = 'The guest-book finish is a smooth matte clear coat that takes paint pens: guests sign the boards at the reception, and the signatures are sealed under a second coat of your choice afterwards (we include the kit).';
 for (const s of US_STATES) { const o = document.createElement('option'); o.value = s; o.textContent = s; $('state').appendChild(o); }
+for (const [k, label] of Object.entries(OCCASIONS)) { const o = document.createElement('option'); o.value = k; o.textContent = label; $('occasion').appendChild(o); }
+$('needby').min = new Date().toISOString().slice(0, 10);
 chips('product', (v) => { order.product = v; if (v === 'single') { design.same = true; setActive('a'); } syncAll(); });
 chips('finish', (v) => { order.finish = v; syncOrder(); });
 chips('bags', (v) => { order.bags = v; syncOrder(); });
 $('qty').addEventListener('input', () => { order.quantity = clamp(Math.round(Number($('qty').value) || 1), 1, PRICING.maxQuantity); syncOrder(); });
 $('rush').addEventListener('change', () => { order.rush = $('rush').checked; syncOrder(); });
+$('carrycase').addEventListener('change', () => { order.carryCase = $('carrycase').checked; syncOrder(); });
 $('bag1').addEventListener('input', () => { order.bagColors[0] = $('bag1').value; });
 $('bag2').addEventListener('input', () => { order.bagColors[1] = $('bag2').value; });
+$('occasion').addEventListener('change', () => { order.occasion = $('occasion').value; syncOrder(); });
+$('needby').addEventListener('change', () => { order.needBy = $('needby').value; syncOrder(); });
+$('giftnote').addEventListener('input', () => { order.giftNote = $('giftnote').value; });
 
 function syncOrder() {
   setChip('product', order.product); setChip('finish', order.finish); setChip('bags', order.bags);
-  $('qty').value = order.quantity; $('rush').checked = order.rush;
+  $('qty').value = order.quantity; $('rush').checked = order.rush; $('carrycase').checked = order.carryCase;
   $('bagcolors').hidden = order.bags !== 'regulation';
+  $('occasion').value = order.occasion; $('needby').value = order.needBy; $('giftnote').value = order.giftNote;
+  /* A date inside the standard lead time is a nudge toward the rush
+     option, said plainly rather than discovered after paying. */
+  let hint = '';
+  if (order.needBy) {
+    const days = Math.round((Date.parse(order.needBy) - Date.now()) / 86_400_000);
+    const lead = order.rush ? 7 : Math.round(PRICING.leadTimeDays * 1.4) + 7;
+    hint = days < lead ? 'That is ' + days + ' days away. Standard orders take about ' + Math.round(PRICING.leadTimeDays * 1.4) + ' days plus shipping' + (order.rush ? ', and even rush is tight - email us first.' : ', so tick Rush build to make it.') : 'Plenty of time - we will plan the build around it.';
+  }
+  $('needbyhint').textContent = hint;
   const q = quote(order);
   const t = $('quote'); t.textContent = '';
   for (const l of q.lines) {
@@ -915,8 +1504,10 @@ function orderPayload() {
   const v = (id) => f.elements[id].value.trim();
   const previews = [previewDataUrl('a')];
   if (order.product === 'set' && !design.same) previews.push(previewDataUrl('b'));
-  const opts = { product: order.product, quantity: order.quantity, finish: order.finish, bags: order.bags, rush: order.rush };
+  const opts = { product: order.product, quantity: order.quantity, finish: order.finish, bags: order.bags, rush: order.rush,
+    carryCase: order.carryCase, occasion: order.occasion, giftNote: order.giftNote.trim() };
   if (order.bags === 'regulation') opts.bagColors = [...order.bagColors];
+  if (order.needBy) opts.needBy = order.needBy;
   return {
     options: opts,
     design: JSON.parse(snapshot()),
@@ -995,30 +1586,33 @@ function syncAll() { syncBoard(); syncLists(); syncProps(); syncOrder(); syncHis
 /* ====================================================================
    BOOT
    ==================================================================== */
-load();
+const hadSave = load();
 history = [snapshot()];
 syncAll();
 showOutcome();
+if (hadSave) showTab('board');
 window.addEventListener('resize', render);
-if (document.fonts && document.fonts.ready) document.fonts.ready.then(render);
 /* Web fonts arrive after the first paint; a text set in one is measured
-   and drawn in the fallback until then. Repaint when each one lands. */
-if (document.fonts) document.fonts.addEventListener('loadingdone', render);
+   and drawn in the fallback until then. Repaint when each one lands, and
+   redraw the template thumbnails too. */
+const refontThumbs = () => { for (const b of document.querySelectorAll('#templates .tpl')) { const t = TEMPLATES.find((x) => x.id === b.dataset.id), c = b.querySelector('canvas'); c.getContext('2d').clearRect(0, 0, c.width, c.height); renderBoard(c.getContext('2d'), t.board(), c.height / BOARD.h); } render(); };
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(refontThumbs);
+if (document.fonts) document.fonts.addEventListener('loadingdone', refontThumbs);
 
 /* For the tests, and for anyone poking at it in the console. The page is a
    module, so nothing here is a global by accident; this is the one on
    purpose. */
 window.cornhole = {
-  BOARD, PRICING, quote,
+  BOARD, PRICING, quote, CLIPS, TEMPLATES, FONTS, PATTERNS,
   get design() { return design; },
   get order() { return order; },
   get selected() { return selected; },
   get active() { return active; },
   get boxes() { return boxes; },
-  setDesign(d) { design = JSON.parse(JSON.stringify(d)); selected = null; syncAll(); commit(); },
+  setDesign(d) { design = migrate(JSON.parse(JSON.stringify(d))); selected = null; syncAll(); commit(); },
   setOrder(o) { Object.assign(order, o); syncAll(); },
   select, commit, undo, redo, render, paint, showTab, printCanvas, previewDataUrl, orderPayload,
-  activeBoard,
+  activeBoard, addClip, applyTemplate, migrate,
 };
 </script>
 </body>
