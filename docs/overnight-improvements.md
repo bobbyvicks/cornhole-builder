@@ -58,6 +58,36 @@ the clock and repository state before each run.
   physical iOS keyboard behavior and native OS sharing remain unverified.
 - Node/API tests stub network services; no real payments or orders were created.
 
+## Second batch - October 13, 11:50 p.m. Toronto continuation
+
+- Confirmed main and the overnight branch had no concurrent remote changes.
+  PR #2 was open and mergeable. GitHub reported no checks or deployments;
+  this does not verify a Vercel preview or production deployment.
+- Added search across all 131 artwork items, readable thumbnail labels,
+  combined group filtering, result counts and accessible reset/empty states.
+  Group controls collapse so phone search results stay near the search field.
+- Reproduced and fixed undo/redo leaving the controls on hidden Board B when
+  matching boards are visible. Layer labels follow text and size changes;
+  removing a selected item keeps keyboard focus in the editor.
+- Reproduced malformed embedded images replacing a valid live and saved
+  project. Imported previews and print masters now decode before applying
+  the project. Newer edits during file reading or decoding cancel the import;
+  a newer file selection supersedes the older operation without stale alerts.
+  Validate raster sources sequentially and retain only decoded previews, so
+  opening a project does not retain every full-size print master in memory.
+- Reproduced startup recovery races: typing before storage finished loading
+  could be overwritten, and a committed early edit could remain unsaved.
+  Compare the initial design and order state, preserve edits in progress and
+  save them once storage is ready. Unchanged navigation still restores drafts.
+- Independent review verified valid two-board image imports and print masters,
+  file-opening races, artwork browsing, selection and startup recovery, including
+  the sequential image decoder. No outstanding review findings.
+- Final whole-suite run: **47 node tests, 143 Chromium browser tests and
+  TypeScript checks passed**. `node --check app.mjs` and `git diff --check`
+  passed. Phone and desktop artwork search screenshots were inspected.
+  This batch adds 26 browser regressions; real device limitations noted above
+  still apply. No production order or payment was created.
+
 ## Next overnight priorities
 
 1. Check the existing overnight PR and remote main for Claude changes before editing.
@@ -65,9 +95,9 @@ the clock and repository state before each run.
    with evidence; do not claim production deployment from a Git push.
 3. Audit usability with fresh desktop/mobile journeys: finding artwork, changing
    boards, recovering drafts and reviewing a complete personalized order.
-4. Consider clip-art search, clearer selected-layer labels and performance only
-   where a concrete problem remains. Preserve familiar editing behavior.
-5. Check malformed-image recovery and print/preflight warnings if tests reveal gaps.
+4. Check image upload behavior when switching boards or templates while a large
+   picture is being processed. Preserve familiar editing behavior.
+5. Check print/preflight warnings, slow devices and startup recovery if tests reveal gaps.
 6. Keep changes small, independently reviewed and tested; update this work log
    and the same PR with each meaningful increment. No new cloud storage or
    invented business details. Stop by 7 a.m. Toronto and report remaining needs.

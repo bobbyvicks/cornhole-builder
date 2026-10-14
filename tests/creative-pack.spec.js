@@ -27,7 +27,8 @@ test.describe('creative pack integration', () => {
     await page.evaluate(() => cornhole.showTab('art'));
     await expect(page.locator('#clipcats .chip[data-v^="pack-"]')).toHaveCount(6);
     for (const [category, label, ids] of COLLECTIONS) {
-      await page.getByRole('button', { name: label, exact: true }).click();
+      await chip(page, 'clipcats', category);
+      await expect(page.locator('#clipfilterlabel')).toHaveText('Browse groups: ' + label);
       await expect(page.locator('#clips .clip')).toHaveCount(4);
       for (const id of ids) {
         const button = page.locator('#clips .clip[data-name="bbp1-' + id + '"]');

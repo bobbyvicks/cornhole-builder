@@ -110,6 +110,8 @@ export const setInput = (page, id, value) => page.evaluate(([id, value]) => {
     way a person has to: a chip in a closed pane is display:none. */
 export async function chip(page, group, v) {
   await page.evaluate((g) => cornhole.showTab(document.getElementById(g).closest('.pane').id.replace('tab-', '')), group);
+  const collapsed = page.locator('details:not([open])').filter({ has: page.locator('#' + group) });
+  if (await collapsed.count()) await collapsed.locator('summary').click();
   await page.click('#' + group + ' .chip[data-v="' + v + '"]');
 }
 

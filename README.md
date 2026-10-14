@@ -26,11 +26,15 @@ A site where people design their own cornhole boards and order them.
   manual font, size, position and handle edits turn automatic fitting off.
   The phone layout has larger tap targets and makes room for the keyboard.
   Share a PNG preview from Start, or save an editable copy to open later.
+  Find clip art by name or collection, with visible labels and compact group
+  filters that keep the results close to the search field on a phone.
 - **Kept safe.** The boards and the order choices are saved on the device
   (IndexedDB, with localStorage as the fallback) after every change, the
   page says "Saving", "Saved on this device" or exactly what went wrong,
   and a save that does not fit fails loudly instead of dropping a picture.
   Export writes the whole project as editable JSON; Import takes it back.
+  Imported pictures and print masters must decode before the current draft
+  is replaced; changes made while a file opens are preserved.
   A design that has been worked on is never replaced by a template without
   asking, reload or no reload. Keys that edit the artwork (arrows, plus,
   minus, Delete) work only while a board has the focus.

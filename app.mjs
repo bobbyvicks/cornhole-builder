@@ -538,7 +538,14 @@ function commit() {
   save();
   syncHistoryButtons();
 }
-function restore(s) { design = JSON.parse(s); if (!findEl(selected)) selected = null; save(); syncAll(); }
+function restore(s) {
+  design = JSON.parse(s);
+  // A matching pair or a single board always edits A, including after
+  // undoing a switch to B. Otherwise the controls edit an invisible board.
+  if (design.same || order.product === 'single') active = 'a';
+  if (!findEl(selected)) selected = null;
+  save(); syncAll();
+}
 function undo() { if (history.length < 2) return; future.push(history.pop()); restore(history[history.length - 1]); }
 function redo() { if (!future.length) return; const s = future.pop(); history.push(s); restore(s); }
 function syncHistoryButtons() { $('undo').disabled = history.length < 2; $('redo').disabled = !future.length; }
@@ -554,13 +561,23 @@ const SAVE_TEXT = {
   error: 'Not saved: this browser cannot store the project (storage full or blocked). Export it to keep it.',
 };
 let saveState = 'new', saveBusy = false, saveAgain = false, storageReady = false, loaded = false;
+let startupSnapshot = null;
+const hasStartupEdits = () => startupSnapshot !== null && JSON.stringify({ design, order }) !== startupSnapshot;
 function setSaveState(s) {
   saveState = s;
   for (const el of document.querySelectorAll('.savestatus')) { el.textContent = SAVE_TEXT[s]; el.dataset.state = s; }
   $('exportlink').hidden = s !== 'error';
 }
 function projectRecord() { return { version: PROJECT_VERSION, savedAt: new Date().toISOString(), design: JSON.parse(snapshot()), order: { ...order, bagColors: [...order.bagColors] } }; }
-function save() { if (!storageReady) return; setSaveState('saving'); flush(); }
+function save() {
+  if (!storageReady) {
+    // Initial rendering and navigation also call save. Only actual edits
+    // should take precedence over the project still being read from storage.
+    if (hasStartupEdits()) setSaveState('saving');
+    return;
+  }
+  setSaveState('saving'); flush();
+}
 async function flush() {
   if (saveBusy) { saveAgain = true; return; }
   saveBusy = true;
@@ -569,7 +586,7 @@ async function flush() {
   saveBusy = false;
   if (saveAgain) { saveAgain = false; flush(); }
 }
-window.addEventListener('beforeunload', (e) => { if (saveState === 'error' || saveState === 'saving') { e.preventDefault(); e.returnValue = ''; } });
+window.addEventListener('beforeunload', (e) => { if (saveState === 'error' || saveState === 'saving' || hasStartupEdits()) { e.preventDefault(); e.returnValue = ''; } });
 
 /* Order choices from storage or a file, taken only where they are valid. */
 function applyOrder(o) {
@@ -592,15 +609,55 @@ function exportProject() {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
 }
+let projectImportSequence = 0;
+function captureImportGuard() {
+  const sequence = projectImportSequence, previousDesign = design, previousSnapshot = snapshot(), previousOrder = JSON.stringify(order);
+  return () => {
+    if (sequence !== projectImportSequence || design !== previousDesign || snapshot() !== previousSnapshot || JSON.stringify(order) !== previousOrder) {
+      throw new Error('Your project changed while this file was opening. Open the file again to replace the current project');
+    }
+  };
+}
 function importProject(obj) {
   validateProject(obj, { clips: CLIPS, patterns: PATTERNS, stains: STAINS, maxQuantity: PRICING.maxQuantity,
     orderChoices: { product: PRICING.products, finish: PRICING.finishes, bags: PRICING.bags, occasion: OCCASIONS } });
+  ++projectImportSequence;
   const incoming = JSON.parse(JSON.stringify(obj));
   const nextDesign = migrate(incoming.design);
-  design = nextDesign;
-  if (incoming.order) applyOrder(incoming.order);
-  selected = null; active = 'a';
-  syncAll(); commit(); showTab('board');
+  const sources = new Map(), previewSources = new Set();
+  for (const key of ['a', 'b']) nextDesign[key].elements.forEach((el, index) => {
+    if (el.type !== 'image') return;
+    const label = 'Board ' + key.toUpperCase() + ' item ' + (index + 1);
+    sources.set(el.src, label + ' image');
+    previewSources.add(el.src);
+    if (el.orig) sources.set(el.orig, label + ' print master');
+  });
+  const apply = () => {
+    design = nextDesign;
+    if (incoming.order) applyOrder(incoming.order);
+    selected = null; active = 'a';
+    syncAll(); commit(); showTab('board');
+  };
+  // Preserve the synchronous no-picture API. Embedded Base64 must also
+  // decode successfully before an image-bearing project replaces a draft.
+  if (!sources.size) return apply();
+  const assertCurrentProject = captureImportGuard();
+  return (async () => {
+    const previews = [];
+    // Validate masters one at a time and release their decoded pixels.
+    // A source shared with any preview stays ready for the first paint.
+    for (const [src, label] of sources) {
+      const img = new Image(); img.src = src;
+      try { await img.decode(); if (!img.naturalWidth || !img.naturalHeight) throw new Error('empty image'); }
+      catch (_) { img.src = ''; throw new Error(label + ' could not be loaded. Upload the original picture again'); }
+      if (previewSources.has(src)) previews.push([src, img]);
+      else img.src = '';
+      assertCurrentProject();
+    }
+    assertCurrentProject();
+    for (const [src, img] of previews) imgCache.set(src, img);
+    apply();
+  })();
 }
 
 /* ====================================================================
@@ -1124,7 +1181,7 @@ $('idup').addEventListener('click', duplicate);
 $('iforward').addEventListener('click', () => moveLayer(1));
 $('iback').addEventListener('click', () => moveLayer(-1));
 
-let clipCat = 'love';
+let clipCat = '';
 function clipThumb(name, color = '#1d1b18') {
   const def = CLIPS[name], c = document.createElement('canvas'); c.width = c.height = 72;
   const g = c.getContext('2d'); g.scale(0.72, 0.72);
@@ -1134,14 +1191,26 @@ function clipThumb(name, color = '#1d1b18') {
 }
 function fillClips() {
   const box = $('clips'); box.textContent = '';
+  const words = normalizeSearch($('clipsearch').value).split(/\s+/).filter(Boolean);
+  let count = 0;
   for (const [name, def] of Object.entries(CLIPS)) {
-    if (def.cat !== clipCat) continue;
+    if (clipCat && def.cat !== clipCat) continue;
+    const terms = normalizeSearch([def.label, name.replaceAll('-', ' '), CLIP_CATS[def.cat]].join(' '));
+    if (!words.every(word => terms.includes(word))) continue;
     const b = document.createElement('button'); b.type = 'button'; b.className = 'clip'; b.dataset.name = name; b.title = def.label; b.setAttribute('aria-label', 'Add ' + def.label);
-    b.appendChild(clipThumb(name)); box.appendChild(b);
+    const thumbnail = clipThumb(name); thumbnail.setAttribute('aria-hidden', 'true');
+    const label = document.createElement('span'); label.className = 'clip-label'; label.textContent = def.label;
+    b.append(thumbnail, label); box.appendChild(b); count++;
   }
+  $('clipresults').textContent = count ? count + (count === 1 ? ' artwork choice' : ' artwork choices') : 'No artwork found';
+  $('clipempty').hidden = count > 0;
+  $('clearclips').disabled = !words.length && !clipCat;
+  $('clipfilterlabel').textContent = 'Browse groups: ' + (CLIP_CATS[clipCat] || 'All artwork');
 }
-for (const [k, label] of Object.entries(CLIP_CATS)) { const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.dataset.v = k; b.textContent = label; b.setAttribute('aria-pressed', String(k === clipCat)); $('clipcats').appendChild(b); }
-chips('clipcats', (v) => { clipCat = v; fillClips(); });
+for (const [k, label] of [['', 'All artwork'], ...Object.entries(CLIP_CATS)]) { const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.dataset.v = k; b.textContent = label; b.setAttribute('aria-pressed', String(k === clipCat)); $('clipcats').appendChild(b); }
+chips('clipcats', (v) => { clipCat = v; fillClips(); $('clipfilters').open = false; $('clipfilterlabel').focus({ preventScroll: true }); });
+$('clipsearch').addEventListener('input', fillClips);
+$('clearclips').addEventListener('click', () => { $('clipsearch').value = ''; clipCat = ''; setChip('clipcats', clipCat); fillClips(); $('clipfilters').open = false; $('clipsearch').focus(); });
 fillClips();
 function addClip(name, o = {}) {
   if (!CLIPS[name]) return null;
@@ -1153,9 +1222,17 @@ $('clips').addEventListener('click', (ev) => { const b = ev.target.closest('.cli
 
 function removeElement(id) {
   const b = activeBoard();
+  const el = findEl(id); if (!el) return;
+  const fromProps = selected === id && document.activeElement?.closest('#textprops, #imageprops');
   b.elements = b.elements.filter((e) => e.id !== id);
   if (selected === id) selected = null;
   render(); syncLists(); syncProps(); commit();
+  // Removing the selection hides its property controls. Keep keyboard
+  // focus in this editor instead of leaving it on the page body.
+  if (fromProps) {
+    const next = $(el.type === 'text' ? 'texts' : 'images').querySelector('.item');
+    (next || $(el.type === 'text' ? 'addtext' : 'addimage')).focus();
+  }
 }
 function copyToOther() {
   const el = selectedEl(); if (!el || design.same) return;
@@ -1194,7 +1271,7 @@ function itemRow(el, pressed, onClick) {
     const q = document.createElement('input'); q.type = 'text'; q.className = 'quick'; q.value = el.text; q.maxLength = 60; q.dataset.id = el.id;
     q.setAttribute('aria-label', 'Words: ' + (el.fitReference?.text || el.text)); q.style.fontFamily = '"' + el.font + '", Impact, sans-serif';
     q.addEventListener('focus', () => { if (selected !== el.id) select(el.id); });
-    q.addEventListener('input', () => { const e = findEl(el.id); if (!e) return; e.text = q.value || ' '; fitTemplateText(e); $('texthint').hidden = true; render(); if (selected === e.id) syncProps(); save(); });
+    q.addEventListener('input', () => { const e = findEl(el.id); if (!e) return; e.text = q.value || ' '; fitTemplateText(e); $('texthint').hidden = true; render(); updateRow(row, e, selected === e.id); if (selected === e.id) syncProps(); save(); });
     q.addEventListener('change', commit);
     row.append(b, q);
   } else {
@@ -1219,11 +1296,13 @@ function updateRow(row, el, pressed) {
   if (el.type === 'text') {
     t.style.background = el.color; b.setAttribute('aria-label', 'Select "' + el.text + '"');
     const q = row.querySelector('.quick'); q.style.fontFamily = '"' + el.font + '", Impact, sans-serif';
+    q.setAttribute('aria-label', 'Words: ' + (el.fitReference?.text || el.text));
     if (document.activeElement !== q && q.value !== el.text) q.value = el.text;
   } else if (el.type === 'clip') {
     t.textContent = ''; const c = clipThumb(el.name, el.color); c.style.width = c.style.height = '28px'; t.appendChild(c);
     row.querySelector('.name').textContent = (CLIPS[el.name] || {}).label + ', ' + el.width + '"';
   } else row.querySelector('.name').textContent = 'Picture, ' + el.width + '" wide';
+  row.querySelector('.itemdel').setAttribute('aria-label', 'Remove ' + (el.type === 'text' ? el.text : row.querySelector('.name').textContent));
 }
 function syncLists() {
   const b = activeBoard();
@@ -1246,7 +1325,7 @@ function syncLists() {
   }
   $('addtext').disabled = countOf(b, 'text') >= MAX_TEXTS;
   if (keep && lostFocus) {
-    const again = document.querySelector('.' + keep.cls + '[data-id="' + keep.id + '"]') || (keep.list && keep.list.querySelector('.itemdel')) || (keep.list && keep.list.id === 'texts' ? $('addtext') : null);
+    const again = document.querySelector('.' + keep.cls + '[data-id="' + keep.id + '"]') || (keep.list && keep.list.querySelector('.itemdel')) || (keep.list ? $(keep.list.id === 'texts' ? 'addtext' : 'addimage') : null);
     if (again) { again.focus({ preventScroll: true }); if (keep.cls === 'quick' && keep.s != null && again.setSelectionRange) try { again.setSelectionRange(keep.s, keep.e); } catch (_) {} }
   }
 }
@@ -1562,14 +1641,23 @@ $('download').addEventListener('click', async () => {
 });
 $('exportbtn').addEventListener('click', exportProject);
 $('exportlink').addEventListener('click', exportProject);
+let projectFileSequence = 0;
 $('importfile').addEventListener('change', async () => {
   const f = $('importfile').files[0]; $('importfile').value = '';
   if (!f) return;
+  const sequence = ++projectFileSequence;
+  // The latest picker selection owns the operation, even while its file
+  // is still being read and an earlier project's pictures are decoding.
+  ++projectImportSequence;
+  const assertCurrentProject = captureImportGuard();
   try {
     if (f.size > MAX_PROJECT_BYTES) throw new Error('Project files must be 64 MB or smaller');
-    importProject(JSON.parse(await f.text()));
+    const contents = await f.text();
+    if (sequence !== projectFileSequence) return;
+    assertCurrentProject();
+    await importProject(JSON.parse(contents));
   }
-  catch (e) { alert('Could not import that file: ' + (e && e.message ? e.message : e) + '.'); }
+  catch (e) { if (sequence === projectFileSequence) alert('Could not import that file: ' + (e && e.message ? e.message : e) + '.'); }
 });
 
 /* The business behind the site, from lib/site.mjs. A detail that is not
@@ -1594,6 +1682,7 @@ function syncAll() { syncBoard(); syncLists(); syncProps(); syncOrder(); syncHis
    from the device and put in place; nothing is written back until that has
    finished, so a restored project is never overwritten by the fresh page.
    ==================================================================== */
+startupSnapshot = JSON.stringify({ design, order });
 history = [snapshot()];
 syncAll();
 showOutcome();
@@ -1601,14 +1690,22 @@ renderSite();
 (async () => {
   let p = null;
   try { p = await loadProject(); } catch (_) { p = null; }
-  if (p && history.length < 2) {
+  // Include edits still in progress (typing, a colour picker, or dragging)
+  // even when their change/commit event has not happened yet.
+  const editedDuringLoad = saveState === 'saving' || hasStartupEdits();
+  startupSnapshot = null;
+  if (p && !editedDuringLoad) {
     design = migrate(p.design);
     if (p.order) applyOrder(p.order);
     selected = null; active = 'a';
     history = [snapshot()]; future = [];
     syncAll(); showTab('board');
     storageReady = true; setSaveState('saved');
-  } else { storageReady = true; setSaveState('new'); }
+  } else {
+    storageReady = true;
+    if (editedDuringLoad) save();
+    else setSaveState('new');
+  }
   loaded = true;
 })();
 window.addEventListener('resize', render);
