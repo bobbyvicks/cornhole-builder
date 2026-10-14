@@ -74,7 +74,7 @@
   .hint { font-size: 12.5px; color: var(--muted); }
   .savestatus { font-size: 12.5px; color: var(--muted); }
   .savestatus[data-state="saved"] { color: var(--ok); }
-  .savestatus[data-state="error"] { color: var(--bad); font-weight: 600; }
+  .savestatus[data-state="error"], .savestatus[data-state="unreadable"] { color: var(--bad); font-weight: 600; }
 
   .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 12px; cursor: pointer; font-weight: 600; min-height: 44px; min-width: 44px; }
   label.btn { display: inline-flex; align-items: center; }
@@ -578,6 +578,7 @@
             <div class="full"><button class="btn primary" type="submit" id="checkout" style="width:100%;padding:12px">Continue to payment</button></div>
           </form>
           <div class="status" id="orderstatus" role="status"></div>
+          <button class="btn" id="saveunsubmitted" type="button" hidden>Save editable copy</button>
           <p class="hint" id="shipnote2"></p>
         </div>
       </div>

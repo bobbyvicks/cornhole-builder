@@ -232,6 +232,49 @@ the clock and repository state before each run.
   or pointer ownership. No production release was made; the Vercel access
   limitation recorded above remains unresolved.
 
+## Seventh increment - recovery, artwork navigation and print handoff
+
+- Started from clean `9d72b00` at 3:53 a.m. Toronto. PR #2 was mergeable and
+  remote main remained `136fe35`; a second fetch before final verification
+  found no concurrent changes.
+- Reproduced choosing the last artwork group or adding distant artwork leaving
+  the phone controls above the viewport. Collapsing groups now reveals its
+  focused summary; adding artwork reveals the selected item's width control.
+  Pointer and keyboard regressions cover desktop, tall and short phone layouts.
+- Reproduced an unavailable-order response telling customers to send a print
+  file for a manual quote even though no contact method is configured. The
+  response now says the order was not submitted and nothing was charged, with
+  a working Save editable copy action. Actual downloads retain artwork and
+  order choices; address details stay in the form for retry and are not put in
+  the editable file. Tests stub every order request. Reset confirmation now
+  accurately describes the default design and available Undo recovery.
+- Downloaded print PNGs were 2400 x 4800 pixels with no physical-resolution
+  metadata. Add one 100 PPI pHYs chunk (3937 pixels per metre after rounding),
+  replacing an existing chunk when present, without re-encoding the artwork.
+  Both boards' decoded pixel hashes remain identical. Preview, share and order
+  images keep their existing encoding. Invalid PNG preparation keeps the
+  design intact, resets the button and permits retry. The format requirement
+  is documented in the [W3C PNG specification](https://www.w3.org/TR/png-3/#11pHYs).
+- Reproduced a malformed newer saved record hiding an intact older draft:
+  malformed elements could stop startup and all later saves, while a missing
+  board could silently replace the saved design with the default. Validate
+  each storage candidate before comparing timestamps and contain restoration
+  failures. If none can be opened, show a recovery message and leave stored
+  records untouched until a deliberate edit. Navigation and unchanged inputs
+  cannot overwrite them.
+- Retain legacy defaults, uploaded images and old order sanitization. Ignore
+  inherited enum names in stored order choices. Device recovery accepts safe
+  off-board coordinates created by keyboard movement; imported project bounds
+  remain unchanged. A regression moves text with 120 actual keyboard nudges
+  and confirms the same position after reload.
+- Final full run: **65 node tests, 220 Chromium browser tests and TypeScript
+  checks passed**. This increment adds 11 node and 18 browser regressions.
+  Independent reviews found no outstanding issues; syntax and whitespace
+  checks passed. The public site still serves older code without template
+  search or these recovery/print changes. Vercel team access and physical iOS
+  keyboard/native-sharing checks remain unresolved; no production release
+  or real purchase was made.
+
 ## Next overnight priorities
 
 1. Check the existing overnight PR and remote main for Claude changes before editing.

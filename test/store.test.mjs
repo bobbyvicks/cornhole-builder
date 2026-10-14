@@ -136,3 +136,38 @@ test('forgetting a project removes current, fallback, and legacy drafts', async 
   await store.forgetProject();
   assert.equal(await store.loadProject(), null);
 });
+
+const validateBoards = (p) => {
+  if (!Array.isArray(p.design.a?.elements) || !Array.isArray(p.design.b?.elements)) throw new Error('Unreadable board');
+};
+
+for (const brokenStore of ['current', 'fallback']) test('a rejected ' + brokenStore + ' record cannot outrank a usable draft', async (t) => {
+  const good = project('KEEP THESE WORDS', EARLIER), bad = project('BROKEN', LATER);
+  bad.design.a.elements = {};
+  const store = await storage(t, brokenStore === 'current' ? { current: bad, fallback: good } : { current: good, fallback: bad });
+  const before = [...store.local];
+  assert.deepEqual(await store.loadProject({ validate: validateBoards }), good);
+  assert.deepEqual([...store.local], before);
+  assert.deepEqual(store.state.current, brokenStore === 'current' ? bad : good);
+});
+
+test('a valid legacy draft is considered after both current candidates fail validation', async (t) => {
+  const bad = project('BROKEN'); bad.design.b = null;
+  const legacy = project('LEGACY WORDS').design;
+  const store = await storage(t, { current: bad, fallback: bad, legacy });
+  assert.deepEqual(await store.loadProject({ validate: validateBoards }), { version: 1, design: legacy, order: null });
+});
+
+test('unreadable drafts are reported without changing any stored bytes', async (t) => {
+  const bad = project('BROKEN'); bad.design.a.elements = {};
+  const store = await storage(t, { current: bad });
+  store.local.set(CURRENT, '{unfinished JSON');
+  await assert.rejects(store.loadProject({ validate: validateBoards }), /saved project.*read/i);
+  assert.deepEqual(store.state.current, bad);
+  assert.equal(store.local.get(CURRENT), '{unfinished JSON');
+});
+
+test('an empty device remains distinct from an unreadable saved project', async (t) => {
+  const store = await storage(t);
+  assert.equal(await store.loadProject({ validate: validateBoards }), null);
+});

@@ -6,6 +6,7 @@ import { loadProject, saveProject } from './lib/store.mjs';
 import { SITE } from './lib/site.mjs';
 import { MAX_PROJECT_BYTES, validateProject } from './lib/project-validation.mjs';
 import { copyHistoryState, sameHistoryState } from './lib/history.mjs';
+import { pngWithResolution } from './lib/png-resolution.mjs';
 
 const CLIPS = { ...CORE_CLIPS, ...PACK_CLIPS };
 const CLIP_CATS = { ...CORE_CLIP_CATS, ...PACK_CATEGORIES };
@@ -571,12 +572,14 @@ function syncHistoryButtons() { $('undo').disabled = history.length < 2; $('redo
    offers the export, and never drops a picture to make itself fit. */
 const SAVE_TEXT = {
   new: 'Not saved yet',
+  unreadable: 'The saved project could not be read. Stored copies are unchanged. Import an editable copy, or make an edit to start a new saved design.',
   saving: 'Saving…',
   saved: 'Saved on this device',
   error: 'Not saved: this browser cannot store the project (storage full or blocked). Export it to keep it.',
 };
 let saveState = 'new', saveBusy = false, saveAgain = false, storageReady = false, loaded = false;
 let startupSnapshot = null;
+let recoverySnapshot = null;
 const hasStartupEdits = () => startupSnapshot !== null && JSON.stringify({ design, order }) !== startupSnapshot;
 function setSaveState(s) {
   saveState = s;
@@ -585,6 +588,12 @@ function setSaveState(s) {
 }
 function projectRecord() { return { version: PROJECT_VERSION, savedAt: new Date().toISOString(), design: JSON.parse(snapshot()), order: { ...order, bagColors: [...order.bagColors] } }; }
 function save() {
+  // After an unreadable restore, navigation and unchanged inputs must not
+  // replace the stored draft with the initial page. A real edit starts saving.
+  if (recoverySnapshot !== null) {
+    if (JSON.stringify({ design, order }) === recoverySnapshot) return;
+    recoverySnapshot = null;
+  }
   if (!storageReady) {
     // Initial rendering and navigation also call save. Only actual edits
     // should take precedence over the project still being read from storage.
@@ -606,13 +615,13 @@ window.addEventListener('beforeunload', (e) => { if (saveState === 'error' || sa
 /* Order choices from storage or a file, taken only where they are valid. */
 function applyOrder(o) {
   if (!o || typeof o !== 'object') return;
-  if (PRICING.products[o.product]) order.product = o.product;
+  if (Object.hasOwn(PRICING.products, o.product)) order.product = o.product;
   const q = Number(o.quantity); if (Number.isInteger(q) && q >= 1 && q <= PRICING.maxQuantity) order.quantity = q;
-  if (PRICING.finishes[o.finish]) order.finish = o.finish;
-  if (PRICING.bags[o.bags]) order.bags = o.bags;
+  if (Object.hasOwn(PRICING.finishes, o.finish)) order.finish = o.finish;
+  if (Object.hasOwn(PRICING.bags, o.bags)) order.bags = o.bags;
   if (Array.isArray(o.bagColors) && o.bagColors.length === 2 && o.bagColors.every(isHex)) order.bagColors = [...o.bagColors];
   order.rush = o.rush === true; order.carryCase = o.carryCase === true;
-  if (OCCASIONS[o.occasion]) order.occasion = o.occasion;
+  if (Object.hasOwn(OCCASIONS, o.occasion)) order.occasion = o.occasion;
   order.needBy = typeof o.needBy === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.needBy) && o.needBy >= today() ? o.needBy : '';
   order.giftNote = typeof o.giftNote === 'string' ? o.giftNote.slice(0, 300) : '';
 }
@@ -1283,7 +1292,7 @@ function fillClips() {
   $('clipfilterlabel').textContent = 'Browse groups: ' + (CLIP_CATS[clipCat] || 'All artwork');
 }
 for (const [k, label] of [['', 'All artwork'], ...Object.entries(CLIP_CATS)]) { const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.dataset.v = k; b.textContent = label; b.setAttribute('aria-pressed', String(k === clipCat)); $('clipcats').appendChild(b); }
-chips('clipcats', (v) => { clipCat = v; fillClips(); $('clipfilters').open = false; $('clipfilterlabel').focus({ preventScroll: true }); });
+chips('clipcats', (v) => { clipCat = v; fillClips(); $('clipfilters').open = false; $('clipfilterlabel').focus(); });
 $('clipsearch').addEventListener('input', fillClips);
 $('clearclips').addEventListener('click', () => { $('clipsearch').value = ''; clipCat = ''; setChip('clipcats', clipCat); fillClips(); $('clipfilters').open = false; $('clipsearch').focus(); });
 fillClips();
@@ -1291,7 +1300,9 @@ function addClip(name, o = {}) {
   if (!CLIPS[name]) return null;
   const b = activeBoard();
   const color = b.base.kind === 'wood' || b.base.color === '#fffaf0' || b.base.color === '#f5f0e6' || b.base.color === '#ffffff' ? '#36393b' : '#f5f5f0';
-  return addElement(C(name, { color, width: 8, x: 12, y: 36, ...o }), 'art');
+  const el = addElement(C(name, { color, width: 8, x: 12, y: 36, ...o }), 'art');
+  if (el) $('iwidth').focus();
+  return el;
 }
 $('clips').addEventListener('click', (ev) => { const b = ev.target.closest('.clip'); if (b) addClip(b.dataset.name); });
 
@@ -1623,7 +1634,8 @@ async function renderReview() {
   }
 }
 
-function status(kind, text) { const s = $('orderstatus'); s.dataset.kind = kind; s.textContent = text; }
+function status(kind, text) { const s = $('orderstatus'); s.dataset.kind = kind; s.textContent = text; $('saveunsubmitted').hidden = true; }
+$('saveunsubmitted').addEventListener('click', exportProject);
 /* What is posted. The pictures' masters go along when the whole order fits
    the server's limit; otherwise they stay out and options.assets says the
    full-size files are still to come. */
@@ -1690,7 +1702,8 @@ $('orderform').addEventListener('submit', async (ev) => {
     const j = await r.json().catch(() => ({}));
     const files = payload.options.assets === 'pending' ? ' Your pictures were too large to send with the order, so we will email you for the full-size files.' : '';
     if (r.status === 503 && j.error === 'not_configured') {
-      status('warn', 'Ordering is not switched on for this site yet. Download the print file above and send it to us, and we will quote it by hand.');
+      status('warn', 'Ordering is not switched on for this site yet. Your order was not submitted. Nothing was charged. Save an editable copy below to keep your design, then try again when ordering is available.');
+      $('saveunsubmitted').hidden = false;
     } else if (!r.ok) {
       status('bad', j.message || ('Something went wrong (' + r.status + '). Nothing was charged.'));
     } else if (j.url) {
@@ -1775,7 +1788,7 @@ async function sharePreview() {
 $('sharepreview').addEventListener('click', sharePreview);
 $('undo').addEventListener('click', undo);
 $('redo').addEventListener('click', redo);
-$('reset').addEventListener('click', () => { if (!confirm('Start over with a blank board? This clears your design.')) return; design = freshDesign(); selected = null; active = 'a'; syncAll(); commit(); });
+$('reset').addEventListener('click', () => { if (!confirm('Start over with the default design? You can restore your current design with Undo.')) return; design = freshDesign(); selected = null; active = 'a'; syncAll(); commit(); });
 $('download').addEventListener('click', async () => {
   const btn = $('download'); if (btn.disabled) return;
   if (hasPendingImageUploads()) { alert('A picture is still processing. Wait for it to finish, then download the print file.'); return; }
@@ -1790,7 +1803,8 @@ $('download').addEventListener('click', async () => {
     for (const k of keys) {
       const blob = await new Promise((res) => printCanvas(k, source).toBlob(res, 'image/png'));
       if (!blob) throw new Error('The browser could not generate the print file. Please try again.');
-      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'cornhole-board-' + k.toUpperCase() + '-24x48in-100ppi.png';
+      const printFile = await pngWithResolution(blob, PRINT_PPI);
+      const a = document.createElement('a'); a.href = URL.createObjectURL(printFile); a.download = 'cornhole-board-' + k.toUpperCase() + '-24x48in-100ppi.png';
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
     }
@@ -1849,24 +1863,43 @@ syncAll();
 showOutcome();
 renderSite();
 (async () => {
-  let p = null;
-  try { p = await loadProject(); } catch (_) { p = null; }
+  let p = null, unreadable = false, restored = false;
+  try {
+    p = await loadProject({ validate: (project) => {
+      // Stored order choices still use applyOrder's legacy sanitization.
+      // Validate the artwork before migrate can default or render it.
+      validateProject({ design: project.design }, { clips: CLIPS, patterns: PATTERNS, stains: STAINS, allowOffboardPositions: true });
+    } });
+  } catch (_) { unreadable = true; }
   // Include edits still in progress (typing, a colour picker, or dragging)
   // even when their change/commit event has not happened yet.
   const editedDuringLoad = saveState === 'saving' || hasStartupEdits();
   startupSnapshot = null;
   if (p && !editedDuringLoad) {
-    design = migrate(p.design);
-    if (p.order) applyOrder(p.order);
-    selected = null; active = 'a';
-    history = [copyHistoryState(design)]; future = [];
-    syncAll(); showTab('board');
-    storageReady = true; setSaveState('saved');
-  } else {
-    storageReady = true;
-    if (editedDuringLoad) save();
-    else setSaveState('new');
+    const previousDesign = design, previousOrder = { ...order, bagColors: [...order.bagColors] };
+    try {
+      design = migrate(p.design);
+      if (p.order) applyOrder(p.order);
+      selected = null; active = 'a';
+      history = [copyHistoryState(design)]; future = [];
+      syncAll(); showTab('board');
+      restored = true;
+    } catch (_) {
+      // A restoration failure must not leave a partly applied project or
+      // permanently disable saves for the customer's next edit.
+      design = previousDesign; Object.assign(order, previousOrder);
+      selected = null; active = 'a';
+      history = [copyHistoryState(design)]; future = [];
+      syncAll(); unreadable = true;
+    }
   }
+  storageReady = true;
+  if (editedDuringLoad) save();
+  else if (restored) setSaveState('saved');
+  else if (unreadable) {
+    recoverySnapshot = JSON.stringify({ design, order });
+    setSaveState('unreadable');
+  } else setSaveState('new');
   loaded = true;
 })();
 window.addEventListener('resize', render);
