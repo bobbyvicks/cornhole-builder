@@ -1398,3 +1398,58 @@ test.describe('the second audit round: saving as you type, focus that never fall
     expect((await page.evaluate(async () => (await import('/lib/store.mjs')).loadProject())).design.a.elements[0].text, 'and nothing was written over it').toBe('KEPT');
   });
 });
+
+test.describe('web fonts', () => {
+  test('the font stylesheet does not hold the first paint: the page draws before Google answers, and turns the sheet on when it does', async ({ page }) => {
+    /* The markup first. One link to Google, fetched as a print sheet, which
+       the browser neither waits for nor applies until its onload turns it
+       on; a plain copy inside noscript for a browser with scripts off; and
+       the preconnects still ahead of both. */
+    const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+    const links = [...html.matchAll(/<link\b[^>]*fonts\.googleapis\.com\/css2[^>]*>/g)].map((m) => m[0]);
+    expect(links, 'the sheet, and its noscript copy').toHaveLength(2);
+    const [sheet, copy] = links;
+    expect(sheet).toContain('id="webfonts"');
+    expect(sheet).toContain('media="print"');
+    expect(sheet).toContain('onload="this.media=\'all\'"');
+    expect(copy).not.toMatch(/\b(media|onload)=/);
+    expect(html.slice(html.indexOf(sheet), html.indexOf(copy))).toContain('<noscript>');
+    const href = (l) => l.match(/href="([^"]+)"/)[1];
+    expect(href(copy), 'the same families either way').toBe(href(sheet));
+    expect(html.indexOf('<link rel="preconnect" href="https://fonts.googleapis.com">')).toBeLessThan(html.indexOf(sheet));
+    expect(html.indexOf('<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>')).toBeLessThan(html.indexOf(sheet));
+    expect(html.match(/<link\b[^>]*rel="stylesheet"/g), 'no other stylesheet to wait for').toHaveLength(2);
+
+    /* Then the browser. Google is made to hang, and the page has to come up,
+       run and draw its text anyway; a render-blocking sheet would hold the
+       module script, and nothing below would happen. */
+    let answer;
+    const hung = new Promise((r) => { answer = r; });
+    await page.route('**/fonts.googleapis.com/**', async (route) => { await hung; await route.fulfill({ status: 200, contentType: 'text/css', body: '' }).catch(() => {}); });
+    await page.route('**/fonts.gstatic.com/**', (r) => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
+    await page.goto('/index.html', { waitUntil: 'commit' });
+    await page.waitForFunction(() => window.cornhole && window.cornhole.loaded, null, { timeout: 10_000 });
+    await expect(page.locator('.hero h1')).toBeVisible();
+    await expect(page.locator('.hero h1')).toHaveText(/cornhole boards/);
+    const link = page.locator('#webfonts');
+    expect(await link.getAttribute('media'), 'not turned on yet').toBe('print');
+    await reset(page);
+    expect(await bounds(page, 'a', WHITE), 'the text is on the board, in the fallback face for now').not.toBeNull();
+    expect(await page.evaluate(() => [...document.querySelectorAll('#templates .tpl canvas')].length)).toBeGreaterThan(0);
+
+    /* Now Google answers. The sheet is turned on for the screen, and the
+       page draws the thumbnails and the boards again, so the canvas asks
+       for the faces it uses and the loadingdone repaint has something to
+       wait for. Any earlier paint is let land before the watch starts. */
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const drawnAgain = page.evaluate(() => new Promise((res) => {
+      const proto = CanvasRenderingContext2D.prototype, clear = proto.clearRect;
+      const stop = setTimeout(() => { proto.clearRect = clear; res(false); }, 5000);
+      proto.clearRect = function (...a) { proto.clearRect = clear; clearTimeout(stop); res(true); return clear.apply(this, a); };
+    }));
+    answer();
+    await expect.poll(() => link.getAttribute('media'), 'the onload turned it on').toBe('all');
+    expect(await drawnAgain, 'drawn again once the sheet is in').toBe(true);
+    await page.waitForFunction(() => document.readyState === 'complete');
+  });
+});
