@@ -4,7 +4,7 @@ import { open, reset, settled, reloaded, setInput } from './helpers.js';
 test('template search and occasion filters combine, announce results and recover from no results', async ({ page }) => {
   await open(page);
   const all = await page.locator('#templates .tpl').count();
-  await page.getByRole('searchbox', { name: 'Search templates' }).fill('wedding');
+  await page.getByRole('searchbox', { name: 'Find a design' }).fill('wedding');
   const weddings = await page.locator('#templates .tpl').count();
   expect(weddings).toBeGreaterThan(0); expect(weddings).toBeLessThan(all);
   await page.locator('#templateoccasion').selectOption('team');
@@ -13,10 +13,35 @@ test('template search and occasion filters combine, announce results and recover
   await page.getByRole('button', { name: 'Clear filters' }).click();
   await expect(page.locator('#templates .tpl')).toHaveCount(all);
   await expect(page.locator('#templateempty')).toBeHidden();
-  await expect(page.getByRole('searchbox', { name: 'Search templates' })).toHaveValue('');
+  await expect(page.getByRole('searchbox', { name: 'Find a design' })).toHaveValue('');
   await page.locator('#templateoccasion').selectOption('wedding');
   await expect(page.locator('#templates .tplgroup')).toHaveCount(1);
   await expect(page.locator('#templates .tplgroup')).toHaveText('Weddings');
+});
+
+test('the fit status and the result counts are rewritten only when their words change, not on every keystroke', async ({ page }) => {
+  await open(page);
+  await page.getByRole('button', { name: 'Lake days template', exact: true }).click();
+  await expect(page.locator('#ttext')).toBeFocused();
+  await page.evaluate(() => {
+    window.statusWrites = {};
+    for (const id of ['fitstatus', 'templateresults']) {
+      window.statusWrites[id] = [];
+      new MutationObserver(() => window.statusWrites[id].push(document.getElementById(id).textContent)).observe(document.getElementById(id), { childList: true, characterData: true, subtree: true });
+    }
+  });
+  await page.keyboard.type('THE SMITHS');
+  await page.locator('#texts .quick').first().press('End');
+  await page.locator('#texts .quick').first().type(' FAMILY');
+  await page.evaluate(() => cornhole.showTab('templates'));
+  await page.getByRole('searchbox', { name: 'Find a design' }).type('wedding');
+  const writes = await page.evaluate(() => window.statusWrites);
+  for (const [id, texts] of Object.entries(writes)) {
+    expect(texts.every((text, i) => i === 0 || text !== texts[i - 1]), id + ' said the same thing twice in a row: ' + JSON.stringify(texts)).toBe(true);
+  }
+  expect(writes.fitstatus.length, 'seventeen characters, at most a couple of changes of status').toBeLessThanOrEqual(3);
+  expect(writes.templateresults.length, 'the count changes a few times for "wedding", not seven').toBeLessThanOrEqual(4);
+  await expect(page.locator('#templateresults')).toContainText(/templates to personalize/);
 });
 
 test('typing a draft saves without blur and survives reload', async ({ page }) => {

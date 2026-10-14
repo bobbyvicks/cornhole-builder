@@ -72,6 +72,51 @@ test('an empty recovery replaces its waiting announcement without announcing nor
   await expect(page.locator('#savealert')).toHaveText('');
 });
 
+test('once a write has failed, the notice stays while each keystroke retries, so the field being typed in does not jump', async ({ page }) => {
+  // A phone with its keyboard open: the stage sits in the flow, so a notice
+  // that comes and goes above the field moves the field by its own height.
+  await page.setViewportSize({ width: 375, height: 420 });
+  await open(page); await reset(page); await settled(page);
+  const field = await textTab(page);
+  await field.click(); await field.press('End');
+  await page.evaluate(() => {
+    const transaction = IDBDatabase.prototype.transaction;
+    IDBDatabase.prototype.transaction = function (store, mode, ...rest) {
+      if (mode === 'readwrite') throw new DOMException('Quota full', 'QuotaExceededError');
+      return transaction.call(this, store, mode, ...rest);
+    };
+    Storage.prototype.setItem = function () { throw new DOMException('Quota full', 'QuotaExceededError'); };
+  });
+  await field.press('A');
+  await page.waitForFunction(() => cornhole.saveState === 'error');
+  const notice = page.locator('.stagebar .savestatus');
+  await expect(notice).toBeVisible();
+  // The notice's arrival may push the field down once; the next key brings
+  // it back into view. From then on it must stay where it is.
+  await field.press('B');
+  await page.waitForTimeout(600);
+  expect(await page.evaluate(() => cornhole.saveState)).toBe('error');
+  const top = () => field.evaluate(el => Math.round(el.getBoundingClientRect().top));
+  const before = await top();
+  expect(before).toBeLessThan(420 - 20);
+  for (const key of ['C', 'D']) {
+    await field.press(key);
+    // Right after the key, during the retry's debounce, and after it fails again.
+    expect(await page.evaluate(() => cornhole.saveState)).toBe('error');
+    expect(await top()).toBe(before);
+    await expect(notice).toBeVisible();
+    await expect(page.locator('#exportlink')).toBeVisible();
+    await page.waitForTimeout(600);
+    expect(await page.evaluate(() => cornhole.saveState)).toBe('error');
+    expect(await top()).toBe(before);
+  }
+  await expect(field).toHaveValue('HELLOABCD');
+  await expect(field).toBeFocused();
+  expect(await page.evaluate(() => cornhole.design.a.elements[0].text)).toBe('HELLOABCD');
+  // The one notice was announced once; retries do not repeat it.
+  await expect(page.locator('#savealert')).toContainText(/not saved/i);
+});
+
 for (const viewport of [{ width: 320, height: 740 }, { width: 375, height: 812 }]) {
   test.describe(`save notices at ${viewport.width}px`, () => {
     test.use({ viewport });

@@ -22,7 +22,10 @@ A site where people design their own cornhole boards and order them.
   text has a field right in the list. Curve, spacing, rotation and layers
   sit in a "More" section.
 - **A simpler start.** Search templates by name or occasion and filter the
-  gallery. Template names resize within their original text space as you type;
+  gallery: the cards are built once, a search shows the ones that match,
+  and a thumbnail is drawn when it comes into view rather than all 160-odd
+  of them before the page can be used.
+  Template names resize within their original text space as you type;
   manual font, size, position and handle edits turn automatic fitting off.
   The phone layout has larger tap targets and makes room for the keyboard.
   Share a PNG preview from Start, or save an editable copy to open later.
@@ -32,9 +35,14 @@ A site where people design their own cornhole boards and order them.
   (IndexedDB, with localStorage as the fallback) after every change, the
   page says "Saving", "Saved on this device" or exactly what went wrong,
   and a save that does not fit fails loudly instead of dropping a picture.
-  Save errors are announced once, without speaking every saved keystroke.
-  The editor stays usable while recovery runs; edits made before it finishes
-  are preserved. Damaged records cannot hide an intact saved copy, and an
+  Save errors are announced once, without speaking every saved keystroke,
+  and a notice that storage failed stays on screen while the next
+  keystrokes retry, so the field being typed in does not jump. While the
+  saved design is being read back, the builder takes no click or key, so
+  nothing can be typed over it; a device that takes more than six seconds
+  gets the builder anyway, with a notice, and a design found after that
+  is offered, not forced - whichever design is not kept is one Undo away.
+  Damaged records cannot hide an intact saved copy, and an
   unreadable draft is left untouched until the customer makes a new edit.
   Export writes the whole project as editable JSON; Import takes it back.
   Imported pictures and print masters must decode before the current draft
@@ -46,12 +54,14 @@ A site where people design their own cornhole boards and order them.
   shortcuts are left alone. Undo history shares image data across snapshots
   to keep repeated edits small.
 - **Pictures.** Each upload has a preview of up to 1600 px for the board,
-  and a print master as big as the file came (to 4000 px on the long side,
-  within the file-size budget) when it contains more detail. A vector
-  logo is drawn large for both. The page says when a picture is printed
-  bigger than its pixels allow. An order carries only the board being
-  ordered; one too big for the server leaves the masters out, then shrinks
-  the previews, and says the full-size files are still to come.
+  and a print master as big as the file came (to 4000 px on the long side)
+  when it contains more detail, sized so that the master and its preview
+  travel together in one order request. A vector logo is drawn large for
+  both. The page says when a picture is printed bigger than its pixels
+  allow. An order carries only the board being ordered; one too big for
+  the server even so leaves the masters out, then shrinks the previews,
+  and says the full-size files will need to be supplied separately (there
+  is no email follow-up yet, so none is promised).
 - **Review.** Before the address: both boards as they will print, every
   choice, the price breakdown in USD before tax with what is and is not
   included, a check on words left over from a template, and the

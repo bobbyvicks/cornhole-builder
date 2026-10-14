@@ -63,7 +63,8 @@ async function roundTripAndPrint(page, image) {
     const image = cornhole.design.a.elements.find(el => el.type === 'image');
     const draw = CanvasRenderingContext2D.prototype.drawImage, sources = [];
     CanvasRenderingContext2D.prototype.drawImage = function (source, ...args) {
-      if (source instanceof HTMLImageElement) sources.push({ master: source.src === image.orig, px: [source.naturalWidth, source.naturalHeight] });
+      // The print file draws the master, or the preview when that is the whole picture.
+      if (source instanceof HTMLImageElement) sources.push({ master: source.src === (image.orig || image.src), px: [source.naturalWidth, source.naturalHeight] });
       return draw.call(this, source, ...args);
     };
     try {
@@ -75,32 +76,38 @@ async function roundTripAndPrint(page, image) {
   expect(printed.sources).toEqual([{ master: true, px: image.px }]);
 }
 
-test('a detailed PNG within the original byte limit keeps its untouched print master', async ({ page }) => {
+// The order carries each picture's preview and master in one request of at
+// most 3,800,000 characters, less 200,000 for the board previews and details.
+const REQUEST = 3_800_000 - 200_000;
+
+test('a detailed PNG that fits beside its preview in an order keeps its untouched print master', async ({ page }) => {
   const errors = await open(page); await reset(page);
-  const file = await detailedPng(page, 900);
+  const file = await detailedPng(page, 680);
   expect(file.buffer.length).toBeGreaterThan(1_500_000);
-  expect(file.buffer.length).toBeLessThanOrEqual(3_000_000);
   const image = await upload(page, file);
-  expect(await dimensions(page, image.src)).not.toEqual([900, 900]);
+  expect(await dimensions(page, image.src)).not.toEqual([680, 680]);
   expect(image.orig === 'data:image/png;base64,' + file.buffer.toString('base64'), 'shrinking the preview must not discard the accepted original').toBe(true);
-  expect(image.px).toEqual([900, 900]);
+  expect(image.px).toEqual([680, 680]);
+  expect(image.orig.length + image.src.length, 'the master was accepted because it travels with the order').toBeLessThanOrEqual(REQUEST);
+  expect(await page.evaluate(() => cornhole.orderPayload().options.assets)).toBe('included');
   await roundTripAndPrint(page, image);
   expect(errors).toEqual([]);
 });
 
-test('an oversized PNG below the preview dimension limit retains a larger print master', async ({ page }) => {
+test('a detailed PNG too big to travel with an order gets a master only as large as the order can carry, else the preview alone', async ({ page }) => {
   const errors = await open(page); await reset(page);
   const file = await detailedPng(page, 1500);
   expect(file.buffer.length).toBeGreaterThan(3_000_000);
   const image = await upload(page, file);
   const preview = await dimensions(page, image.src);
-  expect(image.orig, 'detailed small-dimension files still need a print master').toBeTruthy();
-  const master = await dimensions(page, image.orig);
-  expect(master[0]).toBeGreaterThan(preview[0]);
-  expect(master[1]).toBeGreaterThan(preview[1]);
-  expect(image.px).toEqual(master);
-  expect(Math.max(...master)).toBeLessThanOrEqual(4000);
-  expect(image.orig.length).toBeLessThanOrEqual(3_000_000 * 1.37);
+  expect(preview[0]).toBeLessThan(1500);
+  if (image.orig) {
+    const master = await dimensions(page, image.orig);
+    expect(master[0]).toBeGreaterThan(preview[0]);
+    expect(image.px).toEqual(master);
+    expect(image.orig.length + image.src.length).toBeLessThanOrEqual(REQUEST);
+  } else expect(image.px, 'no master that could never be sent: the preview is the whole picture').toEqual(preview);
+  expect(await page.evaluate(() => cornhole.orderPayload().options.assets), 'nothing is left out, so nothing is promised').toBe('included');
   await roundTripAndPrint(page, image);
   expect(errors).toEqual([]);
 });
@@ -117,7 +124,7 @@ test('a small lossless PNG needs only one full-quality source', async ({ page })
   expect(errors).toEqual([]);
 });
 
-for (const side of [1000, 4000]) test(`a detailed ${side}px transparent PNG fits both byte budgets without losing transparency`, async ({ page }) => {
+for (const side of [1000, 4000]) test(`a detailed ${side}px transparent PNG fits the preview budget and the order without losing transparency`, async ({ page }) => {
   const errors = await open(page); await reset(page);
   // Generate and upload the real file in the browser, avoiding a large
   // fixture transfer through the test runner for the 4000px source.
@@ -140,17 +147,24 @@ for (const side of [1000, 4000]) test(`a detailed ${side}px transparent PNG fits
   await settled(page);
   const image = await uploadedPicture(page);
   expect(image.src.length).toBeLessThanOrEqual(1_500_000 * 1.37);
-  expect(image.orig?.length, 'the retained master must fit even when six reductions are insufficient').toBeLessThanOrEqual(3_000_000 * 1.37);
-  expect(image.orig).toMatch(/^data:image\/png;/);
-  expect(image.px).toEqual(await dimensions(page, image.orig));
-  expect(image.px[0]).toBeGreaterThan((await dimensions(page, image.src))[0]);
+  expect(image.src).toMatch(/^data:image\/png;/);
+  const preview = await dimensions(page, image.src);
+  // A master is kept only when the order can carry it beside the preview and
+  // it has more pixels than the preview; the ladder of sizes decides which.
+  if (image.orig) {
+    expect(image.orig, 'the retained master must fit beside its preview even when six reductions are insufficient').toMatch(/^data:image\/png;/);
+    expect(image.orig.length + image.src.length).toBeLessThanOrEqual(REQUEST);
+    expect(image.px).toEqual(await dimensions(page, image.orig));
+    expect(image.px[0]).toBeGreaterThan(preview[0]);
+  } else expect(image.px).toEqual(preview);
+  expect(await page.evaluate(() => cornhole.orderPayload().options.assets)).toBe('included');
   const alpha = await page.evaluate(async src => {
     const image = new Image(); image.src = src; await image.decode();
     const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1;
     const g = canvas.getContext('2d');
     g.drawImage(image, Math.floor(image.naturalWidth / 2), Math.floor(image.naturalHeight / 2), 1, 1, 0, 0, 1, 1);
     return g.getImageData(0, 0, 1, 1).data[3];
-  }, image.orig);
+  }, image.orig || image.src);
   expect(alpha).toBeGreaterThan(0); expect(alpha).toBeLessThan(255);
   await roundTripAndPrint(page, image);
   expect(errors).toEqual([]);

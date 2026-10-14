@@ -65,6 +65,12 @@ test.describe('mobile touch and editing', () => {
     expect(await page.evaluate(() => cornhole.activeBoard().elements[0].text)).toBe('FAMILY GAME NIGHT');
     const fontSize = await words.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
     expect(fontSize, 'editable text avoids the small-field zoom trigger on phones').toBeGreaterThanOrEqual(16);
+    await page.evaluate(() => cornhole.showTab('templates'));
+    await expectTouchTargets(page, '#templatesearch, #templateoccasion, #cleartemplates');
+    const occasion = await page.locator('#templateoccasion').evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    expect(occasion, 'the occasion filter avoids the zoom trigger too').toBeGreaterThanOrEqual(16);
+    await page.evaluate(() => { cornhole.showTab('art'); cornhole.select(cornhole.addClip('heart').id); });
+    await expectTouchTargets(page, '#tab-art .btn, #tab-art summary, #tab-art input[type=color], #tab-art label:has(input[type=checkbox])');
   });
 
   for (const width of [320, 375, 768]) {

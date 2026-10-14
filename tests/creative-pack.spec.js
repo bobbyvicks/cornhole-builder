@@ -110,13 +110,14 @@ test.describe('creative pack integration', () => {
       await page.evaluate(() => cornhole.showTab('templates'));
       const button = page.getByRole('button', { name: label + ' template', exact: true });
       await expect(button).toBeVisible();
-      const colors = await button.locator('canvas').evaluate((canvas) => {
+      // A thumbnail is drawn when its card comes into view.
+      await button.scrollIntoViewIfNeeded();
+      await expect.poll(() => button.locator('canvas').evaluate((canvas) => {
         const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
         const found = new Set();
         for (let i = 0; i < pixels.length; i += 4) if (pixels[i + 3] === 255) found.add(pixels[i] + ',' + pixels[i + 1] + ',' + pixels[i + 2]);
         return found.size;
-      });
-      expect(colors, label + ' preview contains artwork').toBeGreaterThan(20);
+      }), { message: label + ' preview contains artwork' }).toBeGreaterThan(20);
       await button.click();
       const board = await page.evaluate(() => cornhole.design.a);
       expect(board.elements.some((el) => el.type === 'text' && el.text === sample)).toBe(true);

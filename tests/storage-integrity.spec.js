@@ -125,12 +125,15 @@ test('inherited order choice names are ignored while the saved artwork is restor
   expect(errors).toEqual([]);
 });
 
-test('artwork moved beyond import bounds with the actual keyboard still restores unchanged', async ({ page }) => {
+test('keyboard nudges stop where a drag stops, within what the checkout accepts, and the position restores unchanged', async ({ page }) => {
   const errors = await open(page); await reset(page);
   await page.getByRole('tab', { name: 'Text', exact: true }).click();
   await page.locator('#texts .item').click(); await page.locator('#canvasA').focus();
   for (let i = 0; i < 120; i++) await page.keyboard.press('Shift+ArrowRight');
-  expect(await page.evaluate(() => cornhole.design.a.elements[0].x)).toBe(132);
+  expect(await page.evaluate(() => cornhole.design.a.elements[0].x)).toBe(28);
+  for (let i = 0; i < 60; i++) await page.keyboard.press('Shift+ArrowUp');
+  expect(await page.evaluate(() => cornhole.design.a.elements[0].y)).toBe(-4);
+  expect(await page.evaluate(() => { const e = cornhole.orderPayload().design.a.elements[0]; return e.x <= 30 && e.y >= -6; }), 'the server takes positions between -6 and 30 across').toBe(true);
   await settled(page);
   const before = await page.evaluate(() => cornhole.design);
   await reloaded(page);

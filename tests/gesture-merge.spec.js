@@ -21,6 +21,12 @@ test('a cancelled touch restores saved geometry and automatic fitting without ad
   });
   await page.reload();
   await page.waitForFunction(() => window.cornhole && window.gestureRecoveryWaiting && !cornhole.loaded);
+  // The builder takes no touch until the read lands or six seconds pass.
+  await expect(page.locator('.stagebar .savestatus')).toContainText('Still checking', { timeout: 8000 });
+  await page.waitForFunction(() => cornhole.loaded);
+  // The late result is offered while the finger is still down; what was started is kept.
+  const asked = [];
+  page.on('dialog', d => { asked.push(d.message()); return d.dismiss(); });
   await page.getByRole('button', { name: 'Garden vows template', exact: true }).click();
   const before = await page.evaluate(() => {
     cornhole.paint();
@@ -37,6 +43,7 @@ test('a cancelled touch restores saved geometry and automatic fitting without ad
   // Recovery can finish and save the current edit while the finger is held.
   await page.evaluate(() => window.releaseGestureRecovery());
   await page.waitForFunction(() => cornhole.loaded && cornhole.saveState === 'saved');
+  expect(asked).toEqual(['A design saved earlier on this device was found. Replace what you have started with it?']);
   const savedDuringDrag = await page.evaluate(async id => {
     const project = await (await import('/lib/store.mjs')).loadProject();
     return project.design.a.elements.find(e => e.id === id);

@@ -1366,7 +1366,7 @@ test.describe('the second audit round: saving as you type, focus that never fall
     expect(await page.evaluate(() => document.getElementById('orderform').checkValidity())).toBe(true);
   });
 
-  test('the fresh page restores the saved project without writing its initial design over it', async ({ page }) => {
+  test('the fresh page takes no click until the saved project is back, and restores it without writing its initial design over it', async ({ page }) => {
     await open(page); await reset(page);
     await page.evaluate(() => { cornhole.activeBoard().elements[0].text = 'KEPT'; cornhole.commit(); });
     await settled(page);
@@ -1375,23 +1375,26 @@ test.describe('the second audit round: saving as you type, focus that never fall
       const openDb = indexedDB.open.bind(indexedDB);
       indexedDB.open = function (...a) {
         const req = openDb(...a);
-        const fire = (type) => { const h = req['on' + type]; if (h) setTimeout(() => h.call(req, new Event(type)), 1200); };
         let s = null, e = null;
         Object.defineProperty(req, 'onsuccess', { set: (f) => { s = f; }, get: () => s });
         Object.defineProperty(req, 'onerror', { set: (f) => { e = f; }, get: () => e });
-        req.addEventListener('success', () => setTimeout(() => s && s(new Event('success')), 1200));
-        req.addEventListener('error', () => setTimeout(() => e && e(new Event('error')), 1200));
-        void fire;
+        req.addEventListener('success', () => setTimeout(() => s && s(new Event('success')), 1500));
+        req.addEventListener('error', () => setTimeout(() => e && e(new Event('error')), 1500));
         return req;
       };
     });
     await page.reload();
     await page.waitForSelector('#templates .tpl');
-    // The page stays interactive; separate startup-recovery tests prove that
-    // edits made here take precedence over the late saved project.
-    expect(await page.evaluate(() => document.body.classList.contains('loading'))).toBe(false);
+    expect(await page.evaluate(() => document.body.classList.contains('loading')), 'the builder is shut while the restore runs').toBe(true);
+    /* A click on a template does nothing yet: no template, no question. */
+    const card = page.locator('#templates .tpl').first();
+    await card.scrollIntoViewIfNeeded();
+    const box = await card.boundingBox();
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    expect(await page.evaluate(() => cornhole.design.a.elements[0].text)).toBe('YOUR TEAM');
     await page.waitForFunction(() => window.cornhole && window.cornhole.loaded);
     expect(await page.evaluate(() => cornhole.design.a.elements[0].text), 'the saved project, not the click').toBe('KEPT');
     expect(await page.evaluate(() => document.body.classList.contains('loading'))).toBe(false);
+    expect((await page.evaluate(async () => (await import('/lib/store.mjs')).loadProject())).design.a.elements[0].text, 'and nothing was written over it').toBe('KEPT');
   });
 });

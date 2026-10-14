@@ -37,6 +37,10 @@
   .skip-link { position: fixed; top: 8px; left: 16px; z-index: 20; padding: 12px 16px; background: var(--panel); border: 2px solid var(--accent); border-radius: 8px; font-weight: 700; transform: translateY(calc(-100% - 12px)); }
   .skip-link:focus { transform: none; }
   label.btn:has(+ input[type=file]:focus-visible) { outline: 3px solid var(--accent); outline-offset: 2px; }
+  /* Until the saved project has been read back, the builder takes no click
+     and no key (the regions are also inert, see the markup), so an edit can
+     never race the restore and overwrite it. */
+  body.loading .panel, body.loading .stage, body.loading #mobilebar { pointer-events: none; }
 
   header.top { background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
   header.top .wrap { display: flex; align-items: center; justify-content: space-between; min-height: 60px; gap: 16px; }
@@ -115,7 +119,7 @@
   input[type=color] { flex: none; width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 8px; padding: 3px; background: #fff; cursor: pointer; }
   input[type=checkbox] { width: 18px; height: 18px; flex: none; }
   .toggles { display: flex; gap: 12px; flex-wrap: wrap; font-size: 13.5px; }
-  .toggles label, .warn label { font-weight: 600; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
+  .toggles label, .warn label, #cliponly label:has(input[type=checkbox]) { font-weight: 600; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
   details.more { border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; margin: 10px 0 4px; }
   details.more summary { cursor: pointer; font-weight: 600; font-size: 13.5px; min-height: 44px; padding: 11px 0; color: var(--accent); }
   details.more[open] summary { border-bottom: 1px dashed var(--line); margin-bottom: 4px; }
@@ -164,7 +168,7 @@
   .template-search input, input.template-search { width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 16px; }
   .template-filters { display: flex; flex-wrap: wrap; gap: 8px; }
   .template-filters { align-items: center; }
-  .template-filters select { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 9px 10px; flex: 1; min-width: 150px; }
+  .template-filters select { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 9px 10px; flex: 1; min-width: 150px; min-height: 44px; font-size: 16px; }
   .tpl-action { color: var(--accent); font-size: 12px; }
   #startblank { width: 100%; text-align: left; margin-top: 4px; }
   .fit-status[data-state="warning"] { color: var(--bad); font-weight: 600; }
@@ -318,7 +322,7 @@
   }
 </style>
 </head>
-<body>
+<body class="loading">
 <a class="skip-link" href="#design-options">Skip to design controls</a>
 
 <header class="top">
@@ -344,7 +348,7 @@
   </section>
 
   <div class="builder" id="builder">
-    <section class="stage" aria-label="Board preview">
+    <section class="stage" aria-label="Board preview" inert>
       <div class="stagehead">
         <div class="chips" id="boardmode" role="group" aria-label="Which board to edit">
           <button class="chip" data-v="same" aria-pressed="true">Both boards match</button>
@@ -378,7 +382,7 @@
       <p class="hint" id="stagehint">Drag anything on the board. Pull the corner square to resize, the round handle to rotate, and the red &times; to remove. With the board focused, arrow keys nudge, + and - resize, Delete removes.</p>
     </section>
 
-    <aside class="panel" id="design-options" tabindex="-1" aria-label="Design options">
+    <aside class="panel" id="design-options" tabindex="-1" aria-label="Design options" inert>
       <div class="tabs" role="tablist" aria-label="Design steps">
         <button role="tab" id="tabbtn-templates" data-tab="templates" aria-selected="true" aria-controls="tab-templates" tabindex="0">Start</button>
         <button role="tab" id="tabbtn-board" data-tab="board" aria-selected="false" aria-controls="tab-board" tabindex="-1">Board</button>
@@ -513,7 +517,7 @@
 
         <h3>Clip art</h3>
         <div class="clip-tools">
-          <label class="template-search" for="clipsearch">Find artwork<input id="clipsearch" type="search" maxlength="100" aria-label="Search clip art" placeholder="Try canoe, wedding or camping"></label>
+          <label class="template-search" for="clipsearch">Find artwork<input id="clipsearch" type="search" maxlength="100" placeholder="Try canoe, wedding or camping"></label>
           <div class="clip-summary"><p id="clipresults" class="template-results" role="status" aria-live="polite"></p><button id="clearclips" class="btn small" type="button">Clear art filters</button></div>
         </div>
         <details class="more clip-filters" id="clipfilters"><summary id="clipfilterlabel">Browse groups: All artwork</summary><div class="chips clipcats" id="clipcats" role="group" aria-label="Clip art group"></div></details>
@@ -568,7 +572,7 @@
             <label><input type="checkbox" id="keepsamples"> Print these words exactly as they are</label>
           </div>
           <div class="warn" id="reswarn" hidden></div>
-          <div class="warn" id="assetwarn" hidden>Some full-size picture files are too large to include in checkout. Your previews will be sent, and we will email you for the full-size files. Keep your originals or export this project before leaving.</div>
+          <div class="warn" id="assetwarn" hidden>Some full-size picture files are too large to include in checkout. Your previews will be sent with the order; the full-size files will need to be supplied separately. Keep your originals or export this project before leaving.</div>
           <div class="row">
             <button class="btn" type="button" id="backtoedit">&larr; Back to editing</button>
             <button class="btn primary" type="button" id="tocheckout" style="flex:1">Continue to your details</button>
@@ -623,7 +627,7 @@
   </section>
 </main>
 
-<div id="mobilebar">
+<div id="mobilebar" inert>
   <span class="total">Estimated total, before tax <b id="mobiletotal">$0.00</b></span>
   <button class="btn primary" id="reviewbtn" type="button">Review order</button>
 </div>

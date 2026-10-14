@@ -62,10 +62,12 @@ const MAX_IMAGES = 4, MAX_TEXTS = 10, MAX_CLIPS = 12;
 /* A picture is kept twice: a preview the board is drawn with, and a print
    master as big as the file came (up to ORIG_SIDE on its long side) that
    the print file and the order use. A master is sized so that one master
-   and its preview fit the order; an order that would not fit the server's
-   body limit even so leaves the masters out, then shrinks the previews,
-   and says so. */
-const PREVIEW_SIDE = 1600, PREVIEW_BYTES = 1_500_000, ORIG_SIDE = 4000, ORIG_BYTES = 3_000_000, PAYLOAD_BYTES = 3_800_000;
+   and its preview fit the order: what the request budget has left after
+   the preview and PAYLOAD_MARGIN for the board previews and the details,
+   and never more than ORIG_BYTES. An order that would not fit the
+   server's body limit even so leaves the masters out, then shrinks the
+   previews, and says so. */
+const PREVIEW_SIDE = 1600, PREVIEW_BYTES = 1_500_000, ORIG_SIDE = 4000, ORIG_BYTES = 3_000_000, PAYLOAD_BYTES = 3_800_000, PAYLOAD_MARGIN = 200_000;
 const SHARP_DPI = 100, SOFT_DPI = 60;
 
 const $ = (id) => document.getElementById(id);
@@ -601,7 +603,13 @@ let startupSnapshot = null;
 let recoverySnapshot = null;
 let saveBaseline = null, saveBaselineState = 'new';
 const hasStartupEdits = () => startupSnapshot !== null && JSON.stringify({ design, order }) !== startupSnapshot;
+/* A notice that storage failed, is still being read or could not be read
+   stays until a write succeeds: on a phone it sits in the pinned toolbar,
+   and swapping it for "Saving…" on every keystroke would move the field
+   being typed in by the notice's height, twice per key. */
+const noticeShowing = () => ['error', 'waiting', 'unreadable'].includes(saveState);
 function setSaveState(s) {
+  if (saveState === s) return;
   saveState = s;
   for (const el of document.querySelectorAll('.savestatus')) { el.textContent = SAVE_TEXT[s]; el.dataset.state = s; }
   if (['error', 'unreadable', 'waiting'].includes(s)) { saveNeedsAnnouncement = true; $('savealert').textContent = SAVE_TEXT[s]; }
@@ -610,7 +618,10 @@ function setSaveState(s) {
   // Recovery notices can resize the pinned toolbar after the last edit.
   render();
 }
-function projectRecord() { return { version: PROJECT_VERSION, savedAt: new Date().toISOString(), design: JSON.parse(snapshot()), order: { ...order, bagColors: [...order.bagColors] } }; }
+/* The record is a container copy that shares the pictures' strings, as the
+   history does: serialising a design with photos in it just to parse it
+   back froze the page for a good part of a second per edit on a phone. */
+function projectRecord() { return { version: PROJECT_VERSION, savedAt: new Date().toISOString(), design: copyHistoryState(design), order: copyHistoryState(order) }; }
 function maySave() {
   // After an unreadable restore, navigation and unchanged inputs must not
   // replace the stored draft with the initial page. A real edit starts saving.
@@ -638,13 +649,14 @@ function save() {
   clearTimeout(saveTimer); saveTimer = null;
   if (!maySave()) return;
   if (skipUnchangedSave()) return;
-  setSaveState('saving'); flush();
+  if (!noticeShowing()) setSaveState('saving');
+  flush();
 }
 function saveSoon() {
   if (!maySave()) return;
   clearTimeout(saveTimer); saveTimer = null;
   if (skipUnchangedSave()) return;
-  setSaveState('saving');
+  if (!noticeShowing()) setSaveState('saving');
   saveTimer = setTimeout(() => { saveTimer = null; flush(); }, 400);
 }
 async function flush() {
@@ -652,9 +664,9 @@ async function flush() {
   if (skipUnchangedSave()) return;
   saveBusy = true;
   // Remember the values sent to storage, not edits made while it writes.
-  const written = copyHistoryState({ design, order });
+  const record = projectRecord(), written = { design: record.design, order: record.order };
   try {
-    await saveProject(projectRecord());
+    await saveProject(record);
     saveBaseline = written; saveBaselineState = 'saved';
     if (!saveAgain && !saveTimer) setSaveState('saved');
   }
@@ -664,7 +676,7 @@ async function flush() {
 }
 document.addEventListener('visibilitychange', () => { if (document.hidden && saveTimer) save(); });
 window.addEventListener('pagehide', () => { if (saveTimer) save(); });
-window.addEventListener('beforeunload', (e) => { if (saveState === 'error' || saveState === 'saving' || hasStartupEdits() || hasPendingImageUploads(['a', 'b'])) { e.preventDefault(); e.returnValue = ''; } });
+window.addEventListener('beforeunload', (e) => { if (saveState === 'error' || saveState === 'saving' || saveTimer || hasStartupEdits() || hasPendingImageUploads(['a', 'b'])) { e.preventDefault(); e.returnValue = ''; } });
 
 /* Order choices from storage or a file, taken only where they are valid. */
 function applyOrder(o) {
@@ -872,7 +884,8 @@ document.addEventListener('keydown', (ev) => {
   const el = selectedEl(); if (!el) return;
   const step = ev.shiftKey ? 1 : 0.1;
   const nudge = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[ev.key];
-  if (nudge) { el.x = r1(el.x + nudge[0]); el.y = r1(el.y + nudge[1]); if (el.type === 'text') el.autoFit = false; render(); syncProps(); commit(); ev.preventDefault(); }
+  /* The keys stop where a drag stops: the server refuses artwork further off the board. */
+  if (nudge) { el.x = clamp(r1(el.x + nudge[0]), -4, BOARD.w + 4); el.y = clamp(r1(el.y + nudge[1]), -4, BOARD.h + 4); if (el.type === 'text') el.autoFit = false; render(); syncProps(); commit(); ev.preventDefault(); }
   else if (ev.key === '+' || ev.key === '=' || ev.key === '-') {
     const k = sizeKey(el); el[k] = clamp(Math.round(el[k] * (ev.key === '-' ? 0.95 : 1.05) * 20) / 20, 0.5, sizeMax(el));
     if (el.type === 'text') el.autoFit = false;
@@ -984,36 +997,60 @@ function promptForWords() {
 const askThenApply = (label, fn) => { if (isPristine() || confirm('Replace your current design with ' + label + '?')) fn(); };
 $('startblank').addEventListener('click', () => askThenApply('a blank board', applyBlank));
 const templateTools = document.createElement('div'); templateTools.className = 'template-tools';
-templateTools.innerHTML = '<label class="template-search" for="templatesearch">Find a design<input id="templatesearch" type="search" maxlength="100" aria-label="Search templates" placeholder="Try wedding, lake or team"></label><div class="template-filters"><label for="templateoccasion">Occasion</label><select id="templateoccasion"><option value="">All occasions</option></select><button id="cleartemplates" class="btn small" type="button">Clear filters</button></div><p id="templateresults" class="template-results" role="status" aria-live="polite"></p><p id="templateempty" class="template-empty" hidden>No matching designs. Try a different word or clear the filters.</p>';
+templateTools.innerHTML = '<label class="template-search" for="templatesearch">Find a design<input id="templatesearch" type="search" maxlength="100" placeholder="Try wedding, lake or team"></label><div class="template-filters"><label for="templateoccasion">Occasion</label><select id="templateoccasion"><option value="">All occasions</option></select><button id="cleartemplates" class="btn small" type="button">Clear filters</button></div><p id="templateresults" class="template-results" role="status" aria-live="polite"></p><p id="templateempty" class="template-empty" hidden>No matching designs. Try a different word or clear the filters.</p>';
 $('templates').before(templateTools);
 for (const [key, label] of TEMPLATE_GROUPS) { const option = document.createElement('option'); option.value = key; option.textContent = label; $('templateoccasion').appendChild(option); }
 const normalizeSearch = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+/* Same words, same text node: a status region announces a change, and
+   setting what it already says would have a screen reader read the whole
+   sentence again after every character typed. */
+function setText(el, text) { if (el.textContent !== text) el.textContent = text; }
+/* The thumbnails - a template's board at 128 x 256, a clip's path at
+   72 x 72, 160-odd of them - are drawn as they come into view, not all
+   at once while the page is still starting. A template's is drawn again
+   when a web font lands; one not drawn yet waits for the font. */
+const thumbnails = new Map();   // canvas -> { draw, text }
+const thumbnailWatch = typeof IntersectionObserver === 'function' ? new IntersectionObserver((entries) => { for (const e of entries) if (e.isIntersecting) drawThumbnail(e.target); }) : null;
+function lazyThumbnail(canvas, draw, text) {
+  thumbnails.set(canvas, { draw, text });
+  if (thumbnailWatch) thumbnailWatch.observe(canvas); else drawThumbnail(canvas);
+}
+function drawThumbnail(canvas) {
+  const t = thumbnails.get(canvas); if (!t) return;
+  t.draw(); canvas.dataset.drawn = 'true';
+  if (thumbnailWatch) thumbnailWatch.unobserve(canvas);
+}
+/* A card is built once; a search shows the cards that match, so a
+   keystroke costs a few list operations rather than every thumbnail. */
+const templateCards = new Map();
+function templateCard(t) {
+  let card = templateCards.get(t.id);
+  if (card) return card;
+  const b = document.createElement('button'); b.className = 'tpl'; b.type = 'button'; b.dataset.id = t.id; b.setAttribute('aria-label', t.label + ' template');
+  const c = document.createElement('canvas'); c.width = 64 * 2; c.height = 128 * 2;
+  c.setAttribute('aria-hidden', 'true');
+  lazyThumbnail(c, () => { const g = c.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, c.width, c.height); renderOutput(g, t.board(), c.height / BOARD.h); }, true);
+  const s = document.createElement('span'); s.textContent = t.label;
+  const action = document.createElement('small'); action.className = 'tpl-action'; action.textContent = 'Personalize design'; action.setAttribute('aria-hidden', 'true');
+  b.append(c, s, action);
+  b.addEventListener('click', () => askThenApply('the ' + t.label + ' template', () => applyTemplate(t.id)));
+  const terms = normalizeSearch([t.label, t.id, OCCASIONS[t.occasion], TEMPLATE_GROUPS.find(g => g[0] === t.occasion)?.[1], ...t.board().elements.map(e => e.text || CLIPS[e.name]?.label || '')].join(' '));
+  card = { button: b, terms };
+  templateCards.set(t.id, card);
+  return card;
+}
 function renderTemplates() {
   const host = $('templates'); host.textContent = '';
   const words = normalizeSearch($('templatesearch').value).split(/\s+/).filter(Boolean), occasion = $('templateoccasion').value;
-  const matches = TEMPLATES.filter(t => {
-    if (occasion && t.occasion !== occasion) return false;
-    const terms = normalizeSearch([t.label, t.id, OCCASIONS[t.occasion], TEMPLATE_GROUPS.find(g => g[0] === t.occasion)?.[1], ...t.board().elements.map(e => e.text || CLIPS[e.name]?.label || '')].join(' '));
-    return words.every(word => terms.includes(word));
-  });
-  $('templateresults').textContent = matches.length ? matches.length + (matches.length === 1 ? ' template' : ' templates') + ' to personalize' : 'No templates found';
+  const matches = TEMPLATES.filter(t => (!occasion || t.occasion === occasion) && words.every(word => templateCard(t).terms.includes(word)));
+  setText($('templateresults'), matches.length ? matches.length + (matches.length === 1 ? ' template' : ' templates') + ' to personalize' : 'No templates found');
   $('templateempty').hidden = matches.length > 0;
   $('cleartemplates').disabled = !words.length && !occasion;
   for (const [key, label] of TEMPLATE_GROUPS) {
     const ts = matches.filter((t) => t.occasion === key); if (!ts.length) continue;
     const h = document.createElement('h3'); h.className = 'tplgroup'; h.textContent = label; host.appendChild(h);
     const grid = document.createElement('div'); grid.className = 'templates'; host.appendChild(grid);
-    for (const t of ts) {
-      const b = document.createElement('button'); b.className = 'tpl'; b.type = 'button'; b.dataset.id = t.id; b.setAttribute('aria-label', t.label + ' template');
-      const c = document.createElement('canvas'); c.width = 64 * 2; c.height = 128 * 2;
-      c.setAttribute('aria-hidden', 'true');
-      renderBoard(c.getContext('2d'), t.board(), 128 * 2 / BOARD.h);
-      const s = document.createElement('span'); s.textContent = t.label;
-      const action = document.createElement('small'); action.className = 'tpl-action'; action.textContent = 'Personalize design'; action.setAttribute('aria-hidden', 'true');
-      b.append(c, s, action);
-      b.addEventListener('click', () => askThenApply('the ' + t.label + ' template', () => applyTemplate(t.id)));
-      grid.appendChild(b);
-    }
+    for (const t of ts) grid.appendChild(templateCard(t).button);
   }
 }
 $('templatesearch').addEventListener('input', renderTemplates);
@@ -1181,11 +1218,11 @@ function syncPersonalization() {
   }
   $('autofittext').checked = !!el.autoFit;
   const status = $('fitstatus');
-  if (!el.autoFit) { status.textContent = 'Manual sizing. Fit this line whenever you need help with a long name.'; status.dataset.state = 'manual'; return; }
+  const say = (state, text) => { if (status.dataset.state !== state) status.dataset.state = state; setText(status, text); };
+  if (!el.autoFit) { say('manual', 'Manual sizing. Fit this line whenever you need help with a long name.'); return; }
   const ref = fittingReference(el), limit = fitLimits(el, ref), actual = measureTextBox(el);
   const tooLong = actual.w > limit.w + 0.03 || actual.h > limit.h + 0.03;
-  status.dataset.state = tooLong ? 'warning' : 'fit';
-  status.textContent = tooLong ? 'This line is still too long to fit clearly. Shorten the words or adjust the layout before ordering.' : el.size < ref.size - 0.01 ? 'Text reduced to fit its original space. Check the preview for readability.' : 'Text fits its original space. Longer names resize automatically.';
+  say(tooLong ? 'warning' : 'fit', tooLong ? 'This line is still too long to fit clearly. Shorten the words or adjust the layout before ordering.' : el.size < ref.size - 0.01 ? 'Text reduced to fit its original space. Check the preview for readability.' : 'Text fits its original space. Longer names resize automatically.');
 }
 for (const [cat, fonts] of FONTS) {
   const g = document.createElement('optgroup'); g.label = cat;
@@ -1339,12 +1376,20 @@ async function readImage(file) {
     };
     const preview = encode(PREVIEW_SIDE, PREVIEW_BYTES, 0.88);
     const shrunk = preview.px[0] < W || preview.px[1] < H;
+    /* The master travels in the same request as its preview, so its budget
+       is what the order has left once the preview is in. */
+    const masterBytes = Math.min(ORIG_BYTES, Math.floor((PAYLOAD_BYTES - PAYLOAD_MARGIN - preview.url.length) / 1.37));
     let master = null;
-    if (isRaster && file.size <= ORIG_BYTES && Math.max(W, H) <= ORIG_SIDE) {
+    if (isRaster && file.size <= masterBytes && Math.max(W, H) <= ORIG_SIDE) {
       /* Keep the untouched file when preview resizing discarded pixels,
          including small-dimension artwork that exceeds the byte budget. */
       if (lossy || shrunk) master = { url: await readAsDataUrl(file), px: [W, H] };
-    } else master = encode(ORIG_SIDE, ORIG_BYTES, 0.92);
+    } else if (shrunk || !isRaster) {
+      master = encode(ORIG_SIDE, masterBytes, 0.92);
+      /* A re-encoded master with no more pixels than the preview adds
+         nothing a print needs; the untouched file above always does. */
+      if (master.px[0] <= preview.px[0] && master.px[1] <= preview.px[1]) master = null;
+    }
     if (master && master.url === preview.url) master = null;
     return master ? { src: preview.url, orig: master.url, px: master.px } : { src: preview.url, px: preview.px };
   } finally { URL.revokeObjectURL(url); }
@@ -1384,12 +1429,30 @@ $('iforward').addEventListener('click', () => moveLayer(1));
 $('iback').addEventListener('click', () => moveLayer(-1));
 
 let clipCat = '';
-function clipThumb(name, color = '#1d1b18') {
-  const def = CLIPS[name], c = document.createElement('canvas'); c.width = c.height = 72;
-  const g = c.getContext('2d'); g.scale(0.72, 0.72);
+function drawClipThumb(c, name, color) {
+  const def = CLIPS[name], g = c.getContext('2d');
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, c.width, c.height); g.scale(0.72, 0.72);
   const p = new Path2D(); def.path(p); g.lineJoin = g.lineCap = 'round';
   if (def.mode === 'stroke') { g.lineWidth = def.lw || 8; g.strokeStyle = color; g.stroke(p); } else { g.fillStyle = color; g.fill(p, def.rule || 'nonzero'); }
+}
+function clipThumb(name, color = '#1d1b18') {
+  const c = document.createElement('canvas'); c.width = c.height = 72;
+  drawClipThumb(c, name, color);
   return c;
+}
+const clipCards = new Map();
+function clipCard(name) {
+  let card = clipCards.get(name);
+  if (card) return card;
+  const def = CLIPS[name];
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'clip'; b.dataset.name = name; b.title = def.label; b.setAttribute('aria-label', 'Add ' + def.label);
+  const thumbnail = document.createElement('canvas'); thumbnail.width = thumbnail.height = 72; thumbnail.setAttribute('aria-hidden', 'true');
+  lazyThumbnail(thumbnail, () => drawClipThumb(thumbnail, name, '#1d1b18'), false);
+  const label = document.createElement('span'); label.className = 'clip-label'; label.textContent = def.label;
+  b.append(thumbnail, label);
+  card = { button: b, terms: normalizeSearch([def.label, name.replaceAll('-', ' '), CLIP_CATS[def.cat]].join(' ')) };
+  clipCards.set(name, card);
+  return card;
 }
 function fillClips() {
   const box = $('clips'); box.textContent = '';
@@ -1397,14 +1460,11 @@ function fillClips() {
   let count = 0;
   for (const [name, def] of Object.entries(CLIPS)) {
     if (clipCat && def.cat !== clipCat) continue;
-    const terms = normalizeSearch([def.label, name.replaceAll('-', ' '), CLIP_CATS[def.cat]].join(' '));
-    if (!words.every(word => terms.includes(word))) continue;
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'clip'; b.dataset.name = name; b.title = def.label; b.setAttribute('aria-label', 'Add ' + def.label);
-    const thumbnail = clipThumb(name); thumbnail.setAttribute('aria-hidden', 'true');
-    const label = document.createElement('span'); label.className = 'clip-label'; label.textContent = def.label;
-    b.append(thumbnail, label); box.appendChild(b); count++;
+    const card = clipCard(name);
+    if (!words.every(word => card.terms.includes(word))) continue;
+    box.appendChild(card.button); count++;
   }
-  $('clipresults').textContent = count ? count + (count === 1 ? ' artwork choice' : ' artwork choices') : 'No artwork found';
+  setText($('clipresults'), count ? count + (count === 1 ? ' artwork choice' : ' artwork choices') : 'No artwork found');
   $('clipempty').hidden = count > 0;
   $('clearclips').disabled = !words.length && !clipCat;
   $('clipfilterlabel').textContent = 'Browse groups: ' + (CLIP_CATS[clipCat] || 'All artwork');
@@ -1451,7 +1511,7 @@ function copyToOther() {
 }
 function duplicate() {
   const el = selectedEl(); if (!el) return;
-  const copy = { ...JSON.parse(JSON.stringify(el)), id: uid(), x: r1(el.x + 1), y: r1(el.y + 1) };
+  const copy = { ...JSON.parse(JSON.stringify(el)), id: uid(), x: clamp(r1(el.x + 1), -4, BOARD.w + 4), y: clamp(r1(el.y + 1), -4, BOARD.h + 4) };
   addElement(copy, null);
 }
 function moveLayer(dir) {
@@ -1525,7 +1585,7 @@ function syncLists() {
   const b = activeBoard();
   const ae = document.activeElement;
   const cls = ae && ae.dataset && ae.dataset.id ? ['quick', 'item', 'itemdel'].find((c) => ae.classList.contains(c)) : null;
-  const keep = cls ? { id: ae.dataset.id, cls, s: ae.selectionStart, e: ae.selectionEnd, list: ae.closest('.items') } : null;
+  const keep = cls ? { id: ae.dataset.id, cls, s: ae.selectionStart, e: ae.selectionEnd, list: ae.closest('.items'), row: [...(ae.closest('.items') || ae).querySelectorAll('.itemrow')].indexOf(ae.closest('.itemrow')) } : null;
   let lostFocus = false;
   for (const [listId, types, emptyText] of [['texts', ['text'], 'No words yet.'], ['images', ['image', 'clip'], 'No pictures or clip art yet.']]) {
     const list = $(listId);
@@ -1542,7 +1602,12 @@ function syncLists() {
   }
   $('addtext').disabled = countOf(b, 'text') >= MAX_TEXTS;
   if (keep && lostFocus) {
-    const again = document.querySelector('.' + keep.cls + '[data-id="' + keep.id + '"]') || (keep.list && keep.list.querySelector('.itemdel')) || (keep.list ? $(keep.list.id === 'texts' ? 'addtext' : 'addimagebtn') : null);
+    /* The row is gone (its own x was pressed): the focus goes to the Select
+       button of the row now in its place, or of the last row - never to
+       another row's x, where a second press would take a line nobody meant
+       to remove. An id from a project file can hold any character. */
+    const rows = keep.list ? [...keep.list.querySelectorAll('.itemrow')] : [], row = rows[Math.min(keep.row, rows.length - 1)];
+    const again = document.querySelector('.' + keep.cls + '[data-id="' + CSS.escape(keep.id) + '"]') || (row && row.querySelector('.item')) || (keep.list ? $(keep.list.id === 'texts' ? 'addtext' : 'addimagebtn') : null);
     if (again) { again.focus({ preventScroll: true }); if (keep.cls === 'quick' && keep.s != null && again.setSelectionRange) try { again.setSelectionRange(keep.s, keep.e); } catch (_) {} }
   }
 }
@@ -1875,7 +1940,7 @@ $('orderform').addEventListener('submit', async (ev) => {
     status('info', 'Sending your design…');
     const r = await fetch('api/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const j = await r.json().catch(() => ({}));
-    const files = payload.options.assets === 'pending' ? ' Your pictures were too large to send in full with the order, so we will email you for the full-size files.' : '';
+    const files = payload.options.assets === 'pending' ? ' Your pictures were too large to send in full with the order: keep your originals, as the full-size files will need to be supplied separately.' : '';
     if (r.status === 503 && j.error === 'not_configured') {
       status('warn', 'Ordering is not switched on for this site yet. Your order was not submitted. Nothing was charged. Save an editable copy below to keep your design, then try again when ordering is available.');
       $('saveunsubmitted').hidden = false;
@@ -2030,20 +2095,30 @@ function syncAll() { syncBoard(); syncLists(); syncProps(); syncOrder(); syncHis
 
 /* ====================================================================
    BOOT. The page draws at once, then the saved project (if any) is read
-   from the device and put in place. Edits made while it loads take
-   precedence over the saved draft; nothing is written until that read
-   finishes. If the device is slow, the page remains usable and offers
-   an editable export. A late result never replaces a new edit.
+   from the device and put in place. Until then the builder takes no click
+   and no key (body.loading, and the regions are inert), so an edit can
+   never race the restore and lose it; nothing is written back until the
+   restore has finished, so a restored project is never overwritten by
+   the fresh page. A device that does not answer in six seconds is not
+   waited for: the builder opens, says it is still checking, and keeps
+   what is typed meanwhile. A project that turns up after that is
+   offered, not forced, and Undo reaches whichever design was not kept.
    ==================================================================== */
 startupSnapshot = JSON.stringify({ design, order });
 history = [copyHistoryState(design)];
 syncAll();
 showOutcome();
 renderSite();
+const LATE_PROJECT_PROMPT = 'A design saved earlier on this device was found. Replace what you have started with it?';
+function openBuilder() {
+  loaded = true;
+  document.body.classList.remove('loading');
+  for (const el of document.querySelectorAll('.panel, .stage, #mobilebar')) el.inert = false;
+}
 (async () => {
   let p = null, unreadable = false, restored = false;
   const timeout = setTimeout(() => {
-    restoreTimedOut = true; loaded = true; setSaveState('waiting');
+    restoreTimedOut = true; openBuilder(); setSaveState('waiting');
   }, 6000);
   try {
     p = await loadProject({ validate: (project) => {
@@ -2053,17 +2128,28 @@ renderSite();
     } });
   } catch (_) { unreadable = true; }
   clearTimeout(timeout);
-  // Include edits still in progress (typing, a colour picker, or dragging)
-  // even when their change/commit event has not happened yet.
+  // Edits are possible only once the six-second notice has opened the
+  // builder. Include ones still in progress (typing, a colour picker, or
+  // dragging) even when their change/commit event has not happened yet.
   const editedDuringLoad = hasStartupEdits();
   startupSnapshot = null;
-  if (p && !editedDuringLoad) {
+  let keepEdits = editedDuringLoad;
+  if (p && editedDuringLoad) {
+    // Whichever design the customer keeps, the other is one Undo away: when
+    // nothing has been recorded yet, record the design as it stands (a drag
+    // still in progress is recorded when it ends).
+    if (history.length === 1 && !drag) history.push(copyHistoryState(design));
+    if (confirm(LATE_PROJECT_PROMPT)) keepEdits = false;
+    else { history[0] = copyHistoryState(migrate(p.design)); future = []; syncHistoryButtons(); }
+  }
+  if (p && !keepEdits) {
     const previousDesign = design, previousOrder = { ...order, bagColors: [...order.bagColors] };
     try {
       design = migrate(p.design);
       if (p.order) applyOrder(p.order);
       selected = null; active = 'a';
-      history = [copyHistoryState(design)]; future = [];
+      if (editedDuringLoad) history.push(copyHistoryState(design)); else history = [copyHistoryState(design)];
+      future = [];
       syncAll(); showTab('board');
       restored = true;
     } catch (_) {
@@ -2075,30 +2161,32 @@ renderSite();
       syncAll(); unreadable = true;
     }
   }
-  if (!editedDuringLoad) {
+  if (!keepEdits) {
     saveBaseline = copyHistoryState({ design, order });
     saveBaselineState = restored ? 'saved' : unreadable ? 'unreadable' : 'new';
   }
   storageReady = true;
-  if (editedDuringLoad) save();
+  if (keepEdits) save();
   else if (restored) setSaveState('saved');
   else if (unreadable) {
     recoverySnapshot = JSON.stringify({ design, order });
     setSaveState('unreadable');
   } else setSaveState('new');
-  loaded = true;
+  openBuilder();
 })();
 window.addEventListener('resize', render);
 /* Web fonts arrive after the first paint; a text set in one is measured
-   and drawn in the fallback until then. Repaint when each one lands, and
-   redraw the template thumbnails too. */
-const refontThumbs = () => {
-  for (const b of document.querySelectorAll('#templates .tpl')) { const t = TEMPLATES.find((x) => x.id === b.dataset.id), c = b.querySelector('canvas'); if (!t || !c) continue; c.getContext('2d').clearRect(0, 0, c.width, c.height); renderBoard(c.getContext('2d'), t.board(), c.height / BOARD.h); }
+   and drawn in the fallback until then. When faces land, repaint, refit
+   the guided text, and redraw the template thumbnails already drawn (the
+   rest are drawn with the loaded fonts when they come into view). A
+   loading round that brought no face in changes nothing. */
+const refontThumbs = (ev) => {
+  if (ev && ev.fontfaces && !ev.fontfaces.length) return;
+  for (const [c, t] of thumbnails) if (t.text && c.dataset.drawn) t.draw();
   let resized = false;
   for (const board of [design.a, design.b]) for (const el of board.elements) if (el.type === 'text' && el.autoFit && el.fitReference && el.text !== el.fitReference.text) { const before = el.size; fitTemplateText(el); resized ||= before !== el.size; }
   syncProps(); render(); if (resized) commit();
 };
-if (document.fonts && document.fonts.ready) document.fonts.ready.then(refontThumbs);
 if (document.fonts) document.fonts.addEventListener('loadingdone', refontThumbs);
 
 /* For the tests, and for anyone poking at it in the console. The page is a
