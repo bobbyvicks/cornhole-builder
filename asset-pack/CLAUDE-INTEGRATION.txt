@@ -1,5 +1,8 @@
 CORNHOLE CREATIVE PACK — CLAUDE IMPLEMENTATION HANDOFF
 
+CURRENT REPOSITORY STATUS
+The application now imports lib/creative-pack.mjs and additively registers the 24 clips, six categories, and six editable templates. The runtime module is copied from integration/creative-pack.mjs. The instructions below remain the compatibility contract for pack updates; do not add a second registration. Browser integration coverage is in tests/creative-pack.spec.js. A repository change is not confirmation of a completed live deployment.
+
 Please integrate the attached Cornhole Creative Pack into my existing cornhole builder project at https://cornhole-builder.vercel.app/.
 
 The pack contains 24 original single-colour SVG icons and six board templates across weddings, family, cabin/lake, camping, BBQ, and sports. Use the native vector module so customers can recolour, move, resize, rotate, duplicate, and remove artwork, and edit every text element. Keep the current features, templates, pricing, checkout, and saved designs working.

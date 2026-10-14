@@ -122,7 +122,11 @@ const board = z.object({
   pattern: z.object({
     kind: z.string().max(20),
     color: hex,
-    size: inches(0.5, 12),
+    // Approved templates use fine borders; repeating patterns still need
+    // their existing spacing limit so they cannot become excessively dense.
+    size: inches(0.1, 12),
+  }).refine((pattern) => pattern.kind === "border" || pattern.size >= 0.5, {
+    path: ["size"], message: "pattern spacing must be at least 0.5 inches unless it is a border",
   }),
   elements: z.array(z.discriminatedUnion("type", [textEl, imageEl, clipEl])).max(MAX_TEXTS_PER_BOARD + MAX_IMAGES_PER_BOARD + MAX_CLIPS_PER_BOARD)
     .refine((els) => els.filter((e) => e.type === "image").length <= MAX_IMAGES_PER_BOARD, "too many images on one board")

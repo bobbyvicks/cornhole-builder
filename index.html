@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>Cornhole Board Builder</title>
 <meta name="description" content="Design your own regulation cornhole boards for the backyard, the tailgate or the wedding - colours, patterns, fonts, clip art and your own pictures - see them live, and order the set.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -19,13 +19,19 @@
      stays on screen - which is exactly what happened to the bag colours. */
   [hidden] { display: none !important; }
   html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  html { scroll-padding-top: 76px; }
   button, input, select, textarea { font: inherit; color: inherit; }
+  button, input, select, textarea, summary, a { -webkit-tap-highlight-color: rgba(31, 58, 147, .15); }
+  input, select, textarea { max-width: 100%; accent-color: var(--accent); }
   h1, h2, h3 { margin: 0; line-height: 1.15; }
   a { color: var(--accent); }
   .wrap { max-width: 1280px; margin: 0 auto; padding: 0 16px; }
   /* Keyboard focus is always visible; a mouse click does not paint it. */
   :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
   .board canvas:focus-visible { outline-offset: 4px; }
+  .skip-link { position: fixed; top: 8px; left: 16px; z-index: 20; padding: 12px 16px; background: var(--panel); border: 2px solid var(--accent); border-radius: 8px; font-weight: 700; transform: translateY(calc(-100% - 12px)); }
+  .skip-link:focus { transform: none; }
+  label.btn:has(+ input[type=file]:focus-visible) { outline: 3px solid var(--accent); outline-offset: 2px; }
 
   header.top { background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
   header.top .wrap { display: flex; align-items: center; justify-content: space-between; min-height: 60px; gap: 16px; }
@@ -70,7 +76,8 @@
   .savestatus[data-state="saved"] { color: var(--ok); }
   .savestatus[data-state="error"] { color: var(--bad); font-weight: 600; }
 
-  .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 12px; cursor: pointer; font-weight: 600; }
+  .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 12px; cursor: pointer; font-weight: 600; min-height: 44px; min-width: 44px; }
+  label.btn { display: inline-flex; align-items: center; }
   .btn:hover { border-color: #c9c1b4; background: #faf8f4; }
   .btn:disabled { opacity: .5; cursor: default; }
   .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
@@ -78,9 +85,12 @@
   .btn.danger { color: var(--bad); }
   .btn.small { padding: 5px 9px; font-size: 13px; }
 
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); min-width: 0; }
   .tabs { display: flex; border-bottom: 1px solid var(--line); background: #faf8f4; }
-  .tabs button { flex: 1; border: 0; background: transparent; padding: 12px 4px; font-weight: 700; color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; font-size: 14px; }
+  .tabs { border-radius: var(--radius) var(--radius) 0 0; }
+  .tabs button { flex: 1; min-width: 0; min-height: 44px; border: 0; background: transparent; padding: 12px 4px; font-weight: 700; color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; font-size: 14px; }
+  .tabs button:first-child { border-top-left-radius: var(--radius); }
+  .tabs button:last-child { border-top-right-radius: var(--radius); }
   .tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); background: var(--panel); }
   .tabs button:focus-visible { outline-offset: -3px; }
   .pane { padding: 16px; display: none; }
@@ -90,54 +100,76 @@
   .row { display: flex; gap: 10px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
   .row label { min-width: 84px; font-weight: 600; font-size: 13.5px; }
   .row label.auto { min-width: 0; }
-  .row input[type=range] { flex: 1; min-width: 110px; }
+  .row input[type=range] { flex: 1; min-width: 90px; min-height: 44px; margin: 0; }
   .row .val { width: 54px; text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); }
-  .row input[type=text], .row input[type=number], .row input[type=date], .row select, .row textarea { flex: 1; min-width: 100px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #fff; }
-  input[type=color] { width: 36px; height: 32px; border: 1px solid var(--line); border-radius: 8px; padding: 2px; background: #fff; cursor: pointer; }
+  .row input[type=text], .row input[type=number], .row input[type=date], .row select, .row textarea { flex: 1; min-width: 100px; min-height: 44px; font-size: 16px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #fff; }
+  input[type=color] { flex: none; width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 8px; padding: 3px; background: #fff; cursor: pointer; }
+  input[type=checkbox] { width: 18px; height: 18px; flex: none; }
   .toggles { display: flex; gap: 12px; flex-wrap: wrap; font-size: 13.5px; }
-  .toggles label { font-weight: 600; }
+  .toggles label, .warn label { font-weight: 600; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
   details.more { border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; margin: 10px 0 4px; }
-  details.more summary { cursor: pointer; font-weight: 600; font-size: 13.5px; padding: 9px 0; color: var(--accent); }
+  details.more summary { cursor: pointer; font-weight: 600; font-size: 13.5px; min-height: 44px; padding: 11px 0; color: var(--accent); }
   details.more[open] summary { border-bottom: 1px dashed var(--line); margin-bottom: 4px; }
   .warn { background: #fff2e3; color: #7a3d05; border-radius: 8px; padding: 10px 12px; font-size: 13.5px; margin: 8px 0; }
   .warn p { margin: 0 0 6px; }
   .warn label { font-weight: 600; }
 
   .chips { display: flex; gap: 6px; flex-wrap: wrap; }
-  .chip { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 6px 12px; cursor: pointer; font-weight: 600; font-size: 13.5px; }
+  .chip { border: 1px solid var(--line); background: #fff; border-radius: 999px; min-height: 44px; min-width: 44px; padding: 6px 12px; cursor: pointer; font-weight: 600; font-size: 13.5px; }
   .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .chip small { font-weight: 500; opacity: .8; }
 
-  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(32px, 1fr)); gap: 5px; }
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 8px; }
   .swlabel { font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
   .sw { aspect-ratio: 1; border-radius: 7px; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
   .sw[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--accent); }
   .stain { background-image: repeating-linear-gradient(100deg, rgba(0,0,0,.08) 0 2px, transparent 2px 7px); }
-  .stains { grid-template-columns: repeat(6, 1fr); }
+  .stains { grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); }
 
   .items { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
-  .item { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: #fff; cursor: pointer; text-align: left; }
+  .item { display: flex; align-items: center; gap: 8px; min-height: 44px; min-width: 44px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: #fff; cursor: pointer; text-align: left; }
   .item[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
   .item .thumb { width: 28px; height: 28px; border-radius: 6px; background: #eee center/contain no-repeat; flex: none; }
   .item .name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .itemrow { display: flex; gap: 6px; align-items: stretch; }
   .itemrow .item { flex: 1; min-width: 0; }
   .itemrow .item.pick { flex: none; }
-  .itemrow input.quick { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: #fff; font-size: 15px; }
-  .itemdel { flex: none; width: 36px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--bad); font-size: 20px; line-height: 1; cursor: pointer; padding: 0; }
+  .itemrow input.quick { flex: 1; min-width: 0; min-height: 44px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: #fff; font-size: 16px; }
+  .itemdel { flex: none; width: 44px; min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--bad); font-size: 20px; line-height: 1; cursor: pointer; padding: 0; }
   .itemdel:hover { border-color: var(--bad); background: #fbeae9; }
   .props { border-top: 1px dashed var(--line); padding-top: 8px; margin-top: 8px; }
   .empty { color: var(--muted); font-size: 13.5px; padding: 6px 0; }
 
   .project { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: #faf8f4; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 14px; }
-  .project .savestatus { flex: 1; min-width: 140px; }
+  .project .savestatus { flex-basis: 100%; }
+  .project > .btn { flex: 1; text-align: center; }
   .tplgroup { margin: 14px 0 6px; }
-  .templates { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-  .tpl { border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 8px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .templates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .tpl { min-width: 0; border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 12px 8px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 10px; }
   .tpl:hover { border-color: var(--accent); }
-  .tpl canvas, .tpl .blankthumb { width: 64px; height: 128px; border-radius: 4px; box-shadow: 0 3px 8px rgba(0,0,0,.2); }
+  .tpl canvas, .tpl .blankthumb { width: min(100%, 96px); height: auto; aspect-ratio: 1 / 2; border-radius: 4px; box-shadow: 0 3px 8px rgba(0,0,0,.2); }
   .tpl .blankthumb { background: var(--accent); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 28px; font-weight: 300; }
-  .tpl span { font-size: 12.5px; font-weight: 600; text-align: center; }
+  .tpl span { font-size: 13.5px; font-weight: 600; text-align: center; overflow-wrap: anywhere; }
+  .template-tools { display: grid; gap: 12px; margin: 18px 0 14px; }
+  .template-search { display: grid; gap: 6px; min-width: 0; font-size: 13.5px; font-weight: 600; }
+  .template-search input, input.template-search { width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 16px; }
+  .template-filters { display: flex; flex-wrap: wrap; gap: 8px; }
+  .template-filters { align-items: center; }
+  .template-filters select { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 9px 10px; flex: 1; min-width: 150px; }
+  .tpl-action { color: var(--accent); font-size: 12px; }
+  #startblank { width: 100%; text-align: left; margin-top: 4px; }
+  .fit-status[data-state="warning"] { color: var(--bad); font-weight: 600; }
+  .template-results { margin: 0; font-size: 13px; color: var(--muted); }
+  .template-empty { padding: 20px 14px; border: 1px dashed var(--line); border-radius: 10px; background: #faf8f4; color: var(--muted); }
+  .personalization { margin: 12px 0 18px; padding: 14px; border: 1px solid #cbd4ee; border-radius: 10px; background: #f4f6fc; }
+  .personalization h3 { margin-top: 0; color: var(--accent); }
+  .personalization-fields { display: grid; gap: 12px; }
+  .personalization-row { display: grid; gap: 5px; min-width: 0; }
+  .personalization-row label { font-size: 13.5px; font-weight: 600; }
+  .personalization-row input { width: 100%; min-width: 0; min-height: 44px; padding: 9px 10px; font-size: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+  .personalization-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .personalization-actions label { display: flex; align-items: center; gap: 8px; min-height: 44px; flex: 1 1 170px; font-size: 13.5px; }
+  .fit-status { margin: 8px 0 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
 
   .clipcats { margin-bottom: 8px; }
   .clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; }
@@ -150,10 +182,11 @@
   table.quote td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   table.quote tr.total td { font-weight: 800; border-bottom: 0; font-size: 16px; padding-top: 8px; }
 
-  form.order { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+  form.order { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px 10px; }
+  form.order > div { min-width: 0; }
   form.order .full { grid-column: 1 / -1; }
   form.order label { display: block; font-size: 12.5px; font-weight: 600; color: var(--muted); margin-bottom: 3px; }
-  form.order input, form.order select, form.order textarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #fff; }
+  form.order input, form.order select, form.order textarea { width: 100%; min-width: 0; min-height: 44px; font-size: 16px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #fff; }
   form.order textarea { min-height: 48px; resize: vertical; }
   #tab-order h3 { margin: 12px 0 6px; }
   #tab-order h3:first-child { margin-top: 0; }
@@ -165,7 +198,7 @@
   #tab-order .qty label { min-width: 0; }
   #tab-order .qty input { width: 54px; min-width: 0; flex: none; border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; background: #fff; }
   #tab-order .toggles { font-size: 13px; gap: 10px; }
-  #tab-order .toggles label { white-space: nowrap; }
+  #tab-order .toggles label { white-space: normal; }
   #tab-order table.quote { margin: 4px 0 6px; }
   #tab-order table.quote td { padding: 4px 0; }
   .reviewboards { display: flex; gap: 12px; justify-content: center; margin: 6px 0 10px; }
@@ -192,7 +225,7 @@
   .photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-bottom: 16px; }
   .photos img { width: 100%; border-radius: var(--radius); display: block; }
   footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; padding: 18px 0 30px; }
-  .sr { position: absolute; left: -9999px; }
+  .sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 
   /* Phones and small tablets. The board shrinks and pins under the header,
      so what is being edited stays in view while the controls scroll under
@@ -202,15 +235,18 @@
      keyboard; and a bar at the foot carries the total and Review order
      without covering anything, because the page gets that much padding. */
   @media (max-width: 940px) {
-    body { padding-bottom: 72px; }
+    html { scroll-padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
+    body { padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
     body.ordering { padding-bottom: 0; }
     .builder { gap: 10px; padding: 6px 0 40px; }
     .stage { position: sticky; top: 60px; z-index: 4; padding: 8px 10px 6px; }
     .stagehead { margin-bottom: 2px; }
     .boards { gap: 14px; padding: 2px 0 0; }
     .board { width: auto; flex: 0 0 auto; max-width: none; gap: 3px; }
-    .board canvas { width: auto; height: min(34vh, 340px); }
+    .board canvas { width: auto; height: min(26vh, 280px); }
+    .board canvas { height: min(26svh, 280px); }
     body.typing .board canvas { height: min(20vh, 200px); }
+    body.typing .board canvas { height: min(20svh, 200px); }
     .board.same { display: none; }
     .board .label { font-size: 11.5px; }
     .stagebar { padding-top: 6px; margin-top: 4px; gap: 6px; }
@@ -221,29 +257,53 @@
     .pane { padding: 12px; }
     .chip { padding: 8px 12px; }
     .btn { padding: 9px 12px; }
-    .btn.small { padding: 7px 10px; }
-    .sw { min-height: 36px; }
+    .btn.small { padding: 7px 8px; }
+    .sw { min-height: 44px; }
     .hero { padding: 12px 0 2px; }
     .hero p { display: none; }
-    #mobilebar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--panel); border-top: 1px solid var(--line); padding: 10px 16px; align-items: center; justify-content: space-between; gap: 10px; box-shadow: 0 -6px 16px rgba(0,0,0,.08); }
+    #mobilebar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--panel); border-top: 1px solid var(--line); padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); align-items: center; justify-content: space-between; gap: 10px; box-shadow: 0 -6px 16px rgba(0,0,0,.08); }
+    #mobilebar .btn { flex: none; }
     #mobilebar .total { font-size: 13px; color: var(--muted); }
     #mobilebar .total b { display: block; font-size: 17px; color: var(--ink); }
     body.ordering #mobilebar { display: none; }
+    .pane :is(input, select, textarea, button, summary) { scroll-margin-block: 140px 100px; }
   }
   @media (max-width: 600px) {
+    header.top .wrap { gap: 8px; }
+    .brand { font-size: clamp(15px, 4vw, 18px); line-height: 1.2; }
+    nav.site { flex: none; }
+    .totalchip { white-space: nowrap; padding: 6px 10px; }
     nav.site a { display: none; }
     form.order { grid-template-columns: 1fr; }
     .board.inactive { display: none; }
-    .templates { grid-template-columns: repeat(3, 1fr); }
+    #boardmode { display: grid; grid-template-columns: minmax(0, 1.7fr) repeat(2, minmax(0, 1fr)); width: 100%; }
+    #boardmode .chip { padding: 4px 6px; font-size: 12.5px; line-height: 1.2; }
+    .stagebar, .stagebar .group { gap: 4px; }
+  }
+  @media (min-width: 601px) and (max-width: 940px) {
+    .templates { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+  /* With a keyboard open or in landscape, pinned preview + header can
+     cover the whole editor. Let the preview scroll and retain the tabs. */
+  @media (max-width: 940px) and (max-height: 620px) {
+    html { scroll-padding-top: 124px; }
+    .stage { position: relative; top: auto; z-index: auto; }
+    .tabs { position: sticky; top: 60px; z-index: 5; }
+    body.typing #mobilebar { display: none; }
+    .pane :is(input, select, textarea, button, summary) { scroll-margin-block: 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
   }
 </style>
 </head>
 <body>
+<a class="skip-link" href="#design-options">Skip to design controls</a>
 
 <header class="top">
   <div class="wrap">
     <a class="brand" id="brand" href="./">Cornhole Board Builder</a>
-    <nav class="site">
+    <nav class="site" aria-label="Main navigation">
       <a href="#builder">Design</a>
       <a href="#how">How it works</a>
       <span class="totalchip" id="headtotal" title="Estimated total in US dollars, before sales tax">$0.00</span>
@@ -297,7 +357,7 @@
       <p class="hint" id="stagehint">Drag anything on the board. Pull the corner square to resize, the round handle to rotate, and the red &times; to remove. With the board focused, arrow keys nudge, + and - resize, Delete removes.</p>
     </section>
 
-    <aside class="panel" aria-label="Design options">
+    <aside class="panel" id="design-options" tabindex="-1" aria-label="Design options">
       <div class="tabs" role="tablist" aria-label="Design steps">
         <button role="tab" id="tabbtn-templates" data-tab="templates" aria-selected="true" aria-controls="tab-templates" tabindex="0">Start</button>
         <button role="tab" id="tabbtn-board" data-tab="board" aria-selected="false" aria-controls="tab-board" tabindex="-1">Board</button>
@@ -309,14 +369,13 @@
       <div class="pane" id="tab-templates" data-open="true" role="tabpanel" aria-labelledby="tabbtn-templates">
         <div class="project" id="project">
           <span class="savestatus" data-state="new" role="status">Not saved yet</span>
-          <button class="btn small" id="exportbtn" title="A JSON file with your boards and your order choices, to keep or to bring back later">Export project</button>
-          <label class="btn small" for="importfile">Import project</label>
+          <button class="btn small" id="exportbtn" title="Download an editable project file with your boards and order choices, to keep or open later">Save editable copy</button>
+          <label class="btn small" for="importfile">Open saved design</label>
           <input type="file" id="importfile" class="sr" accept="application/json,.json">
+          <button class="btn small" id="sharepreview" title="Share an image of your boards, or download it to send yourself">Share preview</button>
+          <p class="hint" id="sharestatus" role="status" aria-live="polite" hidden></p>
         </div>
-        <h3>Start</h3>
-        <div class="templates">
-          <button class="tpl" id="startblank" type="button"><span class="blankthumb" aria-hidden="true">+</span><span>Start blank</span></button>
-        </div>
+        <button class="btn" id="startblank" type="button">+ Start with blank boards</button>
         <div id="templates"></div>
         <p class="hint" style="margin-top:10px">Every word, colour and picture on a template can be changed.</p>
       </div>
@@ -362,6 +421,7 @@
         <h3>Words on <span class="activename">your board</span></h3>
         <p class="hint" id="texthint" hidden></p>
         <div class="items" id="texts"></div>
+        <div id="personalization" class="personalization" hidden></div>
         <button class="btn" id="addtext">+ Add text</button>
         <div class="props" id="textprops" hidden>
           <div class="row"><label for="ttext">Text</label><input type="text" id="ttext" maxlength="60"></div>
@@ -436,7 +496,7 @@
 
       <div class="pane" id="tab-order" data-open="false" role="tabpanel" aria-labelledby="tabbtn-order">
         <div id="orderstep1">
-          <h3>What you're ordering</h3>
+          <h3 id="orderstep1-title" tabindex="-1">What you're ordering</h3>
           <div class="row">
             <div class="chips" id="product" role="group" aria-label="Product"></div>
             <span class="qty"><label for="qty">Qty</label><input type="number" id="qty" min="1" max="10" value="1"></span>
@@ -466,7 +526,7 @@
         </div>
         <div id="orderstep2" hidden>
           <div class="stephead">
-            <h3>Review your order</h3>
+            <h3 id="orderstep2-title" tabindex="-1">Review your order</h3>
             <button class="btn small" type="button" id="backtooptions">&larr; Options</button>
           </div>
           <div class="reviewboards" id="reviewboards"></div>
@@ -479,6 +539,7 @@
             <label><input type="checkbox" id="keepsamples"> Print these words exactly as they are</label>
           </div>
           <div class="warn" id="reswarn" hidden></div>
+          <div class="warn" id="assetwarn" hidden>Some full-size picture files are too large to include in checkout. Your previews will be sent, and we will email you for the full-size files. Keep your originals or export this project before leaving.</div>
           <div class="row">
             <button class="btn" type="button" id="backtoedit">&larr; Back to editing</button>
             <button class="btn primary" type="button" id="tocheckout" style="flex:1">Continue to your details</button>
@@ -486,7 +547,7 @@
         </div>
         <div id="orderstep3" hidden>
           <div class="stephead">
-            <h3>Your details</h3>
+            <h3 id="orderstep3-title" tabindex="-1">Your details</h3>
             <button class="btn small" type="button" id="backtoorder">&larr; Review</button>
           </div>
           <p class="summary" id="ordersummary"></p>

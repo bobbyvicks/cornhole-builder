@@ -1,8 +1,13 @@
 import { PRICING, quote, money } from './lib/price.mjs';
-import { CLIPS, CLIP_CATS, heart, prng } from './lib/clips.mjs';
+import { CLIPS as CORE_CLIPS, CLIP_CATS as CORE_CLIP_CATS, heart, prng } from './lib/clips.mjs';
 import { makeTemplates } from './lib/templates.mjs';
+import { PACK_CLIPS, PACK_CATEGORIES, makeCreativeTemplates } from './lib/creative-pack.mjs';
 import { loadProject, saveProject } from './lib/store.mjs';
 import { SITE } from './lib/site.mjs';
+import { MAX_PROJECT_BYTES, validateProject } from './lib/project-validation.mjs';
+
+const CLIPS = { ...CORE_CLIPS, ...PACK_CLIPS };
+const CLIP_CATS = { ...CORE_CLIP_CATS, ...PACK_CATEGORIES };
 
 /* ====================================================================
    THE BOARD, IN INCHES. Everything about a design is stored in inches on
@@ -95,7 +100,10 @@ function migrate(d) {
   return out;
 }
 
-const TEMPLATES = makeTemplates({ T, C, freshBoard });
+const TEMPLATES = [
+  ...makeTemplates({ T, C, freshBoard }),
+  ...makeCreativeTemplates({ T, C, freshBoard }),
+];
 /* The words a template arrives with. A design that still carries one at
    the checkout is almost always a mistake, so the review asks. */
 const SAMPLE_WORDS = new Set(['your team', 'new text', 'your name', 'your words']);
@@ -119,7 +127,7 @@ const boardKeys = () => (order.product === 'set' && !design.same ? ['a', 'b'] : 
 /* A design nobody has touched: the page's own default, a blank board, or
    a template exactly as it came. Anything else is someone's work, and a
    template click asks before replacing it - after a reload too. */
-const stripIds = (b) => JSON.stringify({ ...b, elements: b.elements.map(({ id, ...e }) => e) });
+const stripIds = (b) => JSON.stringify({ ...b, elements: b.elements.map(({ id, fitReference, autoFit, ...e }) => e) });
 const sameBoard = (a, b) => stripIds(a) === stripIds(b);
 function isPristine() {
   if (!design.same) return false;
@@ -150,12 +158,19 @@ function imageFor(src) {
   }
   return img.complete && img.naturalWidth ? img : null;
 }
-const imageLoaded = (src) => new Promise((res) => { const img = imageFor(src); if (img) { res(img); return; } const i = imgCache.get(src); i.addEventListener('load', () => res(i), { once: true }); i.addEventListener('error', () => res(null), { once: true }); });
+const imageLoaded = (src) => new Promise((res) => {
+  const img = imageFor(src); if (img) { res(img); return; }
+  const i = imgCache.get(src);
+  if (i.complete) { res(null); return; }
+  i.addEventListener('load', () => res(i), { once: true });
+  i.addEventListener('error', () => res(null), { once: true });
+});
 /* The print file needs every master decoded before it draws. */
-async function preloadImages(keys = boardKeys()) {
+async function preloadImages(keys = boardKeys(), { print = true } = {}) {
   const srcs = new Set();
-  for (const k of keys) for (const e of boardFor(k).elements) if (e.type === 'image') srcs.add(e.orig || e.src);
-  await Promise.all([...srcs].map(imageLoaded));
+  for (const k of keys) for (const e of boardFor(k).elements) if (e.type === 'image') srcs.add(print ? e.orig || e.src : e.src);
+  const images = await Promise.all([...srcs].map(imageLoaded));
+  if (images.some(img => !img)) throw new Error('A picture could not be loaded. Remove it and upload the original again.');
 }
 /* "Remove white background": a logo on a white JPEG becomes a cut-out.
    Anything near white goes transparent, fading in over the last few
@@ -224,7 +239,7 @@ function drawBase(ctx, base) {
 
 function drawPattern(ctx, p) {
   if (!p || p.kind === 'none') return;
-  const s = clamp(Number(p.size) || 3, 0.5, 12), w = BOARD.w, h = BOARD.h;
+  const s = clamp(Number(p.size) || 3, p.kind === 'border' ? 0.1 : 0.5, 12), w = BOARD.w, h = BOARD.h;
   ctx.fillStyle = p.color;
   const bands = (len, step, draw) => { for (let v = 0; v < len; v += 2 * step) draw(v); };
   switch (p.kind) {
@@ -554,7 +569,7 @@ async function flush() {
   saveBusy = false;
   if (saveAgain) { saveAgain = false; flush(); }
 }
-window.addEventListener('beforeunload', (e) => { if (saveState === 'error') { e.preventDefault(); e.returnValue = ''; } });
+window.addEventListener('beforeunload', (e) => { if (saveState === 'error' || saveState === 'saving') { e.preventDefault(); e.returnValue = ''; } });
 
 /* Order choices from storage or a file, taken only where they are valid. */
 function applyOrder(o) {
@@ -578,9 +593,12 @@ function exportProject() {
   setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
 }
 function importProject(obj) {
-  if (!obj || typeof obj !== 'object' || !obj.design || !obj.design.a || !obj.design.b) throw new Error('that file is not a cornhole project');
-  design = migrate(obj.design);
-  if (obj.order) applyOrder(obj.order);
+  validateProject(obj, { clips: CLIPS, patterns: PATTERNS, stains: STAINS, maxQuantity: PRICING.maxQuantity,
+    orderChoices: { product: PRICING.products, finish: PRICING.finishes, bags: PRICING.bags, occasion: OCCASIONS } });
+  const incoming = JSON.parse(JSON.stringify(obj));
+  const nextDesign = migrate(incoming.design);
+  design = nextDesign;
+  if (incoming.order) applyOrder(incoming.order);
   selected = null; active = 'a';
   syncAll(); commit(); showTab('board');
 }
@@ -653,6 +671,7 @@ for (const c of [$('canvasA'), $('canvasB')]) {
   c.addEventListener('pointermove', (ev) => {
     if (!drag) return;
     const el = findEl(drag.id); if (!el) return;
+    if (el.type === 'text') el.autoFit = false;
     const p = toInches(c, ev);
     if (drag.mode === 'move') {
       let x = clamp(r1(p.x + drag.dx), -4, BOARD.w + 4), y = clamp(r1(p.y + drag.dy), -4, BOARD.h + 4);
@@ -689,9 +708,10 @@ document.addEventListener('keydown', (ev) => {
   const el = selectedEl(); if (!el) return;
   const step = ev.shiftKey ? 1 : 0.1;
   const nudge = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[ev.key];
-  if (nudge) { el.x = r1(el.x + nudge[0]); el.y = r1(el.y + nudge[1]); render(); syncProps(); commit(); ev.preventDefault(); }
+  if (nudge) { el.x = r1(el.x + nudge[0]); el.y = r1(el.y + nudge[1]); if (el.type === 'text') el.autoFit = false; render(); syncProps(); commit(); ev.preventDefault(); }
   else if (ev.key === '+' || ev.key === '=' || ev.key === '-') {
     const k = sizeKey(el); el[k] = clamp(Math.round(el[k] * (ev.key === '-' ? 0.95 : 1.05) * 20) / 20, 0.5, sizeMax(el));
+    if (el.type === 'text') el.autoFit = false;
     render(); syncProps(); commit(); ev.preventDefault();
   }
   else if (ev.key === 'Delete' || ev.key === 'Backspace') { removeElement(el.id); ev.preventDefault(); }
@@ -741,15 +761,19 @@ panel.addEventListener('focusout', () => setTimeout(() => { const a = document.a
 /* Bring the controls up under the (sticky) board on a phone. */
 function scrollToPanel() {
   const st = document.querySelector('.stage');
-  const sticky = window.innerWidth <= 940 ? st.offsetHeight + 8 : 0;
+  const sticky = getComputedStyle(st).position === 'sticky' ? st.offsetHeight + 8 : 0;
   const top = panel.getBoundingClientRect().top + window.scrollY - 60 - sticky;
-  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  window.scrollTo({ top: Math.max(0, top), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
 }
 
 // -- templates, grouped by occasion, with a blank start
 function applyTemplate(id) {
   const t = TEMPLATES.find((x) => x.id === id); if (!t) return;
   design = { version: DESIGN_VERSION, same: true, a: t.board(), b: freshBoard() };
+  for (const el of design.a.elements) if (el.type === 'text') {
+    el.fitReference = { text: el.text, size: el.size, spacing: el.spacing, font: el.font };
+    el.autoFit = true;
+  }
   selected = null; active = 'a';
   order.occasion = t.occasion;
   syncAll(); commit(); promptForWords();
@@ -767,7 +791,7 @@ function promptForWords() {
   const hint = $('texthint');
   if (first) {
     select(first.id);
-    hint.textContent = 'Replace the sample words with your own: the names, the date, the team. Each line below is one piece of text on the board.';
+    hint.textContent = 'Replace the sample words below. Long names resize to fit; choose any line to change its font and colours.';
     hint.hidden = false;
     const i = $('ttext'); i.focus({ preventScroll: true }); i.select();
   } else {
@@ -777,23 +801,43 @@ function promptForWords() {
 }
 const askThenApply = (label, fn) => { if (isPristine() || confirm('Replace your current design with ' + label + '?')) fn(); };
 $('startblank').addEventListener('click', () => askThenApply('a blank board', applyBlank));
-{
-  const host = $('templates');
+const templateTools = document.createElement('div'); templateTools.className = 'template-tools';
+templateTools.innerHTML = '<label class="template-search" for="templatesearch">Find a design<input id="templatesearch" type="search" maxlength="100" aria-label="Search templates" placeholder="Try wedding, lake or team"></label><div class="template-filters"><label for="templateoccasion">Occasion</label><select id="templateoccasion"><option value="">All occasions</option></select><button id="cleartemplates" class="btn small" type="button">Clear filters</button></div><p id="templateresults" class="template-results" role="status" aria-live="polite"></p><p id="templateempty" class="template-empty" hidden>No matching designs. Try a different word or clear the filters.</p>';
+$('templates').before(templateTools);
+for (const [key, label] of TEMPLATE_GROUPS) { const option = document.createElement('option'); option.value = key; option.textContent = label; $('templateoccasion').appendChild(option); }
+const normalizeSearch = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+function renderTemplates() {
+  const host = $('templates'); host.textContent = '';
+  const words = normalizeSearch($('templatesearch').value).split(/\s+/).filter(Boolean), occasion = $('templateoccasion').value;
+  const matches = TEMPLATES.filter(t => {
+    if (occasion && t.occasion !== occasion) return false;
+    const terms = normalizeSearch([t.label, t.id, OCCASIONS[t.occasion], TEMPLATE_GROUPS.find(g => g[0] === t.occasion)?.[1], ...t.board().elements.map(e => e.text || CLIPS[e.name]?.label || '')].join(' '));
+    return words.every(word => terms.includes(word));
+  });
+  $('templateresults').textContent = matches.length ? matches.length + (matches.length === 1 ? ' template' : ' templates') + ' to personalize' : 'No templates found';
+  $('templateempty').hidden = matches.length > 0;
+  $('cleartemplates').disabled = !words.length && !occasion;
   for (const [key, label] of TEMPLATE_GROUPS) {
-    const ts = TEMPLATES.filter((t) => t.occasion === key); if (!ts.length) continue;
+    const ts = matches.filter((t) => t.occasion === key); if (!ts.length) continue;
     const h = document.createElement('h3'); h.className = 'tplgroup'; h.textContent = label; host.appendChild(h);
     const grid = document.createElement('div'); grid.className = 'templates'; host.appendChild(grid);
     for (const t of ts) {
       const b = document.createElement('button'); b.className = 'tpl'; b.type = 'button'; b.dataset.id = t.id; b.setAttribute('aria-label', t.label + ' template');
       const c = document.createElement('canvas'); c.width = 64 * 2; c.height = 128 * 2;
+      c.setAttribute('aria-hidden', 'true');
       renderBoard(c.getContext('2d'), t.board(), 128 * 2 / BOARD.h);
       const s = document.createElement('span'); s.textContent = t.label;
-      b.append(c, s);
+      const action = document.createElement('small'); action.className = 'tpl-action'; action.textContent = 'Personalize design'; action.setAttribute('aria-hidden', 'true');
+      b.append(c, s, action);
       b.addEventListener('click', () => askThenApply('the ' + t.label + ' template', () => applyTemplate(t.id)));
       grid.appendChild(b);
     }
   }
 }
+$('templatesearch').addEventListener('input', renderTemplates);
+$('templateoccasion').addEventListener('change', renderTemplates);
+$('cleartemplates').addEventListener('click', () => { $('templatesearch').value = ''; $('templateoccasion').value = ''; renderTemplates(); $('templatesearch').focus(); });
+renderTemplates();
 
 // -- board tab
 function swatch(parent, v, title, extra) {
@@ -818,7 +862,12 @@ $('paint2').addEventListener('change', commit);
 $('gradangle').addEventListener('input', () => { activeBoard().base.angle = Number($('gradangle').value); $('gradangleval').textContent = $('gradangle').value + '°'; render(); });
 $('gradangle').addEventListener('change', commit);
 chips('basekind', (v) => { activeBoard().base.kind = v; syncBoard(); render(); commit(); });
-$('pattern').addEventListener('change', () => { activeBoard().pattern.kind = $('pattern').value; syncBoard(); render(); commit(); });
+$('pattern').addEventListener('change', () => {
+  const pattern = activeBoard().pattern;
+  pattern.kind = $('pattern').value;
+  pattern.size = Math.max(pattern.kind === 'border' ? 0.1 : 0.5, pattern.size);
+  syncBoard(); render(); commit();
+});
 $('patcolor').addEventListener('input', () => { activeBoard().pattern.color = $('patcolor').value; render(); });
 $('patcolor').addEventListener('change', commit);
 $('patsize').addEventListener('input', () => { activeBoard().pattern.size = Number($('patsize').value); $('patsizeval').textContent = $('patsize').value + '"'; render(); });
@@ -878,6 +927,10 @@ function syncBoard() {
   $('gradangle').value = b.base.angle; $('gradangleval').textContent = b.base.angle + '°';
   $('pattern').value = b.pattern.kind;
   $('patcolor').value = b.pattern.color;
+  $('patsize').min = b.pattern.kind === 'border' ? '0.1' : '0.5';
+  // Preserve exact template/imported widths rather than letting the range
+  // round them to its usual half-inch step while the label shows another value.
+  $('patsize').step = b.pattern.kind === 'border' || b.pattern.size % 0.5 !== 0 ? '0.01' : '0.5';
   $('patsize').value = b.pattern.size; $('patsizeval').textContent = b.pattern.size + '"';
   $('patternopts').style.visibility = b.pattern.kind === 'none' ? 'hidden' : 'visible';
   const twoBoards = order.product === 'set', split = twoBoards && !design.same, other = active === 'a' ? 'b' : 'a';
@@ -901,6 +954,51 @@ function syncBoard() {
 }
 
 // -- text tab
+/* Fitting belongs to the template's guided text edits. Manual geometry and
+   font controls turn it off, so an advanced edit is never silently undone. */
+const fitContext = document.createElement('canvas').getContext('2d');
+function measureTextBox(el) {
+  const id = '__fit_measure__';
+  drawText(fitContext, { ...el, id, shadow: false });
+  const box = boxes.get(id); boxes.delete(id);
+  const angle = rad(el.rotation || 0), cos = Math.abs(Math.cos(angle)), sin = Math.abs(Math.sin(angle));
+  return { w: cos * box.w + sin * box.h, h: sin * box.w + cos * box.h, oy: box.oy || 0 };
+}
+function fittingReference(el) {
+  const ref = el.fitReference;
+  if (ref && typeof ref.text === 'string' && ref.text.length <= 60 && Number.isFinite(ref.size) && ref.size >= 0.5 && ref.size <= 16 && Number.isFinite(ref.spacing) && ref.spacing >= -0.2 && ref.spacing <= 1.5 && typeof ref.font === 'string' && ref.font.length < 100) return { text: ref.text, size: ref.size, spacing: ref.spacing, font: ref.font };
+  return { text: el.text, size: el.size, spacing: el.spacing || 0, font: el.font };
+}
+function fitLimits(el, ref = fittingReference(el)) {
+  const original = measureTextBox({ ...el, ...ref });
+  return { w: Math.max(0, Math.min(original.w, 2 * Math.min(el.x - 1, BOARD.w - 1 - el.x))), h: Math.max(0, Math.min(original.h, 2 * Math.min(el.y + original.oy - 1, BOARD.h - 1 - el.y - original.oy))) };
+}
+function fitTemplateText(el) {
+  if (!el.autoFit) return;
+  const ref = fittingReference(el), limit = fitLimits(el, ref);
+  const fits = ratio => { const b = measureTextBox({ ...el, size: ref.size * ratio, spacing: ref.spacing * ratio }); return b.w <= limit.w && b.h <= limit.h; };
+  let lo = 0.5 / ref.size, hi = 1;
+  if (fits(1)) lo = 1;
+  else if (fits(lo)) for (let n = 0; n < 18; n++) { const mid = (lo + hi) / 2; if (fits(mid)) lo = mid; else hi = mid; }
+  el.size = Math.max(0.5, Math.floor(ref.size * lo * 1000) / 1000);
+  el.spacing = Math.round(ref.spacing * lo * 10000) / 10000;
+}
+function syncPersonalization() {
+  const host = $('personalization'); if (!host) return;
+  const el = selectedEl(); host.hidden = !el || el.type !== 'text'; if (host.hidden) return;
+  if (!host.childElementCount) {
+    host.innerHTML = '<p class="hint">Change each line below, then choose your colours. Select a line to adjust its font and placement.</p><div class="personalization-actions"><label><input type="checkbox" id="autofittext"> Keep this line within its original space</label><button class="btn small" id="fittext" type="button">Fit this line</button></div><p id="fitstatus" class="fit-status" role="status" aria-live="polite"></p>';
+    $('autofittext').addEventListener('change', () => { const e = selectedEl(); if (!e || e.type !== 'text') return; e.fitReference ||= fittingReference(e); e.autoFit = $('autofittext').checked; fitTemplateText(e); render(); syncProps(); commit(); });
+    $('fittext').addEventListener('click', () => { const e = selectedEl(); if (!e || e.type !== 'text') return; e.fitReference ||= fittingReference(e); e.autoFit = true; fitTemplateText(e); render(); syncProps(); commit(); });
+  }
+  $('autofittext').checked = !!el.autoFit;
+  const status = $('fitstatus');
+  if (!el.autoFit) { status.textContent = 'Manual sizing. Fit this line whenever you need help with a long name.'; status.dataset.state = 'manual'; return; }
+  const ref = fittingReference(el), limit = fitLimits(el, ref), actual = measureTextBox(el);
+  const tooLong = actual.w > limit.w + 0.03 || actual.h > limit.h + 0.03;
+  status.dataset.state = tooLong ? 'warning' : 'fit';
+  status.textContent = tooLong ? 'This line is still too long to fit clearly. Shorten the words or adjust the layout before ordering.' : el.size < ref.size - 0.01 ? 'Text reduced to fit its original space. Check the preview for readability.' : 'Text fits its original space. Longer names resize automatically.';
+}
 for (const [cat, fonts] of FONTS) {
   const g = document.createElement('optgroup'); g.label = cat;
   for (const [f] of fonts) { const o = document.createElement('option'); o.value = f; o.textContent = f; o.style.fontFamily = '"' + f + '"'; g.appendChild(o); }
@@ -918,7 +1016,17 @@ $('addtext').addEventListener('click', () => {
   if (el) { $('texthint').hidden = true; $('ttext').focus(); $('ttext').select(); }
 });
 const field = (id, key, map = (v) => v, label = null) => {
-  $(id).addEventListener('input', () => { const el = selectedEl(); if (!el) return; el[key] = map($(id).value); if (label) $(id + 'val').textContent = label(el[key]); render(); syncLists(); });
+  $(id).addEventListener('input', () => {
+    const el = selectedEl(); if (!el) return; el[key] = map($(id).value);
+    if (el.type === 'text') {
+      if (key === 'text') fitTemplateText(el);
+      else if (['font', 'size', 'spacing', 'arc', 'rotation', 'x', 'y', 'outlineWidth'].includes(key)) el.autoFit = false;
+    }
+    if (label) $(id + 'val').textContent = label(el[key]);
+    render(); syncLists(); syncPersonalization();
+    if (key === 'text') syncProps();
+    save();
+  });
   $(id).addEventListener('change', commit);
 };
 const toggle = (id, key) => {
@@ -1084,9 +1192,9 @@ function itemRow(el, pressed, onClick) {
   if (el.type === 'text') {
     b.classList.add('pick'); b.title = 'Select, to change the font, size and colour'; b.setAttribute('aria-label', 'Select "' + el.text + '"');
     const q = document.createElement('input'); q.type = 'text'; q.className = 'quick'; q.value = el.text; q.maxLength = 60; q.dataset.id = el.id;
-    q.setAttribute('aria-label', 'Words'); q.style.fontFamily = '"' + el.font + '", Impact, sans-serif';
+    q.setAttribute('aria-label', 'Words: ' + (el.fitReference?.text || el.text)); q.style.fontFamily = '"' + el.font + '", Impact, sans-serif';
     q.addEventListener('focus', () => { if (selected !== el.id) select(el.id); });
-    q.addEventListener('input', () => { const e = findEl(el.id); if (!e) return; e.text = q.value || ' '; $('texthint').hidden = true; render(); if (selected === e.id && document.activeElement !== $('ttext')) $('ttext').value = e.text; });
+    q.addEventListener('input', () => { const e = findEl(el.id); if (!e) return; e.text = q.value || ' '; fitTemplateText(e); $('texthint').hidden = true; render(); if (selected === e.id) syncProps(); save(); });
     q.addEventListener('change', commit);
     row.append(b, q);
   } else {
@@ -1144,6 +1252,7 @@ function syncLists() {
 }
 function syncProps() {
   const el = selectedEl();
+  syncPersonalization();
   $('textprops').hidden = !(el && el.type === 'text');
   $('imageprops').hidden = !(el && el.type !== 'text');
   if (!el) return;
@@ -1196,6 +1305,9 @@ $('shipnote2').textContent = 'United States addresses in ' + PRICING.shipping.re
 const dispatchNote = () => 'Dispatch: about ' + PRICING.leadTimeDays + ' business days after your order (about ' + PRICING.rushDays + ' with a rush build). Delivery: freight transit is on top and depends on your address; we confirm an estimate with your order. Dates are estimates, not guarantees.';
 $('leadtime').textContent = 'Dispatch in about ' + PRICING.leadTimeDays + ' business days (' + PRICING.rushDays + ' with a rush build); delivery time is on top and not guaranteed.';
 $('howdispatch').textContent = 'Built to order and dispatched in about ' + PRICING.leadTimeDays + ' business days (about ' + PRICING.rushDays + ' with the rush option), then shipped by freight to your door anywhere in ' + PRICING.shipping.region + '. Transit time depends on your address and is confirmed with your order.';
+const statePrompt = document.createElement('option');
+statePrompt.value = ''; statePrompt.textContent = 'Select a state';
+$('state').appendChild(statePrompt);
 for (const s of SHIP_STATES) { const o = document.createElement('option'); o.value = s; o.textContent = s; $('state').appendChild(o); }
 for (const [k, label] of Object.entries(OCCASIONS)) { const o = document.createElement('option'); o.value = k; o.textContent = label; $('occasion').appendChild(o); }
 $('needby').min = today();
@@ -1212,18 +1324,26 @@ $('needby').addEventListener('change', () => { order.needBy = $('needby').value;
 $('giftnote').addEventListener('input', () => { order.giftNote = $('giftnote').value; save(); });
 /* Three screens, each about the height of the other tabs: the order and
    its price; the review, with both boards as they will print; the address. */
-function showOrderStep(n) {
+function showOrderStep(n, { focus = false } = {}) {
   $('orderstep1').hidden = n !== 1; $('orderstep2').hidden = n !== 2; $('orderstep3').hidden = n !== 3;
   if (n === 2) renderReview();
   if (n === 3) syncOrder();
+  if (focus) {
+    $('orderstep' + n + '-title').focus({ preventScroll: true });
+    scrollToPanel();
+  }
 }
-$('toreview').addEventListener('click', () => showOrderStep(2));
-$('backtooptions').addEventListener('click', () => showOrderStep(1));
-$('backtoedit').addEventListener('click', () => { showTab(lastEditTab); showOrderStep(1); });
-$('tocheckout').addEventListener('click', () => showOrderStep(3));
-$('backtoorder').addEventListener('click', () => showOrderStep(2));
+$('toreview').addEventListener('click', () => showOrderStep(2, { focus: true }));
+$('backtooptions').addEventListener('click', () => showOrderStep(1, { focus: true }));
+$('backtoedit').addEventListener('click', () => {
+  showTab(lastEditTab); showOrderStep(1);
+  $('tabbtn-' + lastEditTab).focus({ preventScroll: true });
+  scrollToPanel();
+});
+$('tocheckout').addEventListener('click', () => showOrderStep(3, { focus: true }));
+$('backtoorder').addEventListener('click', () => showOrderStep(2, { focus: true }));
 $('keepsamples').addEventListener('change', () => { $('tocheckout').disabled = !$('keepsamples').checked; });
-$('reviewbtn').addEventListener('click', () => { showTab('order'); showOrderStep(2); scrollToPanel(); });
+$('reviewbtn').addEventListener('click', () => { showTab('order'); showOrderStep(2, { focus: true }); });
 
 /* Weekdays between today and a date; weekends are not build days. */
 function businessDaysUntil(iso) {
@@ -1303,6 +1423,7 @@ function renderReview() {
   $('tocheckout').disabled = samples.length > 0 && !$('keepsamples').checked;
   const low = lowResImages(keys);
   $('reswarn').hidden = !low.length; $('reswarn').textContent = low.join(' ');
+  $('assetwarn').hidden = orderPayload().options.assets !== 'pending';
 }
 
 function status(kind, text) { const s = $('orderstatus'); s.dataset.kind = kind; s.textContent = text; }
@@ -1330,9 +1451,13 @@ function orderPayload() {
     notes: v('notes'),
   };
   if (pictures.length) {
-    let included = pictures.some((e) => e.orig);
-    if (included && JSON.stringify(payload).length > PAYLOAD_BYTES) { for (const e of pictures) delete e.orig; included = false; }
-    opts.assets = included ? 'included' : 'pending';
+    // A small lossless picture has no separate master: src is already its
+    // full image. Files are pending only when a real master is left out.
+    opts.assets = 'included';
+    if (pictures.some((e) => e.orig) && JSON.stringify(payload).length > PAYLOAD_BYTES) {
+      for (const e of pictures) delete e.orig;
+      opts.assets = 'pending';
+    }
   }
   return payload;
 }
@@ -1385,16 +1510,49 @@ async function showOutcome() {
     $('donetitle').textContent = 'Payment cancelled.';
     $('donebody').innerHTML = '<p>No charge was made. Your design is still here' + (code ? ', and order <code>' + code.replace(/[^A-Z0-9-]/g, '') + '</code> is saved unpaid' : '') + ' - press Continue to payment again whenever you are ready.</p>';
   }
-  box.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  box.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
 }
 
 // -- stage bar, project buttons
+async function sharePreview() {
+  const btn = $('sharepreview'), message = $('sharestatus');
+  btn.disabled = true; message.hidden = false; message.textContent = 'Preparing your preview…';
+  try {
+    const keys = order.product === 'set' ? ['a', 'b'] : ['a'];
+    await preloadImages(keys, { print: false });
+    if (document.fonts?.ready) await document.fonts.ready;
+    const ppi = 12, width = BOARD.w * ppi, height = BOARD.h * ppi, pad = 32, gap = 24;
+    const canvas = document.createElement('canvas'); canvas.width = pad * 2 + keys.length * width + (keys.length - 1) * gap; canvas.height = height + 124;
+    const ctx = canvas.getContext('2d'); ctx.fillStyle = '#f7f4ed'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#26344c'; ctx.font = '600 20px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('My cornhole board design', canvas.width / 2, 34);
+    keys.forEach((key, index) => {
+      const x = pad + index * (width + gap); ctx.save(); ctx.translate(x, 56); renderBoard(ctx, boardFor(key), ppi); ctx.restore();
+      ctx.fillStyle = '#26344c'; ctx.font = '14px sans-serif'; ctx.fillText('Board ' + key.toUpperCase(), x + width / 2, height + 80);
+    });
+    ctx.fillStyle = '#5c6370'; ctx.font = '12px sans-serif'; ctx.fillText('Design preview · 24 × 48 inch boards', canvas.width / 2, height + 108);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) throw new Error('Preview could not be generated.');
+    const file = new File([blob], 'cornhole-preview-' + today() + '.png', { type: 'image/png' });
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ title: 'My cornhole board design', files: [file] });
+        message.textContent = 'Preview shared. Save an editable copy from Start to keep working on another device.'; return;
+      } catch (error) { if (error.name === 'AbortError') { message.textContent = 'Sharing cancelled. Your design is still here.'; return; } }
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+    message.textContent = 'Preview downloaded. Send the image to someone, or save an editable copy from Start to continue later.';
+  } catch (_) { message.textContent = 'The preview could not be prepared. Check your uploaded pictures and try again; your editable design is still here.'; }
+  finally { btn.disabled = false; render(); }
+}
+$('sharepreview').addEventListener('click', sharePreview);
 $('undo').addEventListener('click', undo);
 $('redo').addEventListener('click', redo);
 $('reset').addEventListener('click', () => { if (!confirm('Start over with a blank board? This clears your design.')) return; design = freshDesign(); selected = null; active = 'a'; syncAll(); commit(); });
 $('download').addEventListener('click', async () => {
   const keys = boardKeys();
-  await preloadImages(keys);
+  try { await preloadImages(keys); }
+  catch (error) { alert(error.message + ' Your design is still here.'); return; }
   for (const k of keys) {
     const blob = await new Promise((res) => printCanvas(k).toBlob(res, 'image/png'));
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'cornhole-board-' + k.toUpperCase() + '-24x48in-100ppi.png';
@@ -1407,7 +1565,10 @@ $('exportlink').addEventListener('click', exportProject);
 $('importfile').addEventListener('change', async () => {
   const f = $('importfile').files[0]; $('importfile').value = '';
   if (!f) return;
-  try { importProject(JSON.parse(await f.text())); }
+  try {
+    if (f.size > MAX_PROJECT_BYTES) throw new Error('Project files must be 64 MB or smaller');
+    importProject(JSON.parse(await f.text()));
+  }
   catch (e) { alert('Could not import that file: ' + (e && e.message ? e.message : e) + '.'); }
 });
 
@@ -1454,7 +1615,12 @@ window.addEventListener('resize', render);
 /* Web fonts arrive after the first paint; a text set in one is measured
    and drawn in the fallback until then. Repaint when each one lands, and
    redraw the template thumbnails too. */
-const refontThumbs = () => { for (const b of document.querySelectorAll('#templates .tpl')) { const t = TEMPLATES.find((x) => x.id === b.dataset.id), c = b.querySelector('canvas'); if (!t || !c) continue; c.getContext('2d').clearRect(0, 0, c.width, c.height); renderBoard(c.getContext('2d'), t.board(), c.height / BOARD.h); } render(); };
+const refontThumbs = () => {
+  for (const b of document.querySelectorAll('#templates .tpl')) { const t = TEMPLATES.find((x) => x.id === b.dataset.id), c = b.querySelector('canvas'); if (!t || !c) continue; c.getContext('2d').clearRect(0, 0, c.width, c.height); renderBoard(c.getContext('2d'), t.board(), c.height / BOARD.h); }
+  let resized = false;
+  for (const board of [design.a, design.b]) for (const el of board.elements) if (el.type === 'text' && el.autoFit && el.fitReference && el.text !== el.fitReference.text) { const before = el.size; fitTemplateText(el); resized ||= before !== el.size; }
+  syncProps(); render(); if (resized) commit();
+};
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(refontThumbs);
 if (document.fonts) document.fonts.addEventListener('loadingdone', refontThumbs);
 

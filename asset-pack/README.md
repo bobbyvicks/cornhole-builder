@@ -2,7 +2,7 @@
 
 24 original SVG clip-art assets and six coordinated, editable board templates.
 
-Open `preview.html` to browse everything offline. The gallery supports category filters, keyword search, ink-colour previews, and downloads. Give Claude this folder or the ZIP plus `CLAUDE-INTEGRATION.txt`.
+Open `preview.html` to browse everything offline. The gallery supports category filters, keyword search, ink-colour previews, and downloads. The builder now loads this collection through `../lib/creative-pack.mjs`; `CLAUDE-INTEGRATION.txt` records the integration contract for future updates.
 
 ## Contents
 
@@ -47,7 +47,7 @@ Template SVG lettering is converted to vector outlines so the proof does not dep
 
 Templates use a 24 × 48 inch trim canvas. Hole center: 12 inches from the left, 9 inches from the top. Hole diameter: 6 inches. PNG previews show the hole; the full vector artwork intentionally omits a printed black hole and cut guide. No bleed is added. Confirm production bleed with the printer.
 
-Templates use matching designs on the two boards by default. They remain compatible with separate-board editing once integrated. All sample names and dates are fictional personalization examples.
+Templates use matching designs on the two boards by default and support separate-board editing. All sample names and dates are fictional personalization examples.
 
 ## Fonts
 
@@ -65,4 +65,6 @@ npm run verify
 
 The application integration module itself has no dependencies. Node dependencies are only for rebuilding previews and checking the deliverables. Browser preview files run locally without a server or network access.
 
-This folder is a handoff package. Integration and deployment to the live store are separate from generating these assets.
+The application registers all 24 clips, six categories, and six templates additively in `../app.mjs`. Its runtime module is an exact copy of `integration/creative-pack.mjs`; after rebuilding the pack, copy that module to `../lib/creative-pack.mjs` as part of the update. Keep the `bbp1-` IDs stable for saved designs.
+
+`../tests/creative-pack.spec.js` covers all artwork buttons, SVG silhouettes and cutouts in preview and print on light and dark backgrounds, independent template layers, and recolour/undo/transform/duplicate/save/reload with separate boards. Run it from the application root with `npm exec -- playwright test tests/creative-pack.spec.js`. The browser suite blocks network fonts for deterministic rendering; the pack's own validation covers the supplied font files. Repository integration does not by itself confirm a live deployment.

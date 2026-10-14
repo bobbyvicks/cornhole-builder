@@ -7,6 +7,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { quote } from '../lib/price.mjs';
+import { makeCreativeTemplates } from '../lib/creative-pack.mjs';
 
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
@@ -251,4 +252,57 @@ test('a picture may carry its print master and pixel size, and the order records
   const r2 = fakeRes(); await handler(req(big), r2);
   assert.equal(r2.code, 413);
   assert.equal(r2.body.error, 'too_large');
+});
+
+/* Use the shipped template factory, with the same default fields its
+   browser adapters supply. Do not copy template geometry into fixtures:
+   newly approved artwork must still pass the real checkout boundary. */
+let packElement = 0;
+const creativeTemplates = makeCreativeTemplates({
+  T: (text, options) => ({ type: 'text', id: 'pack' + packElement++, text, font: 'Anton', size: 4, color: '#f5f5f0', x: 12, y: 30,
+    outline: '#111111', outlineWidth: 0, rotation: 0, arc: 0, spacing: 0, shadow: false, ...options }),
+  C: (name, options) => ({ type: 'clip', id: 'pack' + packElement++, name, x: 12, y: 20, color: '#f5f5f0', outline: '#111111',
+    outlineWidth: 0, rotation: 0, opacity: 1, flipH: false, width: 8, ...options }),
+  freshBoard: (options = {}) => ({
+    base: { kind: 'paint', color: '#1f3a93', color2: '#4fa3e3', angle: 180, stain: 'walnut', ...options.base },
+    pattern: { kind: 'none', color: '#f5f5f0', size: 3, ...options.pattern },
+    elements: options.elements || [],
+  }),
+});
+
+for (const template of creativeTemplates) test('checkout accepts the shipped ' + template.label + ' template without changing its artwork or price', async () => {
+  const handler = await load({ SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'k' });
+  const calls = stub(), order = goodOrder(), response = fakeRes();
+  order.design.a = template.board(); order.options.occasion = template.occasion;
+  await handler(req(order), response);
+  assert.equal(response.code, 200, JSON.stringify(response.body));
+  const stored = JSON.parse(calls.find((call) => call.method === 'POST' && call.url.includes('cornhole_orders')).body);
+  assert.deepEqual(stored.design.a, order.design.a, 'the submitted template geometry is retained');
+  assert.equal(stored.amount_cents, quote(order.options).total, 'the existing server price applies');
+});
+
+test('thin borders are accepted at the safe minimum while narrower borders are refused', async () => {
+  const handler = await load({ SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'k' });
+  let calls = stub();
+  const order = goodOrder(); order.design.a.pattern = { kind: 'border', color: '#ffffff', size: 0.1 };
+  let response = fakeRes(); await handler(req(order), response);
+  assert.equal(response.code, 200, JSON.stringify(response.body));
+  assert.equal(calls.filter((call) => call.method === 'POST').length, 1);
+  calls = stub(); order.design.a.pattern.size = 0.099;
+  response = fakeRes(); await handler(req(order), response);
+  assert.equal(response.code, 400);
+  assert.match(response.body.message, /design\.a\.pattern\.size/);
+  assert.equal(calls.length, 0, 'the invalid order reaches neither storage nor payment');
+});
+
+test('allowing thin borders does not allow unsafe dense sizes for other patterns', async () => {
+  const handler = await load({ SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'k' });
+  for (const kind of ['stripes', 'checker', 'dots', 'diamonds', 'hearts', 'rings']) {
+    const calls = stub(), order = goodOrder(), response = fakeRes();
+    order.design.a.pattern = { kind, color: '#ffffff', size: 0.28 };
+    await handler(req(order), response);
+    assert.equal(response.code, 400, kind + ' must retain its minimum spacing');
+    assert.match(response.body.message, /design\.a\.pattern\.size/);
+    assert.equal(calls.length, 0, kind + ' is refused before storage or payment');
+  }
 });

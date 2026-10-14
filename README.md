@@ -3,11 +3,11 @@
 A site where people design their own cornhole boards and order them.
 
 - **Design live.** A regulation 24" x 48" board (6" hole, 9" from the top)
-  drawn on a canvas in inches, not pixels. Twenty-six templates to start from
+  drawn on a canvas in inches, not pixels. Thirty-two templates to start from
   (weddings, engagements, anniversaries, birthdays, baby showers, graduations, family, cabins, camping, tailgates, golf, business, holidays).
   Painted, two-colour fade or stained-wood base, 40 swatches plus a custom
   colour, nineteen patterns, 35 fonts, curved text with spacing, outline and
-  shadow, 107 pieces of vector clip art in seven groups, any colour, uploaded pictures with
+  shadow, 131 pieces of vector clip art in thirteen groups, any colour, uploaded pictures with
   flip, circle crop and white-background removal. Drag, resize and rotate
   on the board with handles (a red x on the handles removes; so does the
   button on each list row, and the Delete key), snap to centre, layer order,
@@ -21,6 +21,11 @@ A site where people design their own cornhole boards and order them.
   hands over its first words selected and ready to type over, and each
   text has a field right in the list. Curve, spacing, rotation and layers
   sit in a "More" section.
+- **A simpler start.** Search templates by name or occasion and filter the
+  gallery. Template names resize within their original text space as you type;
+  manual font, size, position and handle edits turn automatic fitting off.
+  The phone layout has larger tap targets and makes room for the keyboard.
+  Share a PNG preview from Start, or save an editable copy to open later.
 - **Kept safe.** The boards and the order choices are saved on the device
   (IndexedDB, with localStorage as the fallback) after every change, the
   page says "Saving", "Saved on this device" or exactly what went wrong,
@@ -137,14 +142,15 @@ the page uses; each carries an `occasion`, which is the group it is shown
 under, and its words are what the review calls sample words. The browser suite draws every piece and loads
 every template, so a broken addition fails a test rather than a customer.
 
-### Creative pack for Claude
+### Creative pack
 
 [`asset-pack/`](asset-pack/README.md) contains 24 original SVG icons and six
 editable board templates, plus their source data, previews and font licences.
 Open [`asset-pack/preview.html`](asset-pack/preview.html) locally to browse the
-collection. Give Claude [`asset-pack/CLAUDE-INTEGRATION.txt`](asset-pack/CLAUDE-INTEGRATION.txt)
-to connect the native artwork module to the current designer. The pack is
-ready for integration; it is not yet registered in the live app.
+collection. The native module in `lib/creative-pack.mjs` is registered in
+`app.mjs`. [`asset-pack/CLAUDE-INTEGRATION.txt`](asset-pack/CLAUDE-INTEGRATION.txt)
+documents the format and editing contract for future changes. Deployment
+status is separate from this source integration.
 
 ## Still to do
 

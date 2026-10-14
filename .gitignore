@@ -7,4 +7,5 @@ node_modules/
 
 # Playwright output
 test-results/
+test-results-*/
 playwright-report/
