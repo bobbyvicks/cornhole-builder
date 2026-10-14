@@ -428,20 +428,32 @@ the clock and repository state before each run.
   All order-status responses in tests were stubbed; no real purchases or
   customer messages were made. The Claude handoff is updated with this result.
 
-## Next overnight priorities
+## Overnight effort closed: October 14, 2026
 
-1. Check the existing overnight PR and remote main for Claude changes before editing.
-2. Check any new PR preview/check results. The currently inspected public site
-   and preview are older; explicit Vercel team access is blocked as noted above.
-3. Audit fresh desktop/mobile customer journeys, including image placement,
-   text personalization and keyboard navigation; change only concrete gaps.
-4. Check resource use with several photos if actual editing reveals another
-   problem. Photo-history duplication is addressed by the fifth increment.
-5. Device-test native sharing and the iOS keyboard when a physical device is
-   available; Chromium emulation does not establish those behaviors.
-6. Keep changes small, independently reviewed and tested; update this work log
-   and the same PR with each meaningful increment. No new cloud storage or
-   invented business details. Stop by 7 a.m. Toronto and report remaining needs.
+Implementation stopped before the 7 a.m. America/Toronto cutoff. The final
+heartbeat made documentation and schedule closeout changes only. The overnight
+automation is paused; this one-night effort will not continue automatically.
+
+The final remote check at 6:58 a.m. found a clean working tree, no new remote
+changes, and PR #2 open and mergeable. Tested application code remains at
+`85377e7bb7eedd098695760e25a0c681c8cf9916`: 68 node tests, 280 Chromium browser
+tests and TypeScript checks passed. Subsequent commits only update this log and
+the Claude handoff. PR #1's artwork is included in PR #2. No merge or production
+release was made.
+
+- Reviewable work: https://github.com/bobbyvicks/cornhole-builder/pull/2
+- Claude pickup instructions: [claude-handoff.md](claude-handoff.md).
+
+Remaining follow-up needs:
+
+1. Obtain Vercel team access and verify a preview serving the exact tested
+   commit. The inspected public site and preview serve older code.
+2. Test native sharing and the iOS keyboard on physical devices; Chromium
+   emulation does not establish those behaviors.
+3. Add conflict detection and recovery for deliberate edits in multiple tabs.
+   Unchanged navigation is protected; competing actual edits can overwrite saves.
+4. Verify the owner's real prices, contacts, product photos and fulfilment
+   policies before release. Preserve current values until replacements are supplied.
 
 ## Local verification
 

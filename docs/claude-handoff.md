@@ -3,6 +3,10 @@
 The owner asked Codex to push the overnight improvements for you to pick up.
 Review the existing PR and continue from the implemented work below.
 
+The one-night Codex effort ended at the October 14, 2026, 7 a.m. Toronto cutoff.
+Its automation is paused. The branch is pushed for review; no merge or production
+deployment was made. This handoff is in the repository for Claude to pick up.
+
 ## Source to pick up
 
 - Repository: https://github.com/bobbyvicks/cornhole-builder
