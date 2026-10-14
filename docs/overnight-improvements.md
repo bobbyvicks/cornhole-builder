@@ -9,6 +9,8 @@ the clock and repository state before each run.
 
 - Repository: bobbyvicks/cornhole-builder.
 - Working branch: `codex/overnight-ux`, based on the artwork pack and current main.
+- Continue the existing overnight PR: https://github.com/bobbyvicks/cornhole-builder/pull/2.
+- First implementation batch pushed as `94c87f6`; deployment is not confirmed.
 - Main's favicon change was merged before implementation.
 - Prior artwork handoff: PR #1, `codex/creative-asset-pack`.
 - Preserve concurrent Claude changes, saved projects, original artwork IDs,
