@@ -437,7 +437,7 @@ function renderBoard(ctx, b, ppi, { print = false } = {}) {
    though the 24" board shows at 150 px on one and 300 px on the other. */
 const HANDLE = { size: 0.6, rotateGap: 0.9, hit: 0.9 };
 function sizeHandles() {
-  const r = $('canvasA').getBoundingClientRect();
+  const r = $('canvas' + active.toUpperCase()).getBoundingClientRect();
   const css = r.width > 0 ? r.width / BOARD.w : 12;   // CSS pixels per inch
   HANDLE.size = clamp(14 / css, 0.6, 3);
   HANDLE.hit = clamp(20 / css, 0.9, 4.5);
@@ -474,6 +474,9 @@ function paint() {
     renderBoard(ctx, boardFor(key), ppi);
     const el = selectedEl();
     const editingHere = design.same ? key === 'a' : key === active;
+    // Keyboard navigation reaches the canvas whose selection the controls
+    // edit. A second preview must not receive keys intended for that selection.
+    c.tabIndex = editingHere ? 0 : -1;
     if (el && editingHere) {
       const box = boxes.get(el.id);
       if (box) {
@@ -713,11 +716,12 @@ const sizeMax = (el) => (el.type === 'text' ? 16 : 24);
 let drag = null;
 for (const c of [$('canvasA'), $('canvasB')]) {
   c.addEventListener('pointerdown', (ev) => {
+    if (drag || !ev.isPrimary || ev.button !== 0) return;
     const key = c.dataset.board;
     if (!design.same && order.product === 'set' && key !== active) setActive(key);
     /* The board takes the focus, so the arrow keys and Delete that follow
        are meant for it - and not when a slider or a tab had the focus. */
-    c.focus({ preventScroll: true });
+    $(design.same ? 'canvasA' : c.id).focus({ preventScroll: true });
     const p = toInches(c, ev);
     const sel = selectedEl();
     const handle = sel && (design.same ? key === 'a' : key === active) ? handleAt(sel, p.x, p.y) : null;
@@ -732,15 +736,16 @@ for (const c of [$('canvasA'), $('canvasB')]) {
     if (!el) return;
     const box = boxes.get(el.id) || { oy: 0 };
     const l = toLocal(el, p.x, p.y);
-    drag = { id: el.id, mode: handle || 'move', dx: el.x - p.x, dy: el.y - p.y, moved: false,
+    drag = { id: el.id, pointerId: ev.pointerId, canvas: c, board: activeBoard(), mode: handle || 'move', dx: el.x - p.x, dy: el.y - p.y, moved: false,
       d0: Math.max(0.2, Math.hypot(l.x, l.y - box.oy)), size0: el[sizeKey(el)] };
     c.setPointerCapture(ev.pointerId);
     c.classList.add('dragging');
     ev.preventDefault();
   });
   c.addEventListener('pointermove', (ev) => {
-    if (!drag) return;
-    const el = findEl(drag.id); if (!el) return;
+    if (!ownsPointer(ev)) return;
+    if (activeBoard() !== drag.board) { end(ev); return; }
+    const el = findEl(drag.id); if (!el) { end(ev); return; }
     if (el.type === 'text') el.autoFit = false;
     const p = toInches(c, ev);
     if (drag.mode === 'move') {
@@ -762,9 +767,18 @@ for (const c of [$('canvasA'), $('canvasB')]) {
     drag.moved = true;
     render(); syncProps();
   });
-  const end = () => { if (!drag) return; const moved = drag.moved; drag = null; guides.v = guides.h = false; c.classList.remove('dragging'); render(); if (moved) commit(); };
+  const ownsPointer = (ev) => drag && drag.canvas === c && drag.pointerId === ev.pointerId;
+  const end = (ev) => {
+    if (!ownsPointer(ev)) return;
+    const { moved, pointerId } = drag;
+    drag = null; guides.v = guides.h = false;
+    c.classList.remove('dragging');
+    if (c.hasPointerCapture(pointerId)) c.releasePointerCapture(pointerId);
+    render(); if (moved) commit();
+  };
   c.addEventListener('pointerup', end);
   c.addEventListener('pointercancel', end);
+  c.addEventListener('lostpointercapture', end);
 }
 /* Keyboard. Undo and redo work anywhere but inside a field. The keys that
    edit the artwork - arrows, plus, minus, Delete - work only while a board
@@ -775,6 +789,7 @@ document.addEventListener('keydown', (ev) => {
   const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable);
   if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z') { if (typing) return; ev.preventDefault(); ev.shiftKey ? redo() : undo(); return; }
   if (tag !== 'CANVAS') return;
+  if (t.dataset.board !== active) return;
   const el = selectedEl(); if (!el) return;
   const step = ev.shiftKey ? 1 : 0.1;
   const nudge = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[ev.key];
@@ -956,7 +971,13 @@ function setMode(v) {
   }
   selected = null; syncAll(); commit();
 }
-chips('boardmode', setMode);
+chips('boardmode', (v) => {
+  setMode(v);
+  if (matchMedia('(max-width: 940px)').matches) {
+    scrollToPanel();
+    if (getComputedStyle(document.querySelector('.stage')).position !== 'sticky') document.querySelector('.tabs [aria-selected="true"]').focus({ preventScroll: true });
+  }
+});
 const otherKey = () => (active === 'a' ? 'b' : 'a');
 $('copyother').addEventListener('click', () => { design[otherKey()] = withFreshIds(activeBoard()); syncAll(); commit(); });
 /* The classic set: the other board is this one with its two main colours
@@ -1290,8 +1311,12 @@ function removeElement(id) {
 }
 function copyToOther() {
   const el = selectedEl(); if (!el || design.same) return;
-  const other = design[active === 'a' ? 'b' : 'a'];
-  if (countOf(other, el.type) >= limitOf(el.type)) return;
+  const key = active === 'a' ? 'b' : 'a', other = design[key], limit = limitOf(el.type);
+  if (countOf(other, el.type) >= limit) {
+    const board = 'Board ' + key.toUpperCase(), items = { image: 'pictures', text: 'text items', clip: 'clip art items' }[el.type];
+    alert(board + ' has reached its limit of ' + limit + ' ' + items + '. Remove ' + items + ' from ' + board + ' to make room, then copy again.');
+    return;
+  }
   other.elements.push({ ...JSON.parse(JSON.stringify(el)), id: uid() });
   render(); commit();
 }

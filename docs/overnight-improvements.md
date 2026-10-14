@@ -195,6 +195,43 @@ the clock and repository state before each run.
   passed. `node --check app.mjs` and `git diff --check` passed. Remote main and
   the overnight branch were refetched before completion; no concurrent changes.
 
+## Sixth increment - separate-board editing and touch input
+
+- Started from clean `dd3a53c` at 2:56 a.m. Toronto. Remote main remained
+  `136fe35`; PR #2 was open and mergeable. Refetched before final verification;
+  no concurrent branch changes appeared.
+- Reproduced keyboard navigation focusing Board B while arrow/Delete keys
+  changed the selected item on Board A. Only the active editing canvas now
+  participates in Tab navigation, and stale focus on another board cannot
+  edit the selection. Clicking the matching Board B preview retains keyboard
+  editing of the shared design through the canonical Board A canvas.
+- Reproduced a second finger moving the first finger's dragged text from
+  (14, 32) to (21, 41) and clearing selection. A drag now belongs to its original
+  pointer, canvas and board; other fingers cannot move or end it. Lost pointer
+  capture finishes the gesture once, and right-clicking a delete handle leaves
+  the design intact. Real browser touch events, undo/redo and reload are covered.
+- Reproduced phone Board B handles measuring roughly 5 px where Board A's
+  measured 13 px because sizing read the hidden A canvas. Measure the active
+  canvas instead. The same real touch within the intended handle reach now
+  works on either board.
+- Reproduced switching boards after personalizing text leaving the next board's
+  fields above the phone viewport. Explicit phone board switches reveal the
+  controls; short screens also move keyboard focus to the active tab. Desktop
+  scrolling remains unchanged. Tests cover 375 x 812 and 375 x 420 viewports.
+- Copying to a board already at its item limit previously did nothing. Explain
+  the destination board, limit and removal/retry action. Tests cover all three
+  item types, both destination directions, exact photo preservation, reload
+  and a successful retry after making room.
+- The 20 new browser regressions pass. Independent review found no issues and
+  passed all 20 plus four normal-scroll mobile probes. A fresh photo journey
+  also preserved exact data through upload, touch placement, undo/redo,
+  flip/crop, export, reload and reopen.
+- Final full run: **54 node tests, 202 Chromium browser tests and TypeScript
+  checks passed**. Syntax and whitespace checks passed. A public-site recheck
+  still found the older code without template search, the photo-history fix
+  or pointer ownership. No production release was made; the Vercel access
+  limitation recorded above remains unresolved.
+
 ## Next overnight priorities
 
 1. Check the existing overnight PR and remote main for Claude changes before editing.
