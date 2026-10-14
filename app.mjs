@@ -14,10 +14,14 @@ const PRINT_PPI = 100;
 const DESIGN_VERSION = 2;
 const PROJECT_VERSION = 3;
 
-const PAINTS = ['#1f3a93', '#1e5bc6', '#4fa3e3', '#0f8b8d', '#1f7a3a', '#7ac943', '#f2b705', '#ffe44d', '#f26b1d', '#c8102e',
-                '#6b1d2b', '#e75480', '#5b2a86', '#8d8d8d', '#36393b', '#111111', '#f5f5f0', '#ffffff', '#0b1b3a', '#2e7d32'];
-const PAINTS_SOFT = ['#f4c2c2', '#d8a1a6', '#b48ea0', '#c9b7dc', '#9caf88', '#6b8f71', '#8fa9c4', '#5d7a8c', '#f1e3c6', '#fffaf0',
-                     '#f5f0e6', '#b8a089', '#6e1423', '#0f6b4a', '#1f4d2e', '#c66a47', '#d4a017', '#b87333', '#d8b25c', '#c0c0c0'];
+/* Every paint has a name, so a swatch is announced as "navy" rather than
+   read out as a hex code, and the review can say which bag colours were
+   picked. A colour that is not on the list is called by the nearest one. */
+const PAINTS = [['#1f3a93', 'navy'], ['#1e5bc6', 'royal blue'], ['#4fa3e3', 'sky blue'], ['#0f8b8d', 'teal'], ['#1f7a3a', 'green'], ['#7ac943', 'lime'], ['#f2b705', 'gold'], ['#ffe44d', 'yellow'], ['#f26b1d', 'orange'], ['#c8102e', 'red'],
+                ['#6b1d2b', 'maroon'], ['#e75480', 'pink'], ['#5b2a86', 'purple'], ['#8d8d8d', 'grey'], ['#36393b', 'charcoal'], ['#111111', 'black'], ['#f5f5f0', 'off-white'], ['#ffffff', 'white'], ['#0b1b3a', 'midnight blue'], ['#2e7d32', 'forest green']];
+const PAINTS_SOFT = [['#f4c2c2', 'blush'], ['#d8a1a6', 'dusty rose'], ['#b48ea0', 'mauve'], ['#c9b7dc', 'lavender'], ['#9caf88', 'sage'], ['#6b8f71', 'eucalyptus'], ['#8fa9c4', 'dusty blue'], ['#5d7a8c', 'slate blue'], ['#f1e3c6', 'champagne'], ['#fffaf0', 'ivory'],
+                     ['#f5f0e6', 'cream'], ['#b8a089', 'taupe'], ['#6e1423', 'burgundy'], ['#0f6b4a', 'emerald'], ['#1f4d2e', 'hunter green'], ['#c66a47', 'terracotta'], ['#d4a017', 'mustard'], ['#b87333', 'copper'], ['#d8b25c', 'antique gold'], ['#c0c0c0', 'silver']];
+const PAINT_NAME = new Map([...PAINTS, ...PAINTS_SOFT]);
 const STAINS = {
   natural: { label: 'Natural', color: '#dcb98a', grain: '#8a5a2b' },
   honey:   { label: 'Honey',   color: '#c68f4a', grain: '#6e4414' },
@@ -50,9 +54,11 @@ const SHIP_STATES = US_STATES.filter((s) => !PRICING.shipping.excluded.includes(
 const MAX_IMAGES = 4, MAX_TEXTS = 10, MAX_CLIPS = 12;
 /* A picture is kept twice: a preview the board is drawn with, and a print
    master as big as the file came (up to ORIG_SIDE on its long side) that
-   the print file and the order use. An order that would not fit the
-   server's body limit leaves the masters out and says so. */
-const PREVIEW_SIDE = 1600, PREVIEW_BYTES = 1_500_000, ORIG_SIDE = 4000, ORIG_BYTES = 3_000_000, PAYLOAD_BYTES = 3_800_000;
+   the print file and the order use. A master is sized so that one master
+   and its preview fit the order; an order that would not fit the server's
+   body limit even so leaves the masters out, then shrinks the previews,
+   and says so. */
+const PREVIEW_SIDE = 1600, PREVIEW_BYTES = 1_500_000, ORIG_SIDE = 4000, ORIG_BYTES = 2_000_000, PAYLOAD_BYTES = 3_800_000;
 const SHARP_DPI = 100, SOFT_DPI = 60;
 
 const $ = (id) => document.getElementById(id);
@@ -61,6 +67,16 @@ const uid = () => 'e' + Math.random().toString(36).slice(2, 8);
 const rad = (d) => d * Math.PI / 180;
 const r1 = (v) => Math.round(v * 10) / 10;
 const isHex = (c) => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c);
+const rgb = (hex) => { const n = parseInt(hex.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
+function colourName(hex) {
+  const h = (hex || '').toLowerCase();
+  if (PAINT_NAME.has(h)) return PAINT_NAME.get(h);
+  if (!isHex(h)) return h;
+  const [r, g, b] = rgb(h);
+  let best = h, bd = Infinity;
+  for (const [k, name] of PAINT_NAME) { const [r2, g2, b2] = rgb(k); const d = (r - r2) ** 2 + (g - g2) ** 2 + (b - b2) ** 2; if (d < bd) { bd = d; best = name; } }
+  return 'near ' + best;
+}
 const today = () => new Date().toISOString().slice(0, 10);
 
 
@@ -446,6 +462,7 @@ function render() { if (!raf) raf = requestAnimationFrame(paint); }
 function paint() {
   raf = 0;
   sizeHandles();
+  syncScrollPadding();
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const ppi = 20 * dpr;
   for (const key of ['a', 'b']) {
@@ -514,7 +531,14 @@ function previewDataUrl(key, ppi = 10) {
 /* ====================================================================
    HISTORY, SAVING AND THE PROJECT FILE
    ==================================================================== */
-const snapshot = () => JSON.stringify(design);
+/* A snapshot is the design as a string - with every picture swapped for a
+   short token and kept once in `blobs`, so sixty undo steps of a design
+   with a photo on it cost sixty small strings, not sixty copies of the
+   photo. parseSnapshot puts the pictures back. */
+const blobs = new Map(), tokens = new Map();
+function tokenFor(s) { let t = tokens.get(s); if (!t) { t = '@blob:' + tokens.size; tokens.set(s, t); blobs.set(t, s); } return t; }
+const snapshot = () => JSON.stringify(design, (k, v) => ((k === 'src' || k === 'orig') && typeof v === 'string' && v.length > 64 ? tokenFor(v) : v));
+const parseSnapshot = (s) => JSON.parse(s, (k, v) => ((k === 'src' || k === 'orig') && typeof v === 'string' && blobs.has(v) ? blobs.get(v) : v));
 function commit() {
   const s = snapshot();
   if (history[history.length - 1] === s) { save(); return; }
@@ -523,7 +547,7 @@ function commit() {
   save();
   syncHistoryButtons();
 }
-function restore(s) { design = JSON.parse(s); if (!findEl(selected)) selected = null; save(); syncAll(); }
+function restore(s) { design = parseSnapshot(s); if (!findEl(selected)) selected = null; save(); syncAll(); }
 function undo() { if (history.length < 2) return; future.push(history.pop()); restore(history[history.length - 1]); }
 function redo() { if (!future.length) return; const s = future.pop(); history.push(s); restore(s); }
 function syncHistoryButtons() { $('undo').disabled = history.length < 2; $('redo').disabled = !future.length; }
@@ -539,13 +563,26 @@ const SAVE_TEXT = {
   error: 'Not saved: this browser cannot store the project (storage full or blocked). Export it to keep it.',
 };
 let saveState = 'new', saveBusy = false, saveAgain = false, storageReady = false, loaded = false;
+/* The status line is not a live region: a screen reader would otherwise
+   hear "Saving… Saved" after every keystroke and slider step. The one
+   live region speaks when a save fails, and once when saving works again. */
 function setSaveState(s) {
+  const was = saveState;
   saveState = s;
   for (const el of document.querySelectorAll('.savestatus')) { el.textContent = SAVE_TEXT[s]; el.dataset.state = s; }
+  if (s === 'error' || (s === 'saved' && was === 'error')) $('savealert').textContent = SAVE_TEXT[s];
   $('exportlink').hidden = s !== 'error';
 }
-function projectRecord() { return { version: PROJECT_VERSION, savedAt: new Date().toISOString(), design: JSON.parse(snapshot()), order: { ...order, bagColors: [...order.bagColors] } }; }
-function save() { if (!storageReady) return; setSaveState('saving'); flush(); }
+function projectRecord() { return { version: PROJECT_VERSION, savedAt: new Date().toISOString(), design: parseSnapshot(snapshot()), order: { ...order, bagColors: [...order.bagColors] } }; }
+function save() { if (!storageReady) return; clearTimeout(saveTimer); saveTimer = 0; setSaveState('saving'); flush(); }
+/* Typing is saved as it happens, a moment after the last key, without a
+   history entry per letter; the page says "Saving…" meanwhile, so the
+   status is never "Saved" while the board shows words that are not. */
+let saveTimer = 0;
+function saveSoon() { if (!storageReady) return; setSaveState('saving'); clearTimeout(saveTimer); saveTimer = setTimeout(() => { saveTimer = 0; save(); }, 400); }
+const flushSoon = () => { if (saveTimer) save(); };
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSoon(); });
+window.addEventListener('pagehide', flushSoon);
 async function flush() {
   if (saveBusy) { saveAgain = true; return; }
   saveBusy = true;
@@ -579,10 +616,12 @@ function exportProject() {
 }
 function importProject(obj) {
   if (!obj || typeof obj !== 'object' || !obj.design || !obj.design.a || !obj.design.b) throw new Error('that file is not a cornhole project');
-  design = migrate(obj.design);
-  if (obj.order) applyOrder(obj.order);
-  selected = null; active = 'a';
-  syncAll(); commit(); showTab('board');
+  askThenApply('the imported project', () => {
+    design = migrate(obj.design);
+    if (obj.order) applyOrder(obj.order);
+    selected = null; active = 'a';
+    syncAll(); commit(); showTab('board');
+  });
 }
 
 /* ====================================================================
@@ -624,6 +663,9 @@ const sizeKey = (el) => (el.type === 'text' ? 'size' : 'width');
 const sizeMax = (el) => (el.type === 'text' ? 16 : 24);
 let drag = null;
 for (const c of [$('canvasA'), $('canvasB')]) {
+  /* With two different boards, the board that has the keyboard focus is
+     the one the keys edit - so tabbing to Board A makes it the active one. */
+  c.addEventListener('focus', () => { const key = c.dataset.board; if (!design.same && order.product === 'set' && key !== active) setActive(key); });
   c.addEventListener('pointerdown', (ev) => {
     const key = c.dataset.board;
     if (!design.same && order.product === 'set' && key !== active) setActive(key);
@@ -645,7 +687,8 @@ for (const c of [$('canvasA'), $('canvasB')]) {
     const box = boxes.get(el.id) || { oy: 0 };
     const l = toLocal(el, p.x, p.y);
     drag = { id: el.id, mode: handle || 'move', dx: el.x - p.x, dy: el.y - p.y, moved: false,
-      d0: Math.max(0.2, Math.hypot(l.x, l.y - box.oy)), size0: el[sizeKey(el)] };
+      d0: Math.max(0.2, Math.hypot(l.x, l.y - box.oy)), size0: el[sizeKey(el)],
+      before: { x: el.x, y: el.y, rotation: el.rotation, size: el[sizeKey(el)] } };
     c.setPointerCapture(ev.pointerId);
     c.classList.add('dragging');
     ev.preventDefault();
@@ -673,7 +716,17 @@ for (const c of [$('canvasA'), $('canvasB')]) {
     drag.moved = true;
     render(); syncProps();
   });
-  const end = () => { if (!drag) return; const moved = drag.moved; drag = null; guides.v = guides.h = false; c.classList.remove('dragging'); render(); if (moved) commit(); };
+  /* A gesture the browser takes over (a finger that turned out to be a
+     scroll) is cancelled: whatever it moved goes back, and nothing is
+     recorded. */
+  const end = (ev) => {
+    if (!drag) return;
+    const el = findEl(drag.id), moved = drag.moved, cancelled = ev && ev.type === 'pointercancel';
+    if (cancelled && el) { el.x = drag.before.x; el.y = drag.before.y; el.rotation = drag.before.rotation; el[sizeKey(el)] = drag.before.size; }
+    drag = null; guides.v = guides.h = false; c.classList.remove('dragging');
+    render(); syncProps(); settleTyping();
+    if (moved && !cancelled) commit();
+  };
   c.addEventListener('pointerup', end);
   c.addEventListener('pointercancel', end);
 }
@@ -682,9 +735,13 @@ for (const c of [$('canvasA'), $('canvasB')]) {
    has the focus, so a Delete meant for a tab, a slider or a list never
    takes a word off the board. */
 document.addEventListener('keydown', (ev) => {
+  if (!loaded) return;
   const t = ev.target, tag = t && t.tagName;
   const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable);
   if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z') { if (typing) return; ev.preventDefault(); ev.shiftKey ? redo() : undo(); return; }
+  /* Ctrl and Cmd with plus or minus are the browser's zoom; Alt and the
+     arrows are the browser's too. Only plain keys edit the artwork. */
+  if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
   if (tag !== 'CANVAS') return;
   const el = selectedEl(); if (!el) return;
   const step = ev.shiftKey ? 1 : 0.1;
@@ -723,6 +780,7 @@ function showTab(name) {
   for (const p of document.querySelectorAll('.pane')) p.dataset.open = String(p.id === 'tab-' + name);
   if (name !== 'order') lastEditTab = name;
   document.body.classList.toggle('ordering', name === 'order');
+  if (name === 'order') reviewIfChanged();
 }
 document.querySelector('.tabs').addEventListener('click', (ev) => { const b = ev.target.closest('[role=tab]'); if (b) showTab(b.dataset.tab); });
 document.querySelector('.tabs').addEventListener('keydown', (ev) => {
@@ -736,8 +794,24 @@ document.querySelector('.tabs').addEventListener('keydown', (ev) => {
    board both stay in view. */
 const panel = document.querySelector('aside.panel');
 const TYPING = 'input:not([type=checkbox]):not([type=color]):not([type=range]):not([type=file]), textarea, select';
-panel.addEventListener('focusin', (ev) => { if (ev.target.matches(TYPING)) document.body.classList.add('typing'); });
-panel.addEventListener('focusout', () => setTimeout(() => { const a = document.activeElement; if (!a || !panel.contains(a) || !a.matches(TYPING)) document.body.classList.remove('typing'); }, 50));
+panel.addEventListener('focusin', (ev) => { if (ev.target.matches(TYPING)) { document.body.classList.add('typing'); render(); } });
+/* The board does not change size under a finger: while a drag is on, the
+   class stays until the drag ends (a touch on the board blurs the field). */
+function settleTyping() {
+  if (drag) return;
+  const a = document.activeElement;
+  if (!a || !panel.contains(a) || !a.matches(TYPING)) { document.body.classList.remove('typing'); render(); }
+}
+panel.addEventListener('focusout', () => setTimeout(settleTyping, 50));
+/* On a phone the header and the pinned stage cover the top of the page, so
+   a control the browser scrolls into view on focus would land under them:
+   the document says how much of its top is covered. */
+function syncScrollPadding() {
+  const st = document.querySelector('.stage');
+  let pad = '';
+  if (window.matchMedia('(max-width: 940px)').matches && getComputedStyle(st).position === 'sticky') pad = (parseFloat(getComputedStyle(st).top) || 0) + st.offsetHeight + 8 + 'px';
+  if (document.documentElement.style.scrollPaddingTop !== pad) document.documentElement.style.scrollPaddingTop = pad;
+}
 /* Bring the controls up under the (sticky) board on a phone. */
 function scrollToPanel() {
   const st = document.querySelector('.stage');
@@ -799,8 +873,8 @@ $('startblank').addEventListener('click', () => askThenApply('a blank board', ap
 function swatch(parent, v, title, extra) {
   const b = document.createElement('button'); b.type = 'button'; b.className = 'sw' + (extra ? ' ' + extra : ''); b.dataset.v = v; b.title = title; b.setAttribute('aria-label', title); parent.appendChild(b); return b;
 }
-for (const hex of PAINTS) swatch($('paints'), hex, hex).style.background = hex;
-for (const hex of PAINTS_SOFT) swatch($('paints2'), hex, hex).style.background = hex;
+for (const [hex, name] of PAINTS) swatch($('paints'), hex, name + ' (' + hex + ')').style.background = hex;
+for (const [hex, name] of PAINTS_SOFT) swatch($('paints2'), hex, name + ' (' + hex + ')').style.background = hex;
 for (const [k, st] of Object.entries(STAINS)) swatch($('stains'), k, st.label, 'stain').style.backgroundColor = st.color;
 for (const [k, label] of Object.entries(PATTERNS)) { const o = document.createElement('option'); o.value = k; o.textContent = label; $('pattern').appendChild(o); }
 const pickPaint = (ev) => {
@@ -844,7 +918,6 @@ $('copyother').addEventListener('click', () => { design[otherKey()] = withFreshI
    or the pattern). Everything in either colour switches, and anything
    left that no longer reads against the new board (a second shade of the
    old board colour, say) takes the old board colour instead. */
-const rgb = (hex) => { const n = parseInt(hex.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
 const lum = (hex) => { const [r, g, b] = rgb(hex).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
 const contrast = (a, b) => { const la = lum(a), lb = lum(b); return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05); };
 function oppositeColours(src) {
@@ -889,7 +962,7 @@ function syncBoard() {
   $('swapcolours').textContent = 'Board ' + other.toUpperCase() + ' in the opposite colours';
   $('boardshint').textContent = !twoBoards ? 'A single board.'
     : design.same ? 'One design on both boards. For two different boards, pick Board A or Board B above the preview.'
-    : 'Editing Board ' + active.toUpperCase() + '. Tap the other board in the preview to switch. Both boards match goes back to one design.';
+    : 'Editing Board ' + active.toUpperCase() + '. Switch with Board A and Board B above the preview. Both boards match goes back to one design.';
   $('boardB').classList.toggle('hidden', !twoBoards);
   $('boardB').classList.toggle('same', design.same);
   for (const k of ['a', 'b']) {
@@ -918,14 +991,14 @@ $('addtext').addEventListener('click', () => {
   if (el) { $('texthint').hidden = true; $('ttext').focus(); $('ttext').select(); }
 });
 const field = (id, key, map = (v) => v, label = null) => {
-  $(id).addEventListener('input', () => { const el = selectedEl(); if (!el) return; el[key] = map($(id).value); if (label) $(id + 'val').textContent = label(el[key]); render(); syncLists(); });
+  $(id).addEventListener('input', () => { const el = selectedEl(); if (!el) return; el[key] = map($(id).value); if (label) $(id + 'val').textContent = label(el[key]); render(); syncLists(); saveSoon(); });
   $(id).addEventListener('change', commit);
 };
 const toggle = (id, key) => {
   $(id).addEventListener('change', () => { const el = selectedEl(); if (!el) return; el[key] = $(id).checked; render(); commit(); });
 };
 const inch = (v) => v + '"', deg = (v) => v + '°';
-field('ttext', 'text', (v) => v || ' ');
+field('ttext', 'text');
 $('ttext').addEventListener('input', () => { $('texthint').hidden = true; });
 field('tfont', 'font');
 field('tsize', 'size', Number, inch);
@@ -945,6 +1018,7 @@ $('tforward').addEventListener('click', () => moveLayer(1));
 $('tback').addEventListener('click', () => moveLayer(-1));
 
 // -- art tab: pictures and clip art
+$('addimagebtn').addEventListener('click', () => $('addimage').click());
 $('addimage').addEventListener('change', async () => {
   const f = $('addimage').files[0]; $('addimage').value = '';
   if (!f) return;
@@ -957,38 +1031,61 @@ $('addimage').addEventListener('change', async () => {
 /* A picture, twice. The preview (1600 px on the long side at most) is what
    the board is drawn with and what travels in every request; the master is
    the file itself when it is a raster that fits, else the same picture
-   re-encoded as large as will fit, for the print file and the order. The
-   master's pixel size is kept so the page can say when a picture is being
-   printed bigger than it can take. */
+   re-encoded as large as will fit, for the print file and the order. There
+   is no master only when the preview IS the file: a lossless picture the
+   preview did not have to shrink. A vector (SVG) has no size of its own
+   and is drawn as large as the preview and the master allow. The master's
+   pixel size is kept so the page can say when a picture is being printed
+   bigger than it can take. */
+function hasAlpha(img) {
+  const k = Math.min(1, 256 / Math.max(img.naturalWidth, img.naturalHeight, 1)), c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+  const g = c.getContext('2d'); g.drawImage(img, 0, 0, c.width, c.height);
+  const d = g.getImageData(0, 0, c.width, c.height).data;
+  for (let i = 3; i < d.length; i += 4) if (d[i] < 250) return true;
+  return false;
+}
+const readAsDataUrl = (file) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(file); });
 async function readImage(file) {
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('not an image')); i.src = url; });
     const W = img.naturalWidth, H = img.naturalHeight;
-    const isPhoto = /jpe?g/i.test(file.type), isRaster = /^image\/(png|jpeg|webp)$/i.test(file.type);
+    if (!W || !H) throw new Error('the picture has no size');
+    const isRaster = /^image\/(png|jpeg|webp)$/i.test(file.type);
+    /* JPEGs, and WebPs with nothing see-through, are previewed as JPEG;
+       anything with a transparent pixel stays PNG so a cut-out stays cut out. */
+    const lossy = /jpe?g/i.test(file.type) || (/webp/i.test(file.type) && !hasAlpha(img));
     const encode = (side, bytes, quality) => {
       let s = side, out = null;
       for (let tries = 0; tries < 6; tries++) {
-        const k = Math.min(1, s / Math.max(W, H));
+        const k = isRaster ? Math.min(1, s / Math.max(W, H)) : s / Math.max(W, H);
         const c = document.createElement('canvas');
         c.width = Math.max(1, Math.round(W * k)); c.height = Math.max(1, Math.round(H * k));
         c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        out = { url: isPhoto ? c.toDataURL('image/jpeg', quality) : c.toDataURL('image/png'), px: [c.width, c.height] };
+        out = { url: lossy ? c.toDataURL('image/jpeg', quality) : c.toDataURL('image/png'), px: [c.width, c.height] };
         if (out.url.length <= bytes * 1.37) return out;
         s = Math.round(s * 0.75);
       }
       return out;
     };
     const preview = encode(PREVIEW_SIDE, PREVIEW_BYTES, 0.88);
+    const shrunk = preview.px[0] < W || preview.px[1] < H;
     let master = null;
     if (isRaster && file.size <= ORIG_BYTES && Math.max(W, H) <= ORIG_SIDE) {
-      /* The file itself, untouched - unless it is a lossless file no bigger
-         than the preview, which is then the preview already. */
-      if (isPhoto || Math.max(W, H) > PREVIEW_SIDE) master = { url: await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(file); }), px: [W, H] };
-    } else if (Math.max(W, H) > PREVIEW_SIDE || !isRaster) master = encode(ORIG_SIDE, ORIG_BYTES, 0.92);
+      if (lossy || shrunk) master = { url: await readAsDataUrl(file), px: [W, H] };
+    } else if (shrunk || !isRaster) master = encode(ORIG_SIDE, ORIG_BYTES, 0.92);
     if (master && master.url === preview.url) master = null;
     return master ? { src: preview.url, orig: master.url, px: master.px } : { src: preview.url, px: preview.px };
   } finally { URL.revokeObjectURL(url); }
+}
+/* A preview re-encoded smaller, for an order that would not fit otherwise. */
+async function shrunkPreview(src, k) {
+  const img = await imageLoaded(src); if (!img) return src;
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return src.startsWith('data:image/jpeg') ? c.toDataURL('image/jpeg', 0.85) : c.toDataURL('image/png');
 }
 /* Dots per inch a picture prints at, at the width it has on the board. */
 const printDpi = (el) => (el.px ? el.px[0] / el.width : null);
@@ -1045,9 +1142,18 @@ $('clips').addEventListener('click', (ev) => { const b = ev.target.closest('.cli
 
 function removeElement(id) {
   const b = activeBoard();
+  const type = (b.elements.find((e) => e.id === id) || {}).type;
+  const ae = document.activeElement, fromProps = Boolean(ae && ae.closest('#textprops, #imageprops'));
   b.elements = b.elements.filter((e) => e.id !== id);
   if (selected === id) selected = null;
   render(); syncLists(); syncProps(); commit();
+  /* The Remove button in the props hides with the props: the focus moves
+     to the list - the next row's remove button, or the button that adds. */
+  if (fromProps || document.activeElement === document.body) {
+    const list = $(type === 'text' ? 'texts' : 'images');
+    const next = list.querySelector('.itemdel') || $(type === 'text' ? 'addtext' : 'addimagebtn');
+    if (next) next.focus({ preventScroll: true });
+  }
 }
 function copyToOther() {
   const el = selectedEl(); if (!el || design.same) return;
@@ -1080,27 +1186,37 @@ function itemRow(el, pressed, onClick) {
   else if (el.type === 'clip') { t.style.background = 'transparent'; const c = clipThumb(el.name, el.color); c.style.width = c.style.height = '28px'; t.appendChild(c); }
   else { t.style.background = el.color; t.style.boxShadow = 'inset 0 0 0 1px rgba(0,0,0,.15)'; }
   b.appendChild(t);
-  let name = el.text;
   if (el.type === 'text') {
-    b.classList.add('pick'); b.title = 'Select, to change the font, size and colour'; b.setAttribute('aria-label', 'Select "' + el.text + '"');
+    b.classList.add('pick'); b.title = 'Select, to change the font, size and colour';
     const q = document.createElement('input'); q.type = 'text'; q.className = 'quick'; q.value = el.text; q.maxLength = 60; q.dataset.id = el.id;
     q.setAttribute('aria-label', 'Words'); q.style.fontFamily = '"' + el.font + '", Impact, sans-serif';
     q.addEventListener('focus', () => { if (selected !== el.id) select(el.id); });
-    q.addEventListener('input', () => { const e = findEl(el.id); if (!e) return; e.text = q.value || ' '; $('texthint').hidden = true; render(); if (selected === e.id && document.activeElement !== $('ttext')) $('ttext').value = e.text; });
+    q.addEventListener('input', () => { const e = findEl(el.id); if (!e) return; e.text = q.value; $('texthint').hidden = true; render(); labelRow(row, e); if (selected === e.id && document.activeElement !== $('ttext')) $('ttext').value = e.text; saveSoon(); });
     q.addEventListener('change', commit);
     row.append(b, q);
   } else {
-    const n = document.createElement('span'); n.className = 'name';
-    name = el.type === 'image' ? 'Picture, ' + el.width + '" wide' : (CLIPS[el.name] || {}).label + ', ' + el.width + '"';
-    n.textContent = name; b.appendChild(n);
+    const n = document.createElement('span'); n.className = 'name'; b.appendChild(n);
     row.appendChild(b);
   }
   b.addEventListener('click', onClick);
   const x = document.createElement('button'); x.type = 'button'; x.className = 'itemdel'; x.dataset.id = el.id;
-  x.title = 'Remove'; x.setAttribute('aria-label', 'Remove ' + name); x.textContent = '×';
+  x.title = 'Remove'; x.textContent = '×';
   x.addEventListener('click', () => removeElement(el.id));
   row.appendChild(x);
+  labelRow(row, el);
   return row;
+}
+/* What a row is called, for the eye and for a screen reader: the words, or
+   the kind of picture and its width. Kept current as the words change. */
+function rowName(el) {
+  if (el.type === 'text') return el.text.trim() ? '"' + el.text + '"' : 'the empty text';
+  return el.type === 'image' ? 'Picture, ' + el.width + '" wide' : (CLIPS[el.name] || {}).label + ', ' + el.width + '"';
+}
+function labelRow(row, el) {
+  const name = rowName(el);
+  row.querySelector('.item').setAttribute('aria-label', 'Select ' + name);
+  row.querySelector('.itemdel').setAttribute('aria-label', 'Remove ' + name);
+  const n = row.querySelector('.name'); if (n) n.textContent = name;
 }
 /* The lists are rebuilt from the design; the focus goes back to the row it
    was on, with the caret where it was, so typing in a row is not cut off
@@ -1109,13 +1225,13 @@ function updateRow(row, el, pressed) {
   const b = row.querySelector('.item'); b.setAttribute('aria-pressed', String(pressed));
   const t = row.querySelector('.thumb');
   if (el.type === 'text') {
-    t.style.background = el.color; b.setAttribute('aria-label', 'Select "' + el.text + '"');
+    t.style.background = el.color;
     const q = row.querySelector('.quick'); q.style.fontFamily = '"' + el.font + '", Impact, sans-serif';
     if (document.activeElement !== q && q.value !== el.text) q.value = el.text;
   } else if (el.type === 'clip') {
     t.textContent = ''; const c = clipThumb(el.name, el.color); c.style.width = c.style.height = '28px'; t.appendChild(c);
-    row.querySelector('.name').textContent = (CLIPS[el.name] || {}).label + ', ' + el.width + '"';
-  } else row.querySelector('.name').textContent = 'Picture, ' + el.width + '" wide';
+  }
+  labelRow(row, el);
 }
 function syncLists() {
   const b = activeBoard();
@@ -1138,7 +1254,7 @@ function syncLists() {
   }
   $('addtext').disabled = countOf(b, 'text') >= MAX_TEXTS;
   if (keep && lostFocus) {
-    const again = document.querySelector('.' + keep.cls + '[data-id="' + keep.id + '"]') || (keep.list && keep.list.querySelector('.itemdel')) || (keep.list && keep.list.id === 'texts' ? $('addtext') : null);
+    const again = document.querySelector('.' + keep.cls + '[data-id="' + keep.id + '"]') || (keep.list && keep.list.querySelector('.itemdel')) || (keep.list && keep.list.id === 'texts' ? $('addtext') : $('addimagebtn'));
     if (again) { again.focus({ preventScroll: true }); if (keep.cls === 'quick' && keep.s != null && again.setSelectionRange) try { again.setSelectionRange(keep.s, keep.e); } catch (_) {} }
   }
 }
@@ -1203,26 +1319,44 @@ chips('product', (v) => { order.product = v; if (v === 'single') { design.same =
 chips('finish', (v) => { order.finish = v; syncOrder(); });
 chips('bags', (v) => { order.bags = v; syncOrder(); });
 $('qty').addEventListener('input', () => { order.quantity = clamp(Math.round(Number($('qty').value) || 1), 1, PRICING.maxQuantity); syncOrder(); });
+$('qty').addEventListener('change', () => { $('qty').value = order.quantity; });
 $('rush').addEventListener('change', () => { order.rush = $('rush').checked; syncOrder(); });
 $('carrycase').addEventListener('change', () => { order.carryCase = $('carrycase').checked; syncOrder(); });
-$('bag1').addEventListener('input', () => { order.bagColors[0] = $('bag1').value; save(); });
-$('bag2').addEventListener('input', () => { order.bagColors[1] = $('bag2').value; save(); });
+$('bag1').addEventListener('input', () => { order.bagColors[0] = $('bag1').value; saveSoon(); });
+$('bag2').addEventListener('input', () => { order.bagColors[1] = $('bag2').value; saveSoon(); });
 $('occasion').addEventListener('change', () => { order.occasion = $('occasion').value; syncOrder(); });
 $('needby').addEventListener('change', () => { order.needBy = $('needby').value; syncOrder(); });
-$('giftnote').addEventListener('input', () => { order.giftNote = $('giftnote').value; save(); });
+$('giftnote').addEventListener('input', () => { order.giftNote = $('giftnote').value; saveSoon(); });
 /* Three screens, each about the height of the other tabs: the order and
-   its price; the review, with both boards as they will print; the address. */
+   its price; the review, with both boards as they will print; the address.
+   The button that moves between them hides with its step, so the focus
+   goes to the new step's heading - a screen reader hears where it is. */
 function showOrderStep(n) {
   $('orderstep1').hidden = n !== 1; $('orderstep2').hidden = n !== 2; $('orderstep3').hidden = n !== 3;
   if (n === 2) renderReview();
   if (n === 3) syncOrder();
+  const ae = document.activeElement;
+  if (!ae || ae === document.body || ae.offsetParent === null) { const h = $('orderstep' + n).querySelector('h3'); if (h && h.offsetParent !== null) h.focus({ preventScroll: true }); }
+}
+/* The review is of one design and one set of choices: shown again, after
+   either changed, it is drawn afresh - and says so. */
+let reviewed = '';
+/* The gift note is written on the details step, after the review, so it is
+   not part of what the review is of. */
+const reviewKey = () => snapshot() + JSON.stringify({ ...order, giftNote: '' });
+function reviewIfChanged() {
+  if ($('orderstep1').hidden && reviewed !== reviewKey()) { showOrderStep(2); $('reviewchanged').hidden = false; return true; }
+  return false;
 }
 $('toreview').addEventListener('click', () => showOrderStep(2));
 $('backtooptions').addEventListener('click', () => showOrderStep(1));
-$('backtoedit').addEventListener('click', () => { showTab(lastEditTab); showOrderStep(1); });
+$('backtoedit').addEventListener('click', () => { showTab(lastEditTab); showOrderStep(1); const b = tabButtons.find((x) => x.dataset.tab === lastEditTab); if (b) b.focus({ preventScroll: true }); });
 $('tocheckout').addEventListener('click', () => showOrderStep(3));
 $('backtoorder').addEventListener('click', () => showOrderStep(2));
-$('keepsamples').addEventListener('change', () => { $('tocheckout').disabled = !$('keepsamples').checked; });
+/* The say-so for sample words is for the words it was given: different
+   words ask again. */
+let confirmedSamples = '';
+$('keepsamples').addEventListener('change', () => { confirmedSamples = $('keepsamples').checked ? sampleWordsIn().join('|') : ''; $('tocheckout').disabled = !$('keepsamples').checked; });
 $('reviewbtn').addEventListener('click', () => { showTab('order'); showOrderStep(2); scrollToPanel(); });
 
 /* Weekdays between today and a date; weekends are not build days. */
@@ -1257,7 +1391,8 @@ function priceNote(q) {
 }
 function syncOrder() {
   setChip('product', order.product); setChip('finish', order.finish); setChip('bags', order.bags);
-  $('qty').value = order.quantity; $('rush').checked = order.rush; $('carrycase').checked = order.carryCase;
+  if (document.activeElement !== $('qty')) $('qty').value = order.quantity;
+  $('rush').checked = order.rush; $('carrycase').checked = order.carryCase;
   $('bagcolors').hidden = order.bags !== 'regulation';
   $('bag1').value = order.bagColors[0]; $('bag2').value = order.bagColors[1];
   $('occasion').value = order.occasion; $('needby').value = order.needBy; $('giftnote').value = order.giftNote;
@@ -1284,11 +1419,14 @@ function renderReview() {
     f.append(img, cap); rb.appendChild(f);
   }
   const list = $('reviewlist'); list.textContent = '';
-  const li = (a, b) => { const l = document.createElement('li'), s1 = document.createElement('span'), s2 = document.createElement('span'); s1.textContent = a; s2.textContent = b; l.append(s1, s2); list.appendChild(l); };
+  const li = (a, b) => { const l = document.createElement('li'), s1 = document.createElement('span'), s2 = document.createElement('span'); s1.textContent = a; if (typeof b === 'string') s2.textContent = b; else s2.append(...b); l.append(s1, s2); list.appendChild(l); return s2; };
+  const dot = (hex) => { const s = document.createElement('span'); s.className = 'swatchdot'; s.style.background = hex; s.setAttribute('aria-hidden', 'true'); return s; };
   li('Product', order.quantity + ' x ' + PRICING.products[order.product].label);
   li('Design', order.product === 'single' ? 'One board' : design.same ? 'The same on both boards' : 'Two different boards');
   li('Finish', PRICING.finishes[order.finish].label);
-  li('Bags', order.bags === 'regulation' ? PRICING.bags.regulation.label + ', in ' + order.bagColors.join(' and ') : 'Not included');
+  li('Bags', order.bags === 'regulation'
+    ? [PRICING.bags.regulation.label + ': 4 ', dot(order.bagColors[0]), colourName(order.bagColors[0]) + ' and 4 ', dot(order.bagColors[1]), colourName(order.bagColors[1])]
+    : 'Not included');
   li('Extras', [order.carryCase && PRICING.carryCase.label.toLowerCase(), order.rush && 'rush build'].filter(Boolean).join(', ') || 'None');
   li('Dispatch', 'about ' + (order.rush ? PRICING.rushDays : PRICING.leadTimeDays) + ' business days, then freight');
   li('Occasion', OCCASIONS[order.occasion]);
@@ -1299,17 +1437,22 @@ function renderReview() {
   const samples = sampleWordsIn();
   $('samplewarn').hidden = !samples.length;
   $('sampletext').textContent = samples.length ? 'These look like the sample words a template came with: ' + samples.map((s) => '“' + s + '”').join(', ') + '. They would be printed exactly like that. Go back to editing to change them, or confirm that you want them.' : '';
-  if (!samples.length) $('keepsamples').checked = false;
+  $('keepsamples').checked = samples.length > 0 && samples.join('|') === confirmedSamples;
   $('tocheckout').disabled = samples.length > 0 && !$('keepsamples').checked;
   const low = lowResImages(keys);
   $('reswarn').hidden = !low.length; $('reswarn').textContent = low.join(' ');
+  reviewed = reviewKey();
+  $('reviewchanged').hidden = true;
 }
 
 function status(kind, text) { const s = $('orderstatus'); s.dataset.kind = kind; s.textContent = text; }
-/* What is posted. The pictures' masters go along when the whole order fits
-   the server's limit; otherwise they stay out and options.assets says the
+/* What is posted: only what is ordered. Board B is blank when both boards
+   match or a single board is ordered, and empty text is left out. The
+   pictures' masters go along when the whole order fits the server's limit;
+   otherwise they stay out, and if the previews alone are still too much
+   those come down in size, largest first - and options.assets says the
    full-size files are still to come. */
-function orderPayload() {
+async function orderPayload() {
   const f = $('orderform');
   const v = (id) => f.elements[id].value.trim();
   const previews = [previewDataUrl('a')];
@@ -1318,7 +1461,9 @@ function orderPayload() {
     carryCase: order.carryCase, occasion: order.occasion, giftNote: order.giftNote.trim() };
   if (order.bags === 'regulation') opts.bagColors = [...order.bagColors];
   if (order.needBy) opts.needBy = order.needBy;
-  const designOut = JSON.parse(snapshot());
+  const designOut = parseSnapshot(snapshot());
+  if (designOut.same || order.product === 'single') designOut.b = freshBoard();
+  for (const k of ['a', 'b']) designOut[k].elements = designOut[k].elements.filter((e) => e.type !== 'text' || e.text.trim());
   const pictures = [];
   for (const k of ['a', 'b']) for (const e of designOut[k].elements) if (e.type === 'image') pictures.push(e);
   const payload = {
@@ -1330,9 +1475,14 @@ function orderPayload() {
     notes: v('notes'),
   };
   if (pictures.length) {
-    let included = pictures.some((e) => e.orig);
-    if (included && JSON.stringify(payload).length > PAYLOAD_BYTES) { for (const e of pictures) delete e.orig; included = false; }
-    opts.assets = included ? 'included' : 'pending';
+    const size = () => JSON.stringify(payload).length;
+    let dropped = false;
+    if (size() > PAYLOAD_BYTES) for (const e of pictures) if (e.orig) { delete e.orig; dropped = true; }
+    for (let tries = 0; tries < 10 && size() > PAYLOAD_BYTES; tries++) {
+      const big = pictures.reduce((a, b) => (a.src.length >= b.src.length ? a : b));
+      big.src = await shrunkPreview(big.src, 0.7); dropped = true;
+    }
+    opts.assets = dropped ? 'pending' : 'included';
   }
   return payload;
 }
@@ -1340,15 +1490,16 @@ $('orderform').addEventListener('submit', async (ev) => {
   ev.preventDefault();
   const f = $('orderform');
   if (!f.checkValidity()) { f.reportValidity(); return; }
+  if (reviewIfChanged()) return;
   if (!activeBoard().elements.length && design.a.base.kind === 'paint' && design.a.pattern.kind === 'none') {
     if (!confirm('Your board is a plain colour with nothing on it. Order it like that?')) return;
   }
   const btn = $('checkout'); btn.disabled = true; status('info', 'Sending your design…');
   try {
-    const payload = orderPayload();
+    const payload = await orderPayload();
     const r = await fetch('api/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const j = await r.json().catch(() => ({}));
-    const files = payload.options.assets === 'pending' ? ' Your pictures were too large to send with the order, so we will email you for the full-size files.' : '';
+    const files = payload.options.assets === 'pending' ? ' Your pictures were too large to send in full with the order, so we will email you for the full-size files.' : '';
     if (r.status === 503 && j.error === 'not_configured') {
       status('warn', 'Ordering is not switched on for this site yet. Download the print file above and send it to us, and we will quote it by hand.');
     } else if (!r.ok) {
@@ -1383,7 +1534,7 @@ async function showOutcome() {
   } else if (o === 'cancelled') {
     box.classList.add('cancelled');
     $('donetitle').textContent = 'Payment cancelled.';
-    $('donebody').innerHTML = '<p>No charge was made. Your design is still here' + (code ? ', and order <code>' + code.replace(/[^A-Z0-9-]/g, '') + '</code> is saved unpaid' : '') + ' - press Continue to payment again whenever you are ready.</p>';
+    $('donebody').innerHTML = '<p>No charge was made, and your design is still here. When you are ready, go to the Order tab, review it and continue to payment again: that places a new order with a new code' + (code ? ', and the unpaid one, <code>' + code.replace(/[^A-Z0-9-]/g, '') + '</code>, is simply left' : '') + '.</p>';
   }
   box.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
@@ -1404,6 +1555,7 @@ $('download').addEventListener('click', async () => {
 });
 $('exportbtn').addEventListener('click', exportProject);
 $('exportlink').addEventListener('click', exportProject);
+$('importbtn').addEventListener('click', () => $('importfile').click());
 $('importfile').addEventListener('change', async () => {
   const f = $('importfile').files[0]; $('importfile').value = '';
   if (!f) return;
@@ -1430,25 +1582,36 @@ function syncAll() { syncBoard(); syncLists(); syncProps(); syncOrder(); syncHis
 
 /* ====================================================================
    BOOT. The page draws at once, then the saved project (if any) is read
-   from the device and put in place; nothing is written back until that has
-   finished, so a restored project is never overwritten by the fresh page.
+   from the device and put in place. Until then the builder takes no click
+   and no key (body.loading), so an edit can never race the restore and
+   lose it; nothing is written back until the restore has finished, so a
+   restored project is never overwritten by the fresh page. A device that
+   does not answer in a few seconds is not waited for: the page goes on,
+   and a project that turns up late is offered, not forced.
    ==================================================================== */
 history = [snapshot()];
 syncAll();
 showOutcome();
 renderSite();
+function restoreProject(p) {
+  design = migrate(p.design);
+  if (p.order) applyOrder(p.order);
+  selected = null; active = 'a';
+  history = [snapshot()]; future = [];
+  syncAll(); showTab('board');
+}
 (async () => {
-  let p = null;
-  try { p = await loadProject(); } catch (_) { p = null; }
-  if (p && history.length < 2) {
-    design = migrate(p.design);
-    if (p.order) applyOrder(p.order);
-    selected = null; active = 'a';
-    history = [snapshot()]; future = [];
-    syncAll(); showTab('board');
-    storageReady = true; setSaveState('saved');
-  } else { storageReady = true; setSaveState('new'); }
+  const loading = loadProject().catch(() => null);
+  let p = await Promise.race([loading, new Promise((res) => setTimeout(() => res(undefined), 6000))]);
+  if (p === undefined) {
+    /* Late: by now the customer may be at work on the fresh page. */
+    loading.then((late) => { if (!late) return; if (history.length < 2) { restoreProject(late); setSaveState('saved'); } else if (confirm('A design saved earlier on this device was found. Replace what you have started with it?')) { restoreProject(late); commit(); } });
+    p = null;
+  }
+  if (p) { restoreProject(p); storageReady = true; setSaveState('saved'); }
+  else { storageReady = true; setSaveState('new'); }
   loaded = true;
+  document.body.classList.remove('loading');
 })();
 window.addEventListener('resize', render);
 /* Web fonts arrive after the first paint; a text set in one is measured
@@ -1470,9 +1633,10 @@ window.cornhole = {
   get boxes() { return boxes; },
   get loaded() { return loaded; },
   get saveState() { return saveState; },
+  get historyBytes() { return history.reduce((n, s) => n + s.length, 0) + future.reduce((n, s) => n + s.length, 0); },
   setDesign(d) { design = migrate(JSON.parse(JSON.stringify(d))); selected = null; syncAll(); commit(); },
   setOrder(o) { Object.assign(order, o); syncAll(); },
   select, commit, undo, redo, render, paint, showTab, printCanvas, previewDataUrl, orderPayload, preloadImages,
   activeBoard, addClip, applyTemplate, applyBlank, migrate, showOrderStep, renderReview, handlePoints, setMode,
-  isPristine, sampleWordsIn, exportProject, importProject, projectRecord,
+  isPristine, sampleWordsIn, exportProject, importProject, projectRecord, colourName,
 };

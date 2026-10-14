@@ -298,6 +298,10 @@ export default async function handler(req: any, res: any) {
     return;
   }
   const order = parsed.data;
+  /* With one design on both boards, Board B is not part of the order: a
+     board left over from an earlier choice, pictures and all, is neither
+     stored nor counted. */
+  if (order.design.same || order.options.product === "single") order.design.b = { ...order.design.b, elements: [] };
   if (order.options.bags === "regulation" && !order.options.bagColors) {
     res.status(400).json({ error: "bad_request", message: "options.bagColors: pick two bag colours" }); return;
   }
