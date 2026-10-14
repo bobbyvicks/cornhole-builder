@@ -172,6 +172,7 @@
   .fit-status { margin: 8px 0 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
 
   .clipcats { margin-bottom: 8px; }
+  #uploadstatus { margin: 12px 16px 0; }
   details.clip-filters { margin: 0 0 12px; }
   .clip-tools { display: grid; gap: 8px; margin-bottom: 12px; }
   .clip-summary { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
@@ -371,6 +372,7 @@
         <button role="tab" id="tabbtn-order" data-tab="order" aria-selected="false" aria-controls="tab-order" tabindex="-1">Order</button>
       </div>
 
+      <p class="hint" id="uploadstatus" role="status" aria-live="polite" hidden></p>
       <div class="pane" id="tab-templates" data-open="true" role="tabpanel" aria-labelledby="tabbtn-templates">
         <div class="project" id="project">
           <span class="savestatus" data-state="new" role="status">Not saved yet</span>

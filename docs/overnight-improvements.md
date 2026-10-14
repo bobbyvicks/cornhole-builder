@@ -88,6 +88,40 @@ the clock and repository state before each run.
   This batch adds 26 browser regressions; real device limitations noted above
   still apply. No production order or payment was created.
 
+## Third batch - October 14, 12:46 a.m. Toronto continuation
+
+- Fetched before implementation and again before final verification. Main stayed
+  at `136fe35`; the overnight branch stayed at `5d84174`. PR #2 was mergeable,
+  with no GitHub checks or deployments reported. Concurrent work was preserved.
+- Pictures now finish on the board where the upload began. Replacing that board,
+  switching to a template or hiding separate Board B cancels the stale upload.
+  Concurrent uploads reserve picture slots before decoding and release them on
+  failure. Visible status explains progress, cancellation and recovery.
+- A finishing upload preserves newer typing, focused size/colour controls and
+  active canvas dragging.
+  Saving an editable copy, sharing, printing and checkout explain pending
+  pictures instead of silently leaving them out. Leaving during processing
+  uses the existing unsaved-work warning.
+- Shared previews and both print PNGs use one captured design, even when editing
+  continues while fonts load or PNGs encode. Print preparation prevents duplicate
+  requests and recovers from encoding failures. Offscreen output preserves live
+  canvas hit-testing geometry and render state.
+- Order review waits for images and fonts. Confirming sample text applies only
+  to the exact words reviewed; changed designs require fresh review. Preparation
+  rechecks the design, options and address before sending, preserves entered
+  details on return to review, and continues to allow the optional gift note.
+- Full-size-file warnings use the completed previews' actual payload size.
+  Failed images offer a retry, and a finishing upload refreshes an open review.
+- Final whole-suite run: **47 node tests, 169 Chromium browser tests and
+  TypeScript checks passed**. This batch adds 26 browser regressions covering
+  real file decoding, native pointer/keyboard input, snapshot PNG pixels,
+  delayed review assets and checkout races. Syntax and diff checks passed.
+- Independent review closed all findings, including property-control and drag
+  selection takeover, live canvas geometry during output, and the payload-size
+  warning after decoding. The upload recovery message was inspected at 375 px;
+  it is readable and introduces no horizontal overflow. Physical-device limits
+  still apply. All order requests used stubs; no live purchases were made.
+
 ## Next overnight priorities
 
 1. Check the existing overnight PR and remote main for Claude changes before editing.
@@ -95,9 +129,10 @@ the clock and repository state before each run.
    with evidence; do not claim production deployment from a Git push.
 3. Audit usability with fresh desktop/mobile journeys: finding artwork, changing
    boards, recovering drafts and reviewing a complete personalized order.
-4. Check image upload behavior when switching boards or templates while a large
-   picture is being processed. Preserve familiar editing behavior.
-5. Check print/preflight warnings, slow devices and startup recovery if tests reveal gaps.
+4. Inspect remaining slow-device interactions and large-image memory use if
+   real journeys or regression tests reveal a specific gap.
+5. Device-test native sharing and the iOS keyboard when a physical device is
+   available; Chromium emulation does not establish those behaviors.
 6. Keep changes small, independently reviewed and tested; update this work log
    and the same PR with each meaningful increment. No new cloud storage or
    invented business details. Stop by 7 a.m. Toronto and report remaining needs.

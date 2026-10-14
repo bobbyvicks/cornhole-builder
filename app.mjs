@@ -117,7 +117,7 @@ let lastEditTab = 'text';
 const order = { product: 'set', quantity: 1, finish: 'satin', bags: 'none', bagColors: ['#c8102e', '#1f3a93'], rush: false, carryCase: false, occasion: 'other', needBy: '', giftNote: '' };
 
 const activeBoard = () => design[active];
-const boardFor = (key) => design[design.same ? 'a' : key];
+const boardFor = (key, source = design) => source[source.same ? 'a' : key];
 const findEl = (id) => activeBoard().elements.find((e) => e.id === id) || null;
 const selectedEl = () => (selected ? findEl(selected) : null);
 const countOf = (b, type) => b.elements.filter((e) => e.type === type).length;
@@ -166,9 +166,9 @@ const imageLoaded = (src) => new Promise((res) => {
   i.addEventListener('error', () => res(null), { once: true });
 });
 /* The print file needs every master decoded before it draws. */
-async function preloadImages(keys = boardKeys(), { print = true } = {}) {
+async function preloadImages(keys = boardKeys(), { print = true, source = design } = {}) {
   const srcs = new Set();
-  for (const k of keys) for (const e of boardFor(k).elements) if (e.type === 'image') srcs.add(print ? e.orig || e.src : e.src);
+  for (const k of keys) for (const e of boardFor(k, source).elements) if (e.type === 'image') srcs.add(print ? e.orig || e.src : e.src);
   const images = await Promise.all([...srcs].map(imageLoaded));
   if (images.some(img => !img)) throw new Error('A picture could not be loaded. Remove it and upload the original again.');
 }
@@ -511,18 +511,29 @@ function paint() {
   }
 }
 
+/* Offscreen output must not replace the live editor's hit-testing geometry. */
+function renderOutput(ctx, board, ppi, options) {
+  const liveBoxes = new Map(boxes), livePpi = curPpi, livePrinting = printing;
+  try { renderBoard(ctx, board, ppi, options); }
+  finally {
+    boxes.clear();
+    for (const [id, box] of liveBoxes) boxes.set(id, box);
+    curPpi = livePpi; printing = livePrinting;
+  }
+}
+
 /* The print file: 100 pixels per inch, no bevel, hole marked by a hairline,
    pictures drawn from their masters. Call preloadImages first. */
-function printCanvas(key) {
+function printCanvas(key, source = design) {
   const c = document.createElement('canvas');
   c.width = BOARD.w * PRINT_PPI; c.height = BOARD.h * PRINT_PPI;
-  renderBoard(c.getContext('2d'), boardFor(key), PRINT_PPI, { print: true });
+  renderOutput(c.getContext('2d'), boardFor(key, source), PRINT_PPI, { print: true });
   return c;
 }
-function previewDataUrl(key, ppi = 10) {
+function previewDataUrl(key, ppi = 10, source = design) {
   const c = document.createElement('canvas');
   c.width = BOARD.w * ppi; c.height = BOARD.h * ppi;
-  renderBoard(c.getContext('2d'), boardFor(key), ppi);
+  renderOutput(c.getContext('2d'), boardFor(key, source), ppi);
   return c.toDataURL('image/png');
 }
 
@@ -586,7 +597,7 @@ async function flush() {
   saveBusy = false;
   if (saveAgain) { saveAgain = false; flush(); }
 }
-window.addEventListener('beforeunload', (e) => { if (saveState === 'error' || saveState === 'saving' || hasStartupEdits()) { e.preventDefault(); e.returnValue = ''; } });
+window.addEventListener('beforeunload', (e) => { if (saveState === 'error' || saveState === 'saving' || hasStartupEdits() || hasPendingImageUploads(['a', 'b'])) { e.preventDefault(); e.returnValue = ''; } });
 
 /* Order choices from storage or a file, taken only where they are valid. */
 function applyOrder(o) {
@@ -604,6 +615,7 @@ function applyOrder(o) {
 /* The project file: plain JSON, with the pictures' masters, that the
    Import button takes back. */
 function exportProject() {
+  if (hasPendingImageUploads(['a', 'b'])) { uploadStatus('A picture is still processing. Wait for it to finish before saving an editable copy.'); return; }
   const blob = new Blob([JSON.stringify({ app: 'cornhole-builder', ...projectRecord() }, null, 2)], { type: 'application/json' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'cornhole-project-' + today() + '.json';
   document.body.appendChild(a); a.click(); a.remove();
@@ -1110,14 +1122,52 @@ $('tforward').addEventListener('click', () => moveLayer(1));
 $('tback').addEventListener('click', () => moveLayer(-1));
 
 // -- art tab: pictures and clip art
+const pendingImageUploads = new WeakMap();
+function hasPendingImageUploads(keys = boardKeys()) {
+  return keys.some(key => (pendingImageUploads.get(boardFor(key)) || 0) > 0);
+}
+function uploadStatus(message) {
+  const status = $('uploadstatus'); status.hidden = false; status.textContent = message;
+}
 $('addimage').addEventListener('change', async () => {
   const f = $('addimage').files[0]; $('addimage').value = '';
   if (!f) return;
-  if (countOf(activeBoard(), 'image') >= MAX_IMAGES) { alert('Up to ' + MAX_IMAGES + ' pictures per board.'); return; }
+  const originalDesign = design, key = active, target = activeBoard();
+  const originalSelection = selected, originalTab = document.querySelector('.tabs [aria-selected="true"]')?.dataset.tab;
+  const pending = pendingImageUploads.get(target) || 0;
+  if (countOf(target, 'image') + pending >= MAX_IMAGES) {
+    uploadStatus('Board ' + key.toUpperCase() + ' already has ' + MAX_IMAGES + ' pictures added or processing. ' + (pending ? 'Wait for processing to finish, then remove a picture to add another.' : 'Remove a picture to add another.'));
+    return;
+  }
+  pendingImageUploads.set(target, pending + 1);
+  uploadStatus('Preparing your picture for Board ' + key.toUpperCase() + '.');
+  if (!$('orderstep2').hidden && $('tab-order').dataset.open === 'true') renderReview();
   try {
     const pic = await readImage(f);
-    addElement(withDefaults({ type: 'image', ...pic, width: 10, x: 12, y: 30 }), 'art');
-  } catch (e) { alert('Could not read that image: ' + (e && e.message ? e.message : e)); }
+    if (design !== originalDesign || design[key] !== target || (key === 'b' && (design.same || order.product === 'single'))) {
+      uploadStatus('Picture not added because its board changed while it was processing. Choose the picture again for the current design.');
+      return;
+    }
+    if (countOf(target, 'image') >= MAX_IMAGES) {
+      uploadStatus('Picture not added: Board ' + key.toUpperCase() + ' now has ' + MAX_IMAGES + ' pictures. Remove one and choose the picture again.');
+      return;
+    }
+    const el = withDefaults({ type: 'image', ...pic, width: 10, x: 12, y: 30 });
+    target.elements.push(el);
+    const currentTab = document.querySelector('.tabs [aria-selected="true"]')?.dataset.tab;
+    const focused = document.activeElement;
+    const editingControl = focused?.closest('#textprops, #imageprops') || focused?.matches('input:not([type="file"]), textarea, select');
+    if (activeBoard() === target && selected === originalSelection && currentTab === originalTab && !editingControl && !drag) {
+      select(el.id); showTab('art');
+    } else { render(); syncLists(); syncProps(); }
+    commit();
+    uploadStatus('Picture added to Board ' + key.toUpperCase() + '.');
+  } catch (e) { uploadStatus('Could not read that image: ' + (e && e.message ? e.message : e) + '. Choose another picture and try again.'); }
+  finally {
+    const remaining = (pendingImageUploads.get(target) || 1) - 1;
+    if (remaining) pendingImageUploads.set(target, remaining); else pendingImageUploads.delete(target);
+    if (!$('orderstep2').hidden && $('tab-order').dataset.open === 'true') renderReview();
+  }
 });
 /* A picture, twice. The preview (1600 px on the long side at most) is what
    the board is drawn with and what travels in every request; the master is
@@ -1403,7 +1453,19 @@ $('needby').addEventListener('change', () => { order.needBy = $('needby').value;
 $('giftnote').addEventListener('input', () => { order.giftNote = $('giftnote').value; save(); });
 /* Three screens, each about the height of the other tabs: the order and
    its price; the review, with both boards as they will print; the address. */
+let confirmedSamples = null, reviewSamples = null, reviewReady = false, reviewSequence = 0, reviewedRevision = null;
+let orderSubmitting = false;
+const sampleSignature = () => JSON.stringify(sampleWordsIn().sort());
+const samplesConfirmed = () => !sampleWordsIn().length || confirmedSamples === sampleSignature();
+const orderRevision = () => JSON.stringify({ design, order });
+// The optional gift note is entered on the details step, after board review.
+const orderReviewRevision = () => JSON.stringify({ design, order: { ...order, giftNote: '' } });
+function syncReviewContinue() {
+  $('tocheckout').disabled = !reviewReady || hasPendingImageUploads() || !samplesConfirmed();
+}
 function showOrderStep(n, { focus = false } = {}) {
+  if (n === 3 && (!reviewReady || reviewedRevision !== orderReviewRevision() || !samplesConfirmed() || hasPendingImageUploads())) n = 2;
+  if (n !== 2) reviewSequence++;
   $('orderstep1').hidden = n !== 1; $('orderstep2').hidden = n !== 2; $('orderstep3').hidden = n !== 3;
   if (n === 2) renderReview();
   if (n === 3) syncOrder();
@@ -1421,7 +1483,10 @@ $('backtoedit').addEventListener('click', () => {
 });
 $('tocheckout').addEventListener('click', () => showOrderStep(3, { focus: true }));
 $('backtoorder').addEventListener('click', () => showOrderStep(2, { focus: true }));
-$('keepsamples').addEventListener('change', () => { $('tocheckout').disabled = !$('keepsamples').checked; });
+$('keepsamples').addEventListener('change', () => {
+  confirmedSamples = $('keepsamples').checked && reviewSamples === sampleSignature() ? reviewSamples : null;
+  syncReviewContinue();
+});
 $('reviewbtn').addEventListener('click', () => { showTab('order'); showOrderStep(2, { focus: true }); });
 
 /* Weekdays between today and a date; weekends are not build days. */
@@ -1473,15 +1538,15 @@ function syncOrder() {
   save();
   return q;
 }
-function renderReview() {
+async function renderReview() {
+  const sequence = ++reviewSequence, revision = orderRevision(), source = JSON.parse(snapshot());
+  reviewReady = false;
+  syncReviewContinue();
   const q = quote(order), keys = boardKeys();
   const rb = $('reviewboards'); rb.textContent = '';
-  for (const k of keys) {
-    const f = document.createElement('figure'), img = new Image(), cap = document.createElement('figcaption');
-    img.src = previewDataUrl(k, 8); img.alt = 'Board ' + k.toUpperCase() + ' as it will print';
-    cap.textContent = keys.length > 1 ? 'Board ' + k.toUpperCase() : order.product === 'set' ? 'Both boards' : 'Your board';
-    f.append(img, cap); rb.appendChild(f);
-  }
+  const message = document.createElement('p'); message.setAttribute('role', 'status');
+  message.textContent = hasPendingImageUploads() ? 'Your picture is still processing. The review will update when it is ready.' : 'Preparing your board previews…';
+  rb.appendChild(message);
   const list = $('reviewlist'); list.textContent = '';
   const li = (a, b) => { const l = document.createElement('li'), s1 = document.createElement('span'), s2 = document.createElement('span'); s1.textContent = a; s2.textContent = b; l.append(s1, s2); list.appendChild(l); };
   li('Product', order.quantity + ' x ' + PRICING.products[order.product].label);
@@ -1498,27 +1563,51 @@ function renderReview() {
   const samples = sampleWordsIn();
   $('samplewarn').hidden = !samples.length;
   $('sampletext').textContent = samples.length ? 'These look like the sample words a template came with: ' + samples.map((s) => '“' + s + '”').join(', ') + '. They would be printed exactly like that. Go back to editing to change them, or confirm that you want them.' : '';
-  if (!samples.length) $('keepsamples').checked = false;
-  $('tocheckout').disabled = samples.length > 0 && !$('keepsamples').checked;
+  reviewSamples = sampleSignature();
+  $('keepsamples').checked = samples.length > 0 && confirmedSamples === reviewSamples;
   const low = lowResImages(keys);
   $('reswarn').hidden = !low.length; $('reswarn').textContent = low.join(' ');
-  $('assetwarn').hidden = orderPayload().options.assets !== 'pending';
+  $('assetwarn').hidden = true;
+  if (hasPendingImageUploads()) return;
+  try {
+    await prepareOutputFonts(source);
+    await preloadImages(keys, { print: false, source });
+    if (sequence !== reviewSequence) return;
+    if (revision !== orderRevision() || hasPendingImageUploads()) return renderReview();
+    $('assetwarn').hidden = orderPayload({ source }).options.assets !== 'pending';
+    rb.textContent = '';
+    for (const k of keys) {
+      const f = document.createElement('figure'), img = new Image(), cap = document.createElement('figcaption');
+      img.src = previewDataUrl(k, 8, source); img.alt = 'Board ' + k.toUpperCase() + ' as it will print';
+      cap.textContent = keys.length > 1 ? 'Board ' + k.toUpperCase() : order.product === 'set' ? 'Both boards' : 'Your board';
+      f.append(img, cap); rb.appendChild(f);
+    }
+    reviewedRevision = orderReviewRevision();
+    reviewReady = true;
+    syncReviewContinue();
+  } catch (_) {
+    if (sequence !== reviewSequence) return;
+    if (revision !== orderRevision()) return renderReview();
+    message.textContent = 'Your board preview could not be prepared. Check your uploaded pictures and try again.';
+    const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'btn'; retry.textContent = 'Try preview again';
+    retry.addEventListener('click', renderReview); rb.appendChild(retry);
+  }
 }
 
 function status(kind, text) { const s = $('orderstatus'); s.dataset.kind = kind; s.textContent = text; }
 /* What is posted. The pictures' masters go along when the whole order fits
    the server's limit; otherwise they stay out and options.assets says the
    full-size files are still to come. */
-function orderPayload() {
+function orderPayload({ source = design, options = order } = {}) {
   const f = $('orderform');
   const v = (id) => f.elements[id].value.trim();
-  const previews = [previewDataUrl('a')];
-  if (order.product === 'set' && !design.same) previews.push(previewDataUrl('b'));
-  const opts = { product: order.product, quantity: order.quantity, finish: order.finish, bags: order.bags, rush: order.rush,
-    carryCase: order.carryCase, occasion: order.occasion, giftNote: order.giftNote.trim() };
-  if (order.bags === 'regulation') opts.bagColors = [...order.bagColors];
-  if (order.needBy) opts.needBy = order.needBy;
-  const designOut = JSON.parse(snapshot());
+  const previews = [previewDataUrl('a', 10, source)];
+  if (options.product === 'set' && !source.same) previews.push(previewDataUrl('b', 10, source));
+  const opts = { product: options.product, quantity: options.quantity, finish: options.finish, bags: options.bags, rush: options.rush,
+    carryCase: options.carryCase, occasion: options.occasion, giftNote: options.giftNote.trim() };
+  if (options.bags === 'regulation') opts.bagColors = [...options.bagColors];
+  if (options.needBy) opts.needBy = options.needBy;
+  const designOut = JSON.parse(JSON.stringify(source));
   const pictures = [];
   for (const k of ['a', 'b']) for (const e of designOut[k].elements) if (e.type === 'image') pictures.push(e);
   const payload = {
@@ -1542,14 +1631,32 @@ function orderPayload() {
 }
 $('orderform').addEventListener('submit', async (ev) => {
   ev.preventDefault();
+  if (orderSubmitting) return;
   const f = $('orderform');
   if (!f.checkValidity()) { f.reportValidity(); return; }
+  if (!reviewReady || reviewedRevision !== orderReviewRevision() || !samplesConfirmed()) { showOrderStep(2, { focus: true }); return; }
+  if (hasPendingImageUploads()) { status('warn', 'Your picture is still processing. Wait for it to finish, then review your design before continuing.'); return; }
   if (!activeBoard().elements.length && design.a.base.kind === 'paint' && design.a.pattern.kind === 'none') {
     if (!confirm('Your board is a plain colour with nothing on it. Order it like that?')) return;
   }
-  const btn = $('checkout'); btn.disabled = true; status('info', 'Sending your design…');
+  const revision = orderRevision(), source = JSON.parse(snapshot()), options = structuredClone(order);
+  const keys = options.product === 'set' && !source.same ? ['a', 'b'] : ['a'];
+  const btn = $('checkout'); orderSubmitting = true; btn.disabled = true; status('info', 'Preparing your design…');
   try {
-    const payload = orderPayload();
+    try {
+      await prepareOutputFonts(source);
+      await preloadImages(keys, { print: false, source });
+    } catch (_) {
+      status('bad', 'Your design could not be prepared. Check your uploaded pictures and try again. Nothing was charged.');
+      return;
+    }
+    if (revision !== orderRevision() || hasPendingImageUploads() || !samplesConfirmed()) {
+      showTab('order'); showOrderStep(2, { focus: true });
+      return;
+    }
+    if (!f.checkValidity()) { f.reportValidity(); return; }
+    const payload = orderPayload({ source, options });
+    status('info', 'Sending your design…');
     const r = await fetch('api/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const j = await r.json().catch(() => ({}));
     const files = payload.options.assets === 'pending' ? ' Your pictures were too large to send with the order, so we will email you for the full-size files.' : '';
@@ -1566,8 +1673,10 @@ $('orderform').addEventListener('submit', async (ev) => {
     }
   } catch (e) {
     status('bad', 'Could not reach the server. Check your connection and try again - nothing was charged.');
+  } finally {
+    orderSubmitting = false;
+    btn.disabled = false;
   }
-  btn.disabled = false;
 });
 
 /* The thank-you and the cancelled notes, from the URL Stripe sent the
@@ -1593,19 +1702,29 @@ async function showOutcome() {
 }
 
 // -- stage bar, project buttons
+async function prepareOutputFonts(source) {
+  if (document.fonts?.ready) await document.fonts.ready;
+  // Fit captured words using the loaded font while leaving live edits alone.
+  for (const board of [source.a, source.b]) for (const el of board.elements) {
+    if (el.type === 'text' && el.autoFit && el.fitReference && el.text !== el.fitReference.text) fitTemplateText(el);
+  }
+}
 async function sharePreview() {
   const btn = $('sharepreview'), message = $('sharestatus');
+  if (btn.disabled) return;
+  if (hasPendingImageUploads()) { message.hidden = false; message.textContent = 'A picture is still processing. Wait for it to finish, then share your preview.'; return; }
   btn.disabled = true; message.hidden = false; message.textContent = 'Preparing your preview…';
   try {
     const keys = order.product === 'set' ? ['a', 'b'] : ['a'];
-    await preloadImages(keys, { print: false });
-    if (document.fonts?.ready) await document.fonts.ready;
+    const source = JSON.parse(snapshot());
+    await preloadImages(keys, { print: false, source });
+    await prepareOutputFonts(source);
     const ppi = 12, width = BOARD.w * ppi, height = BOARD.h * ppi, pad = 32, gap = 24;
     const canvas = document.createElement('canvas'); canvas.width = pad * 2 + keys.length * width + (keys.length - 1) * gap; canvas.height = height + 124;
     const ctx = canvas.getContext('2d'); ctx.fillStyle = '#f7f4ed'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#26344c'; ctx.font = '600 20px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('My cornhole board design', canvas.width / 2, 34);
     keys.forEach((key, index) => {
-      const x = pad + index * (width + gap); ctx.save(); ctx.translate(x, 56); renderBoard(ctx, boardFor(key), ppi); ctx.restore();
+      const x = pad + index * (width + gap); ctx.save(); ctx.translate(x, 56); renderOutput(ctx, boardFor(key, source), ppi); ctx.restore();
       ctx.fillStyle = '#26344c'; ctx.font = '14px sans-serif'; ctx.fillText('Board ' + key.toUpperCase(), x + width / 2, height + 80);
     });
     ctx.fillStyle = '#5c6370'; ctx.font = '12px sans-serif'; ctx.fillText('Design preview · 24 × 48 inch boards', canvas.width / 2, height + 108);
@@ -1629,14 +1748,27 @@ $('undo').addEventListener('click', undo);
 $('redo').addEventListener('click', redo);
 $('reset').addEventListener('click', () => { if (!confirm('Start over with a blank board? This clears your design.')) return; design = freshDesign(); selected = null; active = 'a'; syncAll(); commit(); });
 $('download').addEventListener('click', async () => {
-  const keys = boardKeys();
-  try { await preloadImages(keys); }
-  catch (error) { alert(error.message + ' Your design is still here.'); return; }
-  for (const k of keys) {
-    const blob = await new Promise((res) => printCanvas(k).toBlob(res, 'image/png'));
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'cornhole-board-' + k.toUpperCase() + '-24x48in-100ppi.png';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+  const btn = $('download'); if (btn.disabled) return;
+  if (hasPendingImageUploads()) { alert('A picture is still processing. Wait for it to finish, then download the print file.'); return; }
+  const keys = boardKeys(), source = JSON.parse(snapshot());
+  const long = btn.querySelector('.long'), short = btn.querySelector('.short');
+  const labels = [long.textContent, short.textContent];
+  btn.disabled = true; btn.setAttribute('aria-busy', 'true');
+  long.textContent = 'Preparing print file'; short.textContent = 'Preparing…';
+  try {
+    await preloadImages(keys, { source });
+    await prepareOutputFonts(source);
+    for (const k of keys) {
+      const blob = await new Promise((res) => printCanvas(k, source).toBlob(res, 'image/png'));
+      if (!blob) throw new Error('The browser could not generate the print file. Please try again.');
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'cornhole-board-' + k.toUpperCase() + '-24x48in-100ppi.png';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+    }
+  } catch (error) { alert(error.message + ' Your design is still here.'); }
+  finally {
+    btn.disabled = false; btn.removeAttribute('aria-busy');
+    long.textContent = labels[0]; short.textContent = labels[1]; render();
   }
 });
 $('exportbtn').addEventListener('click', exportProject);
