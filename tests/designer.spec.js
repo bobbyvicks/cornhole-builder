@@ -346,12 +346,15 @@ test.describe('the quote and the order', () => {
     await expect(page.locator('#orderstatus')).toContainText('Could not reach the server');
   });
 
-  test('coming back from a cancelled payment keeps the design and says nothing was charged', async ({ page }) => {
+  test('coming back from a cancelled payment reports the verified pending order', async ({ page }) => {
+    await page.route('**/api/order?code=*', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      code: 'CH-ABC234', status: 'pending', product: 'set', quantity: 1, amount_cents: 30800, currency: 'usd',
+    }) }));
     await open(page, { query: '?order=cancelled&code=CH-ABC234' });
     expect(await page.isHidden('#done')).toBe(false);
-    expect(await page.textContent('#donetitle')).toContain('cancelled');
     expect(await page.textContent('#donebody')).toContain('CH-ABC234');
-    expect(await page.textContent('#donebody')).toContain('No charge');
+    await expect(page.locator('#done')).toContainText(/payment.*not.*confirmed|not.*confirmed.*payment/i);
+    await expect(page.locator('#done')).not.toContainText(/no charge|nothing was charged/i);
   });
 });
 
@@ -937,10 +940,8 @@ test.describe('the audit: saving, keyboard, guidance, pricing, review and print 
     expect(await page.evaluate(() => cornhole.selected)).toBe(first);
     expect(await page.evaluate(() => document.activeElement.id)).toBe('ttext');
     expect(await page.evaluate(() => document.activeElement.selectionEnd)).toBe('YOUR TEAM'.length);
-    await expect(page.locator('#texthint')).toContainText('sample words');
     await page.keyboard.type('THE MILLERS');
     expect(await page.evaluate(() => cornhole.design.a.elements.find((e) => e.type === 'text').text)).toBe('THE MILLERS');
-    expect(await page.isHidden('#texthint')).toBe(true);
     await page.evaluate(() => cornhole.showTab('templates'));
     await page.click('#startblank');
     await page.waitForTimeout(150);
@@ -1319,7 +1320,6 @@ test.describe('the second audit round: saving as you type, focus that never fall
     const pad = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop));
     const covered = await page.evaluate(() => 60 + document.querySelector('.stage').offsetHeight);
     expect(pad, 'the header plus the stuck stage').toBeGreaterThanOrEqual(covered);
-    expect(await page.isHidden('#modehint')).toBe(true);
   });
 
   test('the rush line says about, from the one constant', async ({ page }) => {

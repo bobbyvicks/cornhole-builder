@@ -381,20 +381,79 @@ the clock and repository state before each run.
   access, physical iOS keyboard/native-sharing checks and owner-supplied
   business configuration remain the same as in the previous increment.
 
-## Next overnight priorities
+## Tenth increment - verified order-return guidance
 
-1. Check the existing overnight PR and remote main for Claude changes before editing.
-2. Check any new PR preview/check results. The currently inspected public site
-   and preview are older; explicit Vercel team access is blocked as noted above.
-3. Audit fresh desktop/mobile customer journeys, including image placement,
-   text personalization and keyboard navigation; change only concrete gaps.
-4. Check resource use with several photos if actual editing reveals another
-   problem. Photo-history duplication is addressed by the fifth increment.
-5. Device-test native sharing and the iOS keyboard when a physical device is
-   available; Chromium emulation does not establish those behaviors.
-6. Keep changes small, independently reviewed and tested; update this work log
-   and the same PR with each meaningful increment. No new cloud storage or
-   invented business details. Stop by 7 a.m. Toronto and report remaining needs.
+- Started from clean `c41128b` at 5:53 a.m. Toronto. The Claude handoff was
+  already pushed. Main remained `06f7b0e`; PR #2 was open and mergeable with
+  no deployment checks. Continued on the same branch and preserved all work.
+- Reproduced the return screen claiming success and promising a receipt and
+  shipping follow-up before its order lookup finished. The same claims stayed
+  visible after pending, missing-order and offline responses. Both successful
+  and cancelled checkout return URLs now identify the order to check; only
+  its validated server response determines the displayed status.
+- Keep the order code visible during lookup, distinguish payment-unconfirmed,
+  paid, in-production, shipped and cancelled records, and show an honest
+  unavailable/not-found message when the check fails. No charge, refund,
+  receipt or shipping-contact claim is inferred from the return URL. Display
+  the stored order summary with currency and its before-tax qualification.
+- A Check status again button makes a fresh GET, with duplicate requests
+  suppressed and an eight-second timeout covering response headers and body.
+  Invalid/missing codes make no request. Mismatched codes, unknown statuses,
+  malformed amounts/products and unsupported currency remain unconfirmed.
+  The timeout also prevents a late response from replacing a later retry.
+- Independent review reproduced arrays passing coerced property-key checks;
+  require string status/product values before lookup. A keyboard regression
+  found native button disabling dropped focus. Use an accessible disabled
+  state plus a synchronous guard, retaining focus without restoring it later
+  over a newer edit. Completed checks do not scroll or focus the page.
+- Fourteen new browser regressions and the corrected cancellation test pass
+  in the focused run. They cover real GET requests with stubbed responses,
+  both return URLs, pending/verified states, bad response shapes, timeouts,
+  retries, retained saved artwork and editing during a retry. The initial red
+  run reproduced three failures before implementation. Inspected the 375-pixel
+  pending-status screenshot: code, explanation, summary and focused retry are
+  readable with no horizontal overflow.
+- A separate fresh keyboard/customer audit found no additional gap across
+  six desktop/phone viewport sizes and advanced text/art controls, including
+  200%/400% equivalent reflow. This is viewport emulation, not verification of
+  native browser zoom, physical iOS keyboards or native OS sharing.
+- The public `app.mjs` returned HTTP 200 but still lacked template search,
+  outgoing request preparation, unchanged-save protection and these verified
+  outcome messages. The Vercel team permission limitation remains recorded;
+  no denied team operation was retried and no production release was made.
+- Final full `npm test`: **68 node tests, 280 Chromium browser tests and
+  TypeScript checks passed**. Independent review closed the response-shape
+  and retry-focus findings; syntax and whitespace checks passed. Prices,
+  checkout submission, saved-project format and server handlers are unchanged.
+  All order-status responses in tests were stubbed; no real purchases or
+  customer messages were made. The Claude handoff is updated with this result.
+
+## Overnight effort closed: October 14, 2026
+
+Implementation stopped before the 7 a.m. America/Toronto cutoff. The final
+heartbeat made documentation and schedule closeout changes only. The overnight
+automation is paused; this one-night effort will not continue automatically.
+
+The final remote check at 6:58 a.m. found a clean working tree, no new remote
+changes, and PR #2 open and mergeable. Tested application code remains at
+`85377e7bb7eedd098695760e25a0c681c8cf9916`: 68 node tests, 280 Chromium browser
+tests and TypeScript checks passed. Subsequent commits only update this log and
+the Claude handoff. PR #1's artwork is included in PR #2. No merge or production
+release was made.
+
+- Reviewable work: https://github.com/bobbyvicks/cornhole-builder/pull/2
+- Claude pickup instructions: [claude-handoff.md](claude-handoff.md).
+
+Remaining follow-up needs:
+
+1. Obtain Vercel team access and verify a preview serving the exact tested
+   commit. The inspected public site and preview serve older code.
+2. Test native sharing and the iOS keyboard on physical devices; Chromium
+   emulation does not establish those behaviors.
+3. Add conflict detection and recovery for deliberate edits in multiple tabs.
+   Unchanged navigation is protected; competing actual edits can overwrite saves.
+4. Verify the owner's real prices, contacts, product photos and fulfilment
+   policies before release. Preserve current values until replacements are supplied.
 
 ## Local verification
 

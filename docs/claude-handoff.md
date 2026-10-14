@@ -3,12 +3,16 @@
 The owner asked Codex to push the overnight improvements for you to pick up.
 Review the existing PR and continue from the implemented work below.
 
+The one-night Codex effort ended at the October 14, 2026, 7 a.m. Toronto cutoff.
+Its automation is paused. The branch is pushed for review; no merge or production
+deployment was made. This handoff is in the repository for Claude to pick up.
+
 ## Source to pick up
 
 - Repository: https://github.com/bobbyvicks/cornhole-builder
 - PR: https://github.com/bobbyvicks/cornhole-builder/pull/2
 - Branch: `codex/overnight-ux`
-- Tested implementation commit: `f4d456a0fbc77c63e06855250ad81a034907cac4`
+- Tested implementation commit: `85377e7bb7eedd098695760e25a0c681c8cf9916`
 - Integrated main through `06f7b0e1e28802473627ae772df31e753dd2a720`, including
   your second audit. Fetch again and preserve any newer work before integrating.
 - Full implementation history and evidence: [overnight-improvements.md](overnight-improvements.md).
@@ -45,10 +49,16 @@ those release instructions. The artwork from PR #1 is already included in #2.
 - Explain unavailable ordering and offer an editable export. Contact fallback
   text accurately describes when notes are submitted; preview, print and project
   downloads have distinct explanations.
-- Latest increment: unchanged board/order navigation no longer saves a stale
+- Unchanged board/order navigation no longer saves a stale
   tab over a newer draft. Pending-save typing and undo remain safe. Mobile save
   errors, stalled reads and unreadable drafts remain visible; completed recovery
   updates the screen-reader announcement.
+- Latest increment: returning from checkout verifies the stored order status
+  before confirming payment. Pending, missing and unavailable lookups retain
+  the code and offer a GET-only retry, with an eight-second timeout. Both return
+  URLs defer to validated server data; keyboard retry keeps focus and delayed
+  updates leave newer design edits alone. No receipt or no-charge claim is
+  inferred from the URL.
 
 ## Review fixes on this branch
 
@@ -155,12 +165,14 @@ At the tested implementation commit `f4d456a`, the final clean `npm test`
 passed:
 
 - 68 node tests.
-- 266 Chromium browser tests.
+- 280 Chromium browser tests.
 - TypeScript checking; syntax and whitespace checks also passed.
 
 Tests cover real shared IndexedDB tabs, pending-save races, image round trips,
 print metadata, mobile recovery, imports and, since the review fixes, all 480
 pricing combinations (each total against the price list and its own lines).
+Order-return cases also cover malformed rows, stalled headers/bodies, retries
+and preserving artwork and keyboard focus.
 Order/payment services were stubbed. No real purchase or customer message was
 made. The work log records an earlier Chromium resource-buffer failure and the
 subsequent passing focused and complete reruns.

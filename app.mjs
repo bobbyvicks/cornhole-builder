@@ -981,20 +981,14 @@ function applyBlank() {
   selected = null; active = 'a';
   syncAll(); commit(); promptForWords();
 }
-/* Straight to the words: the first text is selected and ready to type
-   over, with a line saying so. */
+/* Straight to the words: the first text is selected and ready to type over. */
 function promptForWords() {
   const first = design.a.elements.find((e) => e.type === 'text');
   showTab('text');
-  const hint = $('texthint');
   if (first) {
     select(first.id);
-    hint.textContent = 'Replace the sample words below. Long names resize to fit; choose any line to change its font and colours.';
-    hint.hidden = false;
     const i = $('ttext'); i.focus(); i.select();
   } else {
-    hint.textContent = 'A blank board. Add your first words with the button below, then colours and art from the other tabs.';
-    hint.hidden = false;
     $('addtext').focus();
   }
 }
@@ -1035,8 +1029,7 @@ function templateCard(t) {
   c.setAttribute('aria-hidden', 'true');
   lazyThumbnail(c, () => { const g = c.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, c.width, c.height); renderOutput(g, t.board(), c.height / BOARD.h); }, true);
   const s = document.createElement('span'); s.textContent = t.label;
-  const action = document.createElement('small'); action.className = 'tpl-action'; action.textContent = 'Personalize design'; action.setAttribute('aria-hidden', 'true');
-  b.append(c, s, action);
+  b.append(c, s);
   b.addEventListener('click', () => askThenApply('the ' + t.label + ' template', () => applyTemplate(t.id)));
   const terms = normalizeSearch([t.label, t.id, OCCASIONS[t.occasion], TEMPLATE_GROUPS.find(g => g[0] === t.occasion)?.[1], ...t.board().elements.map(e => e.text || CLIPS[e.name]?.label || '')].join(' '));
   card = { button: b, terms };
@@ -1165,13 +1158,9 @@ function syncBoard() {
   const twoBoards = order.product === 'set', split = twoBoards && !design.same, other = active === 'a' ? 'b' : 'a';
   setChip('boardmode', design.same ? 'same' : active);
   $('boardmode').hidden = !twoBoards;
-  $('modehint').hidden = !split;
   $('boardactions').hidden = !split;
   $('copyother').textContent = 'Copy to Board ' + other.toUpperCase();
   $('swapcolours').textContent = 'Board ' + other.toUpperCase() + ' in the opposite colours';
-  $('boardshint').textContent = !twoBoards ? 'A single board.'
-    : design.same ? 'One design on both boards. For two different boards, pick Board A or Board B above the preview.'
-    : 'Editing Board ' + active.toUpperCase() + '. Switch with Board A and Board B above the preview. Both boards match goes back to one design.';
   $('boardB').classList.toggle('hidden', !twoBoards);
   $('boardB').classList.toggle('same', design.same);
   for (const k of ['a', 'b']) {
@@ -1216,17 +1205,20 @@ function syncPersonalization() {
   const host = $('personalization'); if (!host) return;
   const el = selectedEl(); host.hidden = !el || el.type !== 'text'; if (host.hidden) return;
   if (!host.childElementCount) {
-    host.innerHTML = '<p class="hint">Change each line below, then choose your colours. Select a line to adjust its font and placement.</p><div class="personalization-actions"><label><input type="checkbox" id="autofittext"> Keep this line within its original space</label><button class="btn small" id="fittext" type="button">Fit this line</button></div><p id="fitstatus" class="fit-status" role="status" aria-live="polite"></p>';
+    host.innerHTML = '<div class="personalization-actions"><label><input type="checkbox" id="autofittext"> Auto-fit text</label><button class="btn small" id="fittext" type="button">Fit this line</button></div><p id="fitstatus" class="fit-status sr" role="status" aria-live="polite"></p>';
     $('autofittext').addEventListener('change', () => { const e = selectedEl(); if (!e || e.type !== 'text') return; e.fitReference ||= fittingReference(e); e.autoFit = $('autofittext').checked; fitTemplateText(e); render(); syncProps(); commit(); });
     $('fittext').addEventListener('click', () => { const e = selectedEl(); if (!e || e.type !== 'text') return; e.fitReference ||= fittingReference(e); e.autoFit = true; fitTemplateText(e); render(); syncProps(); commit(); });
   }
   $('autofittext').checked = !!el.autoFit;
   const status = $('fitstatus');
-  const say = (state, text) => { if (status.dataset.state !== state) status.dataset.state = state; setText(status, text); };
-  if (!el.autoFit) { say('manual', 'Manual sizing. Fit this line whenever you need help with a long name.'); return; }
+  const say = (state, text, quiet) => { if (status.dataset.state !== state) status.dataset.state = state; status.classList.toggle('sr', quiet); setText(status, text); };
+  if (!el.autoFit) { say('manual', '', true); return; }
   const ref = fittingReference(el), limit = fitLimits(el, ref), actual = measureTextBox(el);
   const tooLong = actual.w > limit.w + 0.03 || actual.h > limit.h + 0.03;
-  say(tooLong ? 'warning' : 'fit', tooLong ? 'This line is still too long to fit clearly. Shorten the words or adjust the layout before ordering.' : el.size < ref.size - 0.01 ? 'Text reduced to fit its original space. Check the preview for readability.' : 'Text fits its original space. Longer names resize automatically.');
+  const reduced = el.size < ref.size - 0.01;
+  /* Nothing is said while a line simply fits; a reduced or an overlong line
+     is, once, in the open. */
+  say(tooLong ? 'warning' : 'fit', tooLong ? 'Text is too long. Shorten it or adjust the layout before ordering.' : reduced ? 'Text reduced to fit. Check readability.' : '', !tooLong && !reduced);
 }
 for (const [cat, fonts] of FONTS) {
   const g = document.createElement('optgroup'); g.label = cat;
@@ -1242,7 +1234,7 @@ function addElement(el, tab) {
 $('addtext').addEventListener('click', () => {
   const b = activeBoard();
   const el = addElement(T('NEW TEXT', { size: 3, y: 36, color: b.base.kind === 'wood' ? '#36393b' : '#f5f5f0' }), 'text');
-  if (el) { $('texthint').hidden = true; $('ttext').focus(); $('ttext').select(); }
+  if (el) { $('ttext').focus(); $('ttext').select(); }
 });
 const field = (id, key, map = (v) => v, label = null) => {
   $(id).addEventListener('input', () => {
@@ -1263,7 +1255,6 @@ const toggle = (id, key) => {
 };
 const inch = (v) => v + '"', deg = (v) => v + '°';
 field('ttext', 'text');
-$('ttext').addEventListener('input', () => { $('texthint').hidden = true; });
 field('tfont', 'font');
 field('tsize', 'size', Number, inch);
 field('tcolor', 'color');
@@ -1542,7 +1533,7 @@ function itemRow(el, pressed, onClick) {
     const q = document.createElement('input'); q.type = 'text'; q.className = 'quick'; q.value = el.text; q.maxLength = 60; q.dataset.id = el.id;
     q.setAttribute('aria-label', 'Words: ' + (el.fitReference?.text || el.text)); q.style.fontFamily = '"' + el.font + '", Impact, sans-serif';
     q.addEventListener('focus', () => { if (selected !== el.id) select(el.id); });
-    q.addEventListener('input', () => { const e = findEl(el.id); if (!e) return; e.text = q.value; fitTemplateText(e); $('texthint').hidden = true; render(); updateRow(row, e, selected === e.id); if (selected === e.id) syncProps(); saveSoon(); });
+    q.addEventListener('input', () => { const e = findEl(el.id); if (!e) return; e.text = q.value; fitTemplateText(e); render(); updateRow(row, e, selected === e.id); if (selected === e.id) syncProps(); saveSoon(); });
     q.addEventListener('change', commit);
     row.append(b, q);
   } else {
@@ -1965,26 +1956,72 @@ $('orderform').addEventListener('submit', async (ev) => {
   }
 });
 
-/* The thank-you and the cancelled notes, from the URL Stripe sent the
-   customer back to. */
-async function showOutcome() {
+/* A return URL identifies the order to check, not its payment status.
+   Use the saved status for both successful and cancelled checkout links. */
+function showOutcome() {
   const p = new URLSearchParams(location.search);
   const o = p.get('order'), code = (p.get('code') || '').toUpperCase();
-  if (!o) return;
+  if (!['success', 'cancelled'].includes(o)) return;
   const box = $('done'); box.hidden = false;
-  if (o === 'success') {
-    $('donetitle').textContent = 'Thank you - your order is in.';
-    $('donebody').innerHTML = '<p>Your order code is <code>' + code.replace(/[^A-Z0-9-]/g, '') + '</code>. Keep it for any questions. Stripe is emailing you a receipt, and we will be in touch when your boards ship.</p><p id="donestatus"></p>';
-    try {
-      const r = await fetch('api/order?code=' + encodeURIComponent(code));
-      if (r.ok) { const j = await r.json(); $('donestatus').textContent = 'Status: ' + j.status + '. ' + j.quantity + ' x ' + (PRICING.products[j.product] || {}).label + ', ' + money(j.amount_cents) + '.'; }
-    } catch (_) {}
-  } else if (o === 'cancelled') {
-    box.classList.add('cancelled');
-    $('donetitle').textContent = 'Payment cancelled.';
-    $('donebody').innerHTML = '<p>No charge was made, and your design is still here. When you are ready, go to the Order tab, review it and continue to payment again: that places a new order with a new code' + (code ? ', and the unpaid one, <code>' + code.replace(/[^A-Z0-9-]/g, '') + '</code>, is simply left' : '') + '.</p>';
-  }
+  const retry = $('retryorder'), summary = $('returnedordersummary');
+  const show = (state, title, message) => {
+    box.dataset.state = state; $('donetitle').textContent = title;
+    $('donestatus').textContent = message; summary.hidden = true;
+  };
+  // Scroll only on arrival. A late lookup must not move someone who is editing.
   box.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  if (!/^CH-[A-Z0-9]{6}$/.test(code)) {
+    show('invalid', 'Order status unavailable.', 'This link is missing a valid order code. Open the complete checkout return link to check your order.');
+    return;
+  }
+  $('orderreference').hidden = false; $('returnedordercode').textContent = code;
+  retry.hidden = false;
+  const states = {
+    pending: ['Payment not confirmed yet.', 'Your order is recorded, but payment has not been confirmed. Check the status again before starting another payment.'],
+    paid: ['Payment confirmed.', 'Your order is marked as paid.'],
+    in_production: ['Your boards are in production.', 'Order status: in production.'],
+    shipped: ['Your order has shipped.', 'Order status: shipped.'],
+    cancelled: ['Order cancelled.', 'The stored order is marked as cancelled. Keep this order code for reference.'],
+  };
+  const check = async () => {
+    if (retry.getAttribute('aria-disabled') === 'true') return;
+    // Retain keyboard focus while preventing another request. A native
+    // disabled button drops focus, and restoring it later could steal an edit.
+    retry.setAttribute('aria-disabled', 'true'); retry.setAttribute('aria-busy', 'true');
+    show('checking', 'Checking your order.', 'Checking the saved order status.');
+    const controller = new AbortController();
+    const notFound = Symbol('order-not-found');
+    let timeout;
+    try {
+      const lookup = (async () => {
+        const r = await fetch('api/order?code=' + encodeURIComponent(code), { signal: controller.signal, cache: 'no-store' });
+        if (r.status === 404) return notFound;
+        if (!r.ok) throw new Error('Order lookup unavailable');
+        return await r.json();
+      })();
+      // Bound the whole read, including a response body that never finishes.
+      const j = await Promise.race([lookup, new Promise((_, reject) => {
+        timeout = setTimeout(() => { reject(new Error('Order lookup timed out')); controller.abort(); }, 8000);
+      })]);
+      if (j === notFound) {
+        show('not-found', 'Order code not found.', 'This order code was not found. Check the code and try again before starting another payment.');
+        return;
+      }
+      if (!j || j.code !== code || typeof j.status !== 'string' || !Object.hasOwn(states, j.status) ||
+          typeof j.product !== 'string' || !Object.hasOwn(PRICING.products, j.product) ||
+          !Number.isSafeInteger(j.quantity) || j.quantity < 1 || !Number.isSafeInteger(j.amount_cents) || j.amount_cents < 0 ||
+          typeof j.currency !== 'string' || j.currency.toLowerCase() !== PRICING.currency) throw new Error('Unrecognized order response');
+      show(j.status, ...states[j.status]);
+      summary.textContent = j.quantity + ' x ' + PRICING.products[j.product].label + ', ' + money(j.amount_cents) + ' USD before tax.';
+      summary.hidden = false;
+    } catch (_) {
+      show('unavailable', 'Order status unavailable.', 'We could not confirm this order\'s status right now. Check again before starting another payment.');
+    } finally {
+      clearTimeout(timeout); retry.removeAttribute('aria-disabled'); retry.removeAttribute('aria-busy');
+    }
+  };
+  retry.addEventListener('click', check);
+  check();
 }
 
 // -- stage bar, project buttons

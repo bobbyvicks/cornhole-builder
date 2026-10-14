@@ -58,10 +58,10 @@
 
   .hero { padding: 28px 0 10px; }
   .hero h1 { font-size: clamp(26px, 4vw, 40px); font-weight: 800; }
-  .hero p { margin: 8px 0 0; color: var(--muted); max-width: 64ch; }
 
-  #done { margin: 18px auto 0; background: var(--panel); border: 1px solid var(--line); border-left: 6px solid var(--ok); border-radius: var(--radius); padding: 18px 20px; }
-  #done.cancelled { border-left-color: var(--warn); }
+  #done { margin: 18px auto 0; background: var(--panel); border: 1px solid var(--line); border-left: 6px solid var(--line); border-radius: var(--radius); padding: 18px 20px; }
+  #done:is([data-state="paid"], [data-state="in_production"], [data-state="shipped"]) { border-left-color: var(--ok); }
+  #done:is([data-state="pending"], [data-state="cancelled"], [data-state="unavailable"], [data-state="not-found"], [data-state="invalid"]) { border-left-color: var(--warn); }
   #done h2 { font-size: 20px; margin-bottom: 6px; }
   #done p { margin: 4px 0; }
   #done code { background: var(--bg); padding: 2px 8px; border-radius: 6px; font-weight: 700; }
@@ -91,6 +91,10 @@
   .stagebar .group { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   #download .short { display: none; }
   .hint { font-size: 12.5px; color: var(--muted); }
+  .builder-help { margin: 0 16px; border-bottom: 1px solid var(--line); }
+  .builder-help summary, .info-disclosure > summary { cursor: pointer; min-height: 44px; padding: 12px 0; font-weight: 600; }
+  .builder-help summary { font-size: 13px; color: var(--muted); }
+  .builder-help p { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
   .savestatus { font-size: 12.5px; color: var(--muted); }
   .savestatus[data-state="saved"] { color: var(--ok); }
   .savestatus[data-state="error"], .savestatus[data-state="unreadable"] { color: var(--bad); font-weight: 600; }
@@ -98,7 +102,7 @@
   .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 12px; cursor: pointer; font-weight: 600; min-height: 44px; min-width: 44px; }
   label.btn { display: inline-flex; align-items: center; }
   .btn:hover { border-color: #c9c1b4; background: #faf8f4; }
-  .btn:disabled { opacity: .5; cursor: default; }
+  .btn:disabled, .btn[aria-disabled="true"] { opacity: .5; cursor: default; }
   .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .btn.primary:hover { background: #17307a; }
   .btn.danger { color: var(--bad); }
@@ -177,18 +181,17 @@
   .template-filters { display: flex; flex-wrap: wrap; gap: 8px; }
   .template-filters { align-items: center; }
   .template-filters select { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 9px 10px; flex: 1; min-width: 150px; min-height: 44px; font-size: 16px; }
-  .tpl-action { color: var(--accent); font-size: 12px; }
   #startblank { width: 100%; text-align: left; margin-top: 4px; }
   .fit-status[data-state="warning"] { color: var(--bad); font-weight: 600; }
   .template-results { margin: 0; font-size: 13px; color: var(--muted); }
   .template-empty { padding: 20px 14px; border: 1px dashed var(--line); border-radius: 10px; background: #faf8f4; color: var(--muted); }
-  .personalization { margin: 12px 0 18px; padding: 14px; border: 1px solid #cbd4ee; border-radius: 10px; background: #f4f6fc; }
+  .personalization { margin: 8px 0 12px; }
   .personalization h3 { margin-top: 0; color: var(--accent); }
   .personalization-fields { display: grid; gap: 12px; }
   .personalization-row { display: grid; gap: 5px; min-width: 0; }
   .personalization-row label { font-size: 13.5px; font-weight: 600; }
   .personalization-row input { width: 100%; min-width: 0; min-height: 44px; padding: 9px 10px; font-size: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
-  .personalization-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .personalization-actions { display: flex; flex-wrap: wrap; gap: 8px; }
   .personalization-actions label { display: flex; align-items: center; gap: 8px; min-height: 44px; flex: 1 1 170px; font-size: 13.5px; }
   .fit-status { margin: 8px 0 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
 
@@ -242,13 +245,16 @@
 
   #mobilebar { display: none; }
 
-  .how { padding: 10px 0 20px; }
-  .how h2, .trust h2 { font-size: 24px; margin-bottom: 14px; }
+  .how { padding: 0; }
+  .info-disclosure { border-top: 1px solid var(--line); }
+  .info-disclosure > summary { font-size: 16px; }
+  .info-disclosure[open] > summary { margin-bottom: 8px; }
+  .info-disclosure .steps { margin-bottom: 20px; }
   .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
   .step { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
   .step b { display: block; margin-bottom: 4px; }
   .step p { margin: 0; color: var(--muted); font-size: 14px; }
-  .trust { padding: 10px 0 50px; }
+  .trust { padding: 0 0 32px; }
   .photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-bottom: 16px; }
   .photos img { width: 100%; border-radius: var(--radius); display: block; }
   footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; padding: 18px 0 30px; }
@@ -280,7 +286,6 @@
     .stagebar { padding-top: 6px; margin-top: 4px; gap: 6px; }
     .stagebar .savestatus { display: none; }
     .stagebar .savestatus:is([data-state="error"], [data-state="waiting"], [data-state="unreadable"]) { display: block; flex-basis: 100%; }
-    #stagehint { display: none; }
     #download .long { display: none; }
     #download .short { display: inline; }
     .pane { padding: 12px; }
@@ -289,7 +294,6 @@
     .btn.small { padding: 7px 8px; }
     .sw { min-height: 44px; }
     .hero { padding: 12px 0 2px; }
-    .hero p { display: none; }
     #mobilebar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--panel); border-top: 1px solid var(--line); padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); align-items: center; justify-content: space-between; gap: 10px; box-shadow: 0 -6px 16px rgba(0,0,0,.08); }
     #mobilebar .btn { flex: none; }
     #mobilebar .total { font-size: 13px; color: var(--muted); }
@@ -315,7 +319,6 @@
     nav.site a { display: none; }
     form.order { grid-template-columns: 1fr; }
     .board.inactive { display: none; }
-    #modehint { display: none; }
     #boardmode { display: grid; grid-template-columns: minmax(0, 1.7fr) repeat(2, minmax(0, 1fr)); width: 100%; }
     #boardmode .chip { padding: 4px 6px; font-size: 12.5px; line-height: 1.2; }
     .stagebar, .stagebar .group { gap: 4px; }
@@ -354,12 +357,16 @@
 <main class="wrap">
   <section class="hero">
     <h1>Design your own cornhole boards.</h1>
-    <p>Regulation 2' x 4' boards, built from Baltic birch and finished by hand. For the backyard, the tailgate, the big day: start from a template or a blank board, add your words, your colours, clip art and pictures, and order the set.</p>
   </section>
 
-  <section id="done" hidden>
+  <section id="done" aria-labelledby="donetitle" hidden>
     <h2 id="donetitle"></h2>
-    <div id="donebody"></div>
+    <div id="donebody">
+      <p id="orderreference" hidden>Your order code is <code id="returnedordercode"></code>. Keep it for reference.</p>
+      <p id="donestatus" role="status" aria-live="polite" aria-atomic="true"></p>
+      <p id="returnedordersummary" hidden></p>
+      <button id="retryorder" class="btn" type="button" hidden>Check status again</button>
+    </div>
   </section>
 
   <!-- The save announcements live outside the regions that are inert
@@ -376,7 +383,6 @@
           <button class="chip" data-v="a" aria-pressed="false">Board A</button>
           <button class="chip" data-v="b" aria-pressed="false">Board B</button>
         </div>
-        <span class="hint" id="modehint" hidden>Tap a board to edit it</span>
       </div>
       <div class="boards">
         <div class="board" id="boardA">
@@ -400,7 +406,6 @@
           <button class="btn small" id="download" title="A 2400 x 4800 PNG at 100 pixels per inch, drawn from the full-size originals of your pictures"><span class="long">Download print file</span><span class="short">Print file</span></button>
         </div>
       </div>
-      <p class="hint" id="stagehint">Drag anything on the board. Pull the corner square to resize, the round handle to rotate, and the red &times; to remove. With the board focused, arrow keys nudge, + and - resize, Delete removes.</p>
     </section>
 
     <aside class="panel" id="design-options" tabindex="-1" aria-label="Design options" inert>
@@ -412,6 +417,14 @@
         <button role="tab" id="tabbtn-order" data-tab="order" aria-selected="false" aria-controls="tab-order" tabindex="-1">Order</button>
       </div>
 
+      <details class="builder-help" id="builderhelp">
+        <summary>Help</summary>
+        <p><b>Edit boards:</b> Choose matching boards or select Board A or B. Drag an item to move it; use its square handle to resize and round handle to rotate.</p>
+        <p><b>Keyboard:</b> Focus the board, then use arrow keys to move the selection, + or - to resize, and Delete to remove it.</p>
+        <p><b>Text:</b> Replace a template's words in the Text tab. Auto-fit keeps a line within its original space; manual sizing switches it off.</p>
+        <p><b>Pictures:</b> Add PNG, JPG, WebP or SVG files. Transparent PNGs work well for logos. Use Remove white background for a logo on white; full-size originals are kept for printing.</p>
+        <p><b>Files:</b> Save editable copy keeps a project you can reopen. Share preview creates an image; Print file downloads full-size artwork.</p>
+      </details>
       <p class="hint" id="uploadstatus" role="status" aria-live="polite" hidden></p>
       <div class="pane" id="tab-templates" data-open="true" role="tabpanel" aria-labelledby="tabbtn-templates">
         <div class="project" id="project">
@@ -424,12 +437,9 @@
         </div>
         <button class="btn" id="startblank" type="button">+ Start with blank boards</button>
         <div id="templates"></div>
-        <p class="hint" style="margin-top:10px">Every word, colour and picture on a template can be changed.</p>
       </div>
 
       <div class="pane" id="tab-board" data-open="false" role="tabpanel" aria-labelledby="tabbtn-board">
-        <h3>Boards</h3>
-        <p class="hint" id="boardshint"></p>
         <div class="row" id="boardactions" hidden>
           <button class="btn small" id="copyother"></button>
           <button class="btn small" id="swapcolours" title="The other board gets this design with its two main colours switched - the classic look for a set"></button>
@@ -466,7 +476,6 @@
 
       <div class="pane" id="tab-text" data-open="false" role="tabpanel" aria-labelledby="tabbtn-text">
         <h3>Words on <span class="activename">your board</span></h3>
-        <p class="hint" id="texthint" hidden></p>
         <div class="items" id="texts"></div>
         <div id="personalization" class="personalization" hidden></div>
         <button class="btn" id="addtext">+ Add text</button>
@@ -480,7 +489,7 @@
             <button class="btn small danger" id="tdel">Remove</button>
           </div>
           <details class="more" id="textmore">
-            <summary>More: curve, spacing, rotate, position, shadow, layers</summary>
+            <summary>Advanced text</summary>
             <div class="row"><label for="tarc">Curve</label><input type="range" id="tarc" min="-180" max="180" step="5"><span class="val" id="tarcval"></span></div>
             <div class="row"><label for="tspacing">Spacing</label><input type="range" id="tspacing" min="-0.2" max="1.5" step="0.05"><span class="val" id="tspacingval"></span></div>
             <div class="row"><label for="trot">Rotate</label><input type="range" id="trot" min="-180" max="180" step="1"><span class="val" id="trotval"></span></div>
@@ -517,7 +526,7 @@
             <button class="btn small danger" id="idel">Remove</button>
           </div>
           <details class="more" id="artmore">
-            <summary>More: rotate, opacity, position, layers</summary>
+            <summary>Advanced artwork</summary>
             <div class="row"><label for="irot">Rotate</label><input type="range" id="irot" min="-180" max="180" step="1"><span class="val" id="irotval"></span></div>
             <div class="row"><label for="iopacity">Opacity</label><input type="range" id="iopacity" min="0.1" max="1" step="0.05"><span class="val" id="iopacityval"></span></div>
             <div class="row"><label for="ix">Across</label><input type="range" id="ix" min="0" max="24" step="0.1"><span class="val" id="ixval"></span></div>
@@ -531,9 +540,8 @@
         </div>
 
         <h3>Your pictures</h3>
-        <button class="btn" type="button" id="addimagebtn">+ Add a picture or logo</button>
+        <div class="row"><button class="btn" type="button" id="addimagebtn" aria-describedby="picturelimit">+ Add a picture or logo</button><span class="hint" id="picturelimit">Up to 4 per board</span></div>
         <input type="file" id="addimage" class="sr" tabindex="-1" accept="image/png,image/jpeg,image/webp,image/svg+xml">
-        <p class="hint">PNG with transparency looks best; for a logo on white, tick "Remove white background" after adding it. We keep the full-size original for printing and tell you if it is too small for the size you choose. Up to 4 per board.</p>
 
         <h3>Clip art</h3>
         <div class="clip-tools">
@@ -543,7 +551,6 @@
         <details class="more clip-filters" id="clipfilters"><summary id="clipfilterlabel">Browse groups: All artwork</summary><div class="chips clipcats" id="clipcats" role="group" aria-label="Clip art group"></div></details>
         <p id="clipempty" class="template-empty" hidden>No matching artwork. Try a different word or clear the filters.</p>
         <div class="clips" id="clips"></div>
-        <p class="hint" style="margin-top:8px">Clip art is drawn as vectors, so it prints razor-sharp at any size, in any colour.</p>
       </div>
 
       <div class="pane" id="tab-order" data-open="false" role="tabpanel" aria-labelledby="tabbtn-order">
@@ -627,23 +634,27 @@
   </div>
 
   <section class="how" id="how">
-    <h2>How it works</h2>
+    <details class="info-disclosure">
+    <summary>How it works</summary>
     <div class="steps">
       <div class="step"><b>1. Design it</b><p>Pick a template or a blank board. Colours, fades and wood stains, patterns, 35 fonts, curved text, clip art and your own pictures. What you see is what we print.</p></div>
       <div class="step"><b>2. We build it</b><p>Regulation 24" x 48" boards, 3/4" Baltic birch tops on a solid frame, folding legs, 6" hole 9" from the top. Your design is printed and sealed under a clear coat - or a matte guest-book finish your wedding guests can sign.</p></div>
       <div class="step"><b>3. It ships</b><p id="howdispatch"></p></div>
     </div>
+    </details>
   </section>
 
   <section class="trust" id="trust">
-    <h2>Good to know</h2>
     <div class="photos" id="photos" hidden></div>
+    <details class="info-disclosure">
+    <summary>Contact &amp; delivery</summary>
     <div class="steps">
       <div class="step"><b>Contact</b><p id="contactcard"></p></div>
       <div class="step"><b>Delivery</b><p id="deliverycard"></p></div>
       <div class="step"><b>Custom orders</b><p id="customcard"></p></div>
       <div class="step"><b>Design approval</b><p id="approvalcard"></p></div>
     </div>
+    </details>
   </section>
 </main>
 
