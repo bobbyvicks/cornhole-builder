@@ -3,11 +3,11 @@
 A site where people design their own cornhole boards and order them.
 
 - **Design live.** A regulation 24" x 48" board (6" hole, 9" from the top)
-  drawn on a canvas in inches, not pixels. Twenty-six templates to start from
+  drawn on a canvas in inches, not pixels. Thirty-two templates to start from
   (weddings, engagements, anniversaries, birthdays, baby showers, graduations, family, cabins, camping, tailgates, golf, business, holidays).
   Painted, two-colour fade or stained-wood base, 40 swatches plus a custom
   colour, nineteen patterns, 35 fonts, curved text with spacing, outline and
-  shadow, 107 pieces of vector clip art in seven groups, any colour, uploaded pictures with
+  shadow, 131 pieces of vector clip art in thirteen groups, any colour, uploaded pictures with
   flip, circle crop and white-background removal. Drag, resize and rotate
   on the board with handles (a red x on the handles removes; so does the
   button on each list row, and the Delete key), snap to centre, layer order,
@@ -21,25 +21,47 @@ A site where people design their own cornhole boards and order them.
   hands over its first words selected and ready to type over, and each
   text has a field right in the list. Curve, spacing, rotation and layers
   sit in a "More" section.
+- **A simpler start.** Search templates by name or occasion and filter the
+  gallery: the cards are built once, a search shows the ones that match,
+  and a thumbnail is drawn when it comes into view rather than all 160-odd
+  of them before the page can be used.
+  Template names resize within their original text space as you type;
+  manual font, size, position and handle edits turn automatic fitting off.
+  The phone layout has larger tap targets and makes room for the keyboard.
+  Share a PNG preview from Start, or save an editable copy to open later.
+  Find clip art by name or collection, with visible labels and compact group
+  filters that keep the results close to the search field on a phone.
 - **Kept safe.** The boards and the order choices are saved on the device
-  (IndexedDB, with localStorage as the fallback) after every change and a
-  moment after every keystroke, the page says "Saving", "Saved on this
-  device" or exactly what went wrong (in the one live region, which speaks
-  only for trouble), and a save that does not fit fails loudly instead of
-  dropping a picture. The builder takes no click until the saved project
-  is back from the device, so a fast hand cannot lose it. Export writes
-  the whole project as editable JSON; Import takes it back, and asks
-  first, like a template does, when a design has been worked on. Keys that
-  edit the artwork (arrows, plus, minus, Delete) work only while a board
-  has the focus and no modifier is held; the undo history keeps the
-  pictures out, so sixty steps cost kilobytes.
-- **Pictures.** Each upload is kept twice: a 1600 px preview the board is
-  drawn with, and a print master as big as the file came (to 4000 px on
-  the long side, 2 MB) that the print file and the order use. A vector
-  logo is drawn large for both. The page says when a picture is printed
-  bigger than its pixels allow. An order carries only the board being
-  ordered; one too big for the server leaves the masters out, then shrinks
-  the previews, and says the full-size files are still to come.
+  (IndexedDB, with localStorage as the fallback) after every change, the
+  page says "Saving", "Saved on this device" or exactly what went wrong,
+  and a save that does not fit fails loudly instead of dropping a picture.
+  Save errors are announced once, without speaking every saved keystroke,
+  and a notice that storage failed stays on screen while the next
+  keystrokes retry, so the field being typed in does not jump. While the
+  saved design is being read back, the builder takes no click or key, so
+  nothing can be typed over it; a device that takes more than six seconds
+  gets the builder anyway, with a notice, and a design found after that
+  is offered, not forced - whichever design is not kept is one Undo away.
+  Damaged records cannot hide an intact saved copy, and an
+  unreadable draft is left untouched until the customer makes a new edit.
+  Export writes the whole project as editable JSON; Import takes it back.
+  Imported pictures and print masters must decode before the current draft
+  is replaced; changes made while a file opens are preserved. Replacing a
+  customized design asks first, and cancellation keeps the saved draft too.
+  A design that has been worked on is never replaced by a template without
+  asking, reload or no reload. Keys that edit the artwork (arrows, plus,
+  minus, Delete) work only while its active board has the focus; browser
+  shortcuts are left alone. Undo history shares image data across snapshots
+  to keep repeated edits small.
+- **Pictures.** Each upload has a preview of up to 1600 px for the board,
+  and a print master as big as the file came (to 4000 px on the long side)
+  when it contains more detail, sized so that the master and its preview
+  travel together in one order request. A vector logo is drawn large for
+  both. The page says when a picture is printed bigger than its pixels
+  allow. An order carries only the board being ordered; one too big for
+  the server even so leaves the masters out, then shrinks the previews,
+  and says the full-size files will need to be supplied separately (there
+  is no email follow-up yet, so none is promised).
 - **Review.** Before the address: both boards as they will print, every
   choice, the price breakdown in USD before tax with what is and is not
   included, a check on words left over from a template, and the
@@ -148,6 +170,16 @@ the page uses; each carries an `occasion`, which is the group it is shown
 under, and its words are what the review calls sample words. The browser suite draws every piece and loads
 every template, so a broken addition fails a test rather than a customer.
 
+### Creative pack
+
+[`asset-pack/`](asset-pack/README.md) contains 24 original SVG icons and six
+editable board templates, plus their source data, previews and font licences.
+Open [`asset-pack/preview.html`](asset-pack/preview.html) locally to browse the
+collection. The native module in `lib/creative-pack.mjs` is registered in
+`app.mjs`. [`asset-pack/CLAUDE-INTEGRATION.txt`](asset-pack/CLAUDE-INTEGRATION.txt)
+documents the format and editing contract for future changes. Deployment
+status is separate from this source integration.
+
 ## Still to do
 
 - An admin view of orders (the table is the only one today).
@@ -155,7 +187,8 @@ every template, so a broken addition fails a test rather than a customer.
 - Shipping outside the contiguous US, and real carrier rates.
 - A shareable link for a design (images make the URL too long; it needs a
   saved-designs table).
-- Two tabs on the builder at once overwrite each other's saved project;
-  the newer save wins, with no warning.
+- Navigation in an unchanged tab leaves the shared saved project alone.
+  Making actual edits in two tabs can still overwrite each other's saved
+  project; conflict warnings and recovery of competing edits remain to be added.
 - The prices are placeholders, and `lib/site.mjs` is blank until the
   business fills it in.

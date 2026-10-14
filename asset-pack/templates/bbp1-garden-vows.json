@@ -1,0 +1,101 @@
+{
+  "id": "bbp1-garden-vows",
+  "label": "Garden vows",
+  "category": "pack-wedding",
+  "occasion": "wedding",
+  "description": "An ivory and olive botanical arch with editable names and a wedding date.",
+  "palette": [
+    "#F6F1E5",
+    "#314D3E",
+    "#B4765B"
+  ],
+  "base": {
+    "kind": "paint",
+    "color": "#F6F1E5"
+  },
+  "pattern": {
+    "kind": "border",
+    "color": "#314D3E",
+    "size": 0.28
+  },
+  "elements": [
+    {
+      "type": "text",
+      "text": "TOGETHER IS HOME",
+      "font": "Montserrat",
+      "size": 0.78,
+      "color": "#314D3E",
+      "x": 12,
+      "y": 3.1,
+      "spacing": 0.12
+    },
+    {
+      "type": "clip",
+      "name": "bbp1-botanical-arch",
+      "width": 21,
+      "x": 12,
+      "y": 26.8,
+      "color": "#314D3E"
+    },
+    {
+      "type": "text",
+      "text": "AVERY",
+      "font": "Cinzel",
+      "size": 2.45,
+      "color": "#314D3E",
+      "x": 12,
+      "y": 25
+    },
+    {
+      "type": "text",
+      "text": "&",
+      "font": "Cinzel",
+      "size": 1.7,
+      "color": "#B4765B",
+      "x": 12,
+      "y": 28.1
+    },
+    {
+      "type": "text",
+      "text": "JORDAN",
+      "font": "Cinzel",
+      "size": 2.1,
+      "color": "#314D3E",
+      "x": 12,
+      "y": 31.1
+    },
+    {
+      "type": "text",
+      "text": "JUNE 14, 2027",
+      "font": "Montserrat",
+      "size": 0.93,
+      "color": "#314D3E",
+      "x": 12,
+      "y": 40,
+      "spacing": 0.12
+    },
+    {
+      "type": "clip",
+      "name": "bbp1-linked-rings",
+      "width": 3.6,
+      "x": 12,
+      "y": 44,
+      "color": "#B4765B"
+    }
+  ],
+  "personalize": [
+    "AVERY",
+    "JORDAN",
+    "JUNE 14, 2027"
+  ],
+  "board": {
+    "widthInches": 24,
+    "heightInches": 48,
+    "hole": {
+      "x": 12,
+      "y": 9,
+      "diameter": 6
+    }
+  },
+  "sameDesignOnBothBoards": true
+}

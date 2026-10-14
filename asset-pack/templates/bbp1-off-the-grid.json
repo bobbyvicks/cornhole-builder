@@ -1,0 +1,84 @@
+{
+  "id": "bbp1-off-the-grid",
+  "label": "Off the grid",
+  "category": "pack-camping",
+  "occasion": "family",
+  "description": "A mountain campsite in forest green and warm cream, with a personalized camp name.",
+  "palette": [
+    "#233E32",
+    "#F4E8CA",
+    "#D99660"
+  ],
+  "base": {
+    "kind": "paint",
+    "color": "#233E32"
+  },
+  "pattern": {
+    "kind": "border",
+    "color": "#D99660",
+    "size": 0.45
+  },
+  "elements": [
+    {
+      "type": "text",
+      "text": "TAKE THE LONG WAY",
+      "font": "Montserrat",
+      "size": 0.75,
+      "color": "#F4E8CA",
+      "x": 12,
+      "y": 3.2,
+      "spacing": 0.09
+    },
+    {
+      "type": "clip",
+      "name": "bbp1-ridge-tent",
+      "width": 18,
+      "x": 12,
+      "y": 23.4,
+      "color": "#F4E8CA"
+    },
+    {
+      "type": "text",
+      "text": "OFF THE GRID",
+      "font": "Bebas Neue",
+      "size": 3,
+      "color": "#F4E8CA",
+      "x": 12,
+      "y": 35.5,
+      "spacing": 0.04
+    },
+    {
+      "type": "text",
+      "text": "THE BENNETTS",
+      "font": "Montserrat",
+      "size": 1.07,
+      "color": "#D99660",
+      "x": 12,
+      "y": 40.2,
+      "spacing": 0.12
+    },
+    {
+      "type": "text",
+      "text": "CAMP / PLAY / REPEAT",
+      "font": "Bebas Neue",
+      "size": 1.02,
+      "color": "#F4E8CA",
+      "x": 12,
+      "y": 44.1,
+      "spacing": 0.07
+    }
+  ],
+  "personalize": [
+    "THE BENNETTS"
+  ],
+  "board": {
+    "widthInches": 24,
+    "heightInches": 48,
+    "hole": {
+      "x": 12,
+      "y": 9,
+      "diameter": 6
+    }
+  },
+  "sameDesignOnBothBoards": true
+}

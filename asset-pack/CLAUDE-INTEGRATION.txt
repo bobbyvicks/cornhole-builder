@@ -1,0 +1,75 @@
+CORNHOLE CREATIVE PACK — CLAUDE IMPLEMENTATION HANDOFF
+
+CURRENT REPOSITORY STATUS
+The application now imports lib/creative-pack.mjs and additively registers the 24 clips, six categories, and six editable templates. The runtime module is copied from integration/creative-pack.mjs. The instructions below remain the compatibility contract for pack updates; do not add a second registration. Browser integration coverage is in tests/creative-pack.spec.js. A repository change is not confirmation of a completed live deployment.
+
+Please integrate the attached Cornhole Creative Pack into my existing cornhole builder project at https://cornhole-builder.vercel.app/.
+
+The pack contains 24 original single-colour SVG icons and six board templates across weddings, family, cabin/lake, camping, BBQ, and sports. Use the native vector module so customers can recolour, move, resize, rotate, duplicate, and remove artwork, and edit every text element. Keep the current features, templates, pricing, checkout, and saved designs working.
+
+First inspect the CURRENT code, because it may have changed since this pack was prepared. The adapter was designed against the published app.mjs, lib/clips.mjs, and lib/templates.mjs interfaces. Adapt the insertion points if the current structure differs; do not overwrite whole files with an older version.
+
+FILES TO USE
+- integration/creative-pack.mjs: dependency-free browser module with PACK_CLIPS, PACK_CATEGORIES, and makeCreativeTemplates({ T, C, freshBoard }).
+- svg/: 24 standalone SVG icons, with transparent backgrounds and currentColor fills.
+- templates/*.json: editable template metadata, positions in inches, colours, fonts, and sample wording. This is handoff data, not the site's existing saved-design import format.
+- templates/svg/: complete vector board artwork with lettering converted to outlines for reliable display. These are reference/print artwork files; use the native module for editable text.
+- previews/: actual rendered artwork, contact sheets, and template previews.
+- manifest.json: filenames, labels, keywords, categories, palettes, and geometry.
+
+IMPLEMENTATION
+1. Copy integration/creative-pack.mjs into the project's lib/ folder, keeping the name creative-pack.mjs.
+
+2. In app.mjs, merge the new clips and categories with the existing ones. Where the current imports match the audited version, use this pattern:
+
+   import { CLIPS as CORE_CLIPS, CLIP_CATS as CORE_CLIP_CATS, heart, prng } from './lib/clips.mjs';
+   import { PACK_CLIPS, PACK_CATEGORIES, makeCreativeTemplates } from './lib/creative-pack.mjs';
+
+   const CLIPS = { ...CORE_CLIPS, ...PACK_CLIPS };
+   const CLIP_CATS = { ...CORE_CLIP_CATS, ...PACK_CATEGORIES };
+
+   const TEMPLATES = [
+     ...makeTemplates({ T, C, freshBoard }),
+     ...makeCreativeTemplates({ T, C, freshBoard })
+   ];
+
+   These declarations replace the relevant existing import/declaration; do not add duplicate CLIPS, CLIP_CATS, or TEMPLATES bindings. Preserve any other imports and registration logic that current code needs.
+
+3. The current renderer uses a 100 × 100 Path2D coordinate system and respects def.rule. The adapter matches that interface. It supplies def.path(p), aspect: 1, and rule: 'evenodd'. Preserve evenodd fills so transparent cutouts remain open; do not replace them with white shapes. The module's path function uses new Path2D(svgPathData) and p.addPath().
+
+4. All new IDs start with bbp1-. Keep these IDs stable because saved designs reference clip IDs. Keep all original IDs available. The six new categories have pack- prefixes. If the current UI groups categories differently, map labels without changing artwork IDs.
+
+5. The six templates use Anton 400, Bebas Neue 400, Cinzel 700, and Montserrat 800, which were already loaded by the audited site. Confirm the current site loads these families and weights. Keep the normal font-ready redraw/export behavior.
+
+6. Register the templates as editable T and C elements. Do not flatten them into uploaded images. Fresh instances must get fresh element IDs through the existing helpers. Default to matching boards, with the current separate-board editing option still available. Keep existing confirmation before replacing customer work.
+
+7. Make clip-art buttons accessible by name. The gallery labels and descriptions are in the module/manifest. The standalone icons are single-colour: inline SVGs use currentColor; external <img> SVGs do not inherit parent CSS colour. Use the native clip renderer, or explicitly substitute the fill colour when rendering a standalone file to canvas.
+
+8. On template selection, use the site's existing personalization flow. Make these sample values editable and easy to find:
+   Garden vows: AVERY, JORDAN, JUNE 14, 2027.
+   Family roots: THE PARKERS, EST. 2018.
+   Lake days: THE CARTERS.
+   Off the grid: THE BENNETTS.
+   Backyard pitmaster: MORGAN'S.
+   Game on: THE WILDCATS.
+
+9. Geometry is 24 × 48 inches. The hole has a 6-inch diameter, centered at x=12, y=9 inches from the top-left. Keep names and artwork clear of the hole and trimmed edges. When names change, use measured text bounds to warn or fit within the intended area; do not silently crop long names. The wedding arch has a narrower opening than the full board.
+
+PRINT AND ASSET DETAILS
+- Board SVGs are vector trim artwork with outlined lettering, no bleed, no black preview hole, and no printed cut guide. Use the shop's verified bleed/cut-guide rules before sending to production.
+- PNG template previews show a dark hole for visualization; they are not production print files.
+- Companion JSON and the native module preserve editable text and individual artwork layers.
+- Full project files and font licence notices are included. The four fonts are under their included SIL Open Font Licences.
+- Product photos, pricing, business policies, payment settings, and delivery claims are outside this asset pack.
+
+VERIFY BEFORE CALLING IT COMPLETE
+- All 24 icons appear under the intended categories, and all six templates appear with previews.
+- Every icon renders with transparent cutouts in at least two colours on light and dark boards.
+- Recolouring, resizing, rotation, flip, duplicate, undo/redo, save/reload, and separate Board B editing still work.
+- Applying a template creates independent editable elements and preserves replacement confirmation.
+- Longer names remain inside the board and clear of the hole; the arch opening is respected.
+- Print export includes every new icon with the correct fill rule and actual fonts.
+- Existing clips, old saved designs, pricing, and checkout are unchanged in behavior.
+- Check phone, tablet, and desktop layouts. Test checkout only with existing test facilities; do not create real orders or payments.
+
+Implement the integration in the current project and report the files changed, verification performed, and any concrete blockers. Do not claim the live site was updated unless deployment has actually completed under my existing deployment instructions.

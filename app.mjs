@@ -1,8 +1,15 @@
 import { PRICING, quote, money } from './lib/price.mjs';
-import { CLIPS, CLIP_CATS, heart, prng } from './lib/clips.mjs';
+import { CLIPS as CORE_CLIPS, CLIP_CATS as CORE_CLIP_CATS, heart, prng } from './lib/clips.mjs';
 import { makeTemplates } from './lib/templates.mjs';
+import { PACK_CLIPS, PACK_CATEGORIES, makeCreativeTemplates } from './lib/creative-pack.mjs';
 import { loadProject, saveProject } from './lib/store.mjs';
 import { SITE } from './lib/site.mjs';
+import { MAX_PROJECT_BYTES, validateProject } from './lib/project-validation.mjs';
+import { copyHistoryState, sameHistoryState } from './lib/history.mjs';
+import { pngWithResolution } from './lib/png-resolution.mjs';
+
+const CLIPS = { ...CORE_CLIPS, ...PACK_CLIPS };
+const CLIP_CATS = { ...CORE_CLIP_CATS, ...PACK_CATEGORIES };
 
 /* ====================================================================
    THE BOARD, IN INCHES. Everything about a design is stored in inches on
@@ -55,10 +62,12 @@ const MAX_IMAGES = 4, MAX_TEXTS = 10, MAX_CLIPS = 12;
 /* A picture is kept twice: a preview the board is drawn with, and a print
    master as big as the file came (up to ORIG_SIDE on its long side) that
    the print file and the order use. A master is sized so that one master
-   and its preview fit the order; an order that would not fit the server's
-   body limit even so leaves the masters out, then shrinks the previews,
-   and says so. */
-const PREVIEW_SIDE = 1600, PREVIEW_BYTES = 1_500_000, ORIG_SIDE = 4000, ORIG_BYTES = 2_000_000, PAYLOAD_BYTES = 3_800_000;
+   and its preview fit the order: what the request budget has left after
+   the preview and PAYLOAD_MARGIN for the board previews and the details,
+   and never more than ORIG_BYTES. An order that would not fit the
+   server's body limit even so leaves the masters out, then shrinks the
+   previews, and says so. */
+const PREVIEW_SIDE = 1600, PREVIEW_BYTES = 1_500_000, ORIG_SIDE = 4000, ORIG_BYTES = 3_000_000, PAYLOAD_BYTES = 3_800_000, PAYLOAD_MARGIN = 200_000;
 const SHARP_DPI = 100, SOFT_DPI = 60;
 
 const $ = (id) => document.getElementById(id);
@@ -111,7 +120,10 @@ function migrate(d) {
   return out;
 }
 
-const TEMPLATES = makeTemplates({ T, C, freshBoard });
+const TEMPLATES = [
+  ...makeTemplates({ T, C, freshBoard }),
+  ...makeCreativeTemplates({ T, C, freshBoard }),
+];
 /* The words a template arrives with. A design that still carries one at
    the checkout is almost always a mistake, so the review asks. */
 const SAMPLE_WORDS = new Set(['your team', 'new text', 'your name', 'your words']);
@@ -125,7 +137,7 @@ let lastEditTab = 'text';
 const order = { product: 'set', quantity: 1, finish: 'satin', bags: 'none', bagColors: ['#c8102e', '#1f3a93'], rush: false, carryCase: false, occasion: 'other', needBy: '', giftNote: '' };
 
 const activeBoard = () => design[active];
-const boardFor = (key) => design[design.same ? 'a' : key];
+const boardFor = (key, source = design) => source[source.same ? 'a' : key];
 const findEl = (id) => activeBoard().elements.find((e) => e.id === id) || null;
 const selectedEl = () => (selected ? findEl(selected) : null);
 const countOf = (b, type) => b.elements.filter((e) => e.type === type).length;
@@ -135,7 +147,7 @@ const boardKeys = () => (order.product === 'set' && !design.same ? ['a', 'b'] : 
 /* A design nobody has touched: the page's own default, a blank board, or
    a template exactly as it came. Anything else is someone's work, and a
    template click asks before replacing it - after a reload too. */
-const stripIds = (b) => JSON.stringify({ ...b, elements: b.elements.map(({ id, ...e }) => e) });
+const stripIds = (b) => JSON.stringify({ ...b, elements: b.elements.map(({ id, fitReference, autoFit, ...e }) => e) });
 const sameBoard = (a, b) => stripIds(a) === stripIds(b);
 function isPristine() {
   if (!design.same) return false;
@@ -166,12 +178,19 @@ function imageFor(src) {
   }
   return img.complete && img.naturalWidth ? img : null;
 }
-const imageLoaded = (src) => new Promise((res) => { const img = imageFor(src); if (img) { res(img); return; } const i = imgCache.get(src); i.addEventListener('load', () => res(i), { once: true }); i.addEventListener('error', () => res(null), { once: true }); });
+const imageLoaded = (src) => new Promise((res) => {
+  const img = imageFor(src); if (img) { res(img); return; }
+  const i = imgCache.get(src);
+  if (i.complete) { res(null); return; }
+  i.addEventListener('load', () => res(i), { once: true });
+  i.addEventListener('error', () => res(null), { once: true });
+});
 /* The print file needs every master decoded before it draws. */
-async function preloadImages(keys = boardKeys()) {
+async function preloadImages(keys = boardKeys(), { print = true, source = design } = {}) {
   const srcs = new Set();
-  for (const k of keys) for (const e of boardFor(k).elements) if (e.type === 'image') srcs.add(e.orig || e.src);
-  await Promise.all([...srcs].map(imageLoaded));
+  for (const k of keys) for (const e of boardFor(k, source).elements) if (e.type === 'image') srcs.add(print ? e.orig || e.src : e.src);
+  const images = await Promise.all([...srcs].map(imageLoaded));
+  if (images.some(img => !img)) throw new Error('A picture could not be loaded. Remove it and upload the original again.');
 }
 /* "Remove white background": a logo on a white JPEG becomes a cut-out.
    Anything near white goes transparent, fading in over the last few
@@ -240,7 +259,7 @@ function drawBase(ctx, base) {
 
 function drawPattern(ctx, p) {
   if (!p || p.kind === 'none') return;
-  const s = clamp(Number(p.size) || 3, 0.5, 12), w = BOARD.w, h = BOARD.h;
+  const s = clamp(Number(p.size) || 3, p.kind === 'border' ? 0.1 : 0.5, 12), w = BOARD.w, h = BOARD.h;
   ctx.fillStyle = p.color;
   const bands = (len, step, draw) => { for (let v = 0; v < len; v += 2 * step) draw(v); };
   switch (p.kind) {
@@ -437,7 +456,7 @@ function renderBoard(ctx, b, ppi, { print = false } = {}) {
    though the 24" board shows at 150 px on one and 300 px on the other. */
 const HANDLE = { size: 0.6, rotateGap: 0.9, hit: 0.9 };
 function sizeHandles() {
-  const r = $('canvasA').getBoundingClientRect();
+  const r = $('canvas' + active.toUpperCase()).getBoundingClientRect();
   const css = r.width > 0 ? r.width / BOARD.w : 12;   // CSS pixels per inch
   HANDLE.size = clamp(14 / css, 0.6, 3);
   HANDLE.hit = clamp(20 / css, 0.9, 4.5);
@@ -475,6 +494,9 @@ function paint() {
     renderBoard(ctx, boardFor(key), ppi);
     const el = selectedEl();
     const editingHere = design.same ? key === 'a' : key === active;
+    // Keyboard navigation reaches the canvas whose selection the controls
+    // edit. A second preview must not receive keys intended for that selection.
+    c.tabIndex = editingHere ? 0 : -1;
     if (el && editingHere) {
       const box = boxes.get(el.id);
       if (box) {
@@ -513,41 +535,52 @@ function paint() {
   }
 }
 
+/* Offscreen output must not replace the live editor's hit-testing geometry. */
+function renderOutput(ctx, board, ppi, options) {
+  const liveBoxes = new Map(boxes), livePpi = curPpi, livePrinting = printing;
+  try { renderBoard(ctx, board, ppi, options); }
+  finally {
+    boxes.clear();
+    for (const [id, box] of liveBoxes) boxes.set(id, box);
+    curPpi = livePpi; printing = livePrinting;
+  }
+}
+
 /* The print file: 100 pixels per inch, no bevel, hole marked by a hairline,
    pictures drawn from their masters. Call preloadImages first. */
-function printCanvas(key) {
+function printCanvas(key, source = design) {
   const c = document.createElement('canvas');
   c.width = BOARD.w * PRINT_PPI; c.height = BOARD.h * PRINT_PPI;
-  renderBoard(c.getContext('2d'), boardFor(key), PRINT_PPI, { print: true });
+  renderOutput(c.getContext('2d'), boardFor(key, source), PRINT_PPI, { print: true });
   return c;
 }
-function previewDataUrl(key, ppi = 10) {
+function previewDataUrl(key, ppi = 10, source = design) {
   const c = document.createElement('canvas');
   c.width = BOARD.w * ppi; c.height = BOARD.h * ppi;
-  renderBoard(c.getContext('2d'), boardFor(key), ppi);
+  renderOutput(c.getContext('2d'), boardFor(key, source), ppi);
   return c.toDataURL('image/png');
 }
 
 /* ====================================================================
    HISTORY, SAVING AND THE PROJECT FILE
    ==================================================================== */
-/* A snapshot is the design as a string - with every picture swapped for a
-   short token and kept once in `blobs`, so sixty undo steps of a design
-   with a photo on it cost sixty small strings, not sixty copies of the
-   photo. parseSnapshot puts the pictures back. */
-const blobs = new Map(), tokens = new Map();
-function tokenFor(s) { let t = tokens.get(s); if (!t) { t = '@blob:' + tokens.size; tokens.set(s, t); blobs.set(t, s); } return t; }
-const snapshot = () => JSON.stringify(design, (k, v) => ((k === 'src' || k === 'orig') && typeof v === 'string' && v.length > 64 ? tokenFor(v) : v));
-const parseSnapshot = (s) => JSON.parse(s, (k, v) => ((k === 'src' || k === 'orig') && typeof v === 'string' && blobs.has(v) ? blobs.get(v) : v));
+const snapshot = () => JSON.stringify(design);
 function commit() {
-  const s = snapshot();
-  if (history[history.length - 1] === s) { save(); return; }
+  if (sameHistoryState(history[history.length - 1], design)) { save(); return; }
+  const s = copyHistoryState(design);
   history.push(s); if (history.length > 60) history.shift();
   future = [];
   save();
   syncHistoryButtons();
 }
-function restore(s) { design = parseSnapshot(s); if (!findEl(selected)) selected = null; save(); syncAll(); }
+function restore(s) {
+  design = copyHistoryState(s);
+  // A matching pair or a single board always edits A, including after
+  // undoing a switch to B. Otherwise the controls edit an invisible board.
+  if (design.same || order.product === 'single') active = 'a';
+  if (!findEl(selected)) selected = null;
+  save(); syncAll();
+}
 function undo() { if (history.length < 2) return; future.push(history.pop()); restore(history[history.length - 1]); }
 function redo() { if (!future.length) return; const s = future.pop(); history.push(s); restore(s); }
 function syncHistoryButtons() { $('undo').disabled = history.length < 2; $('redo').disabled = !future.length; }
@@ -558,70 +591,165 @@ function syncHistoryButtons() { $('undo').disabled = history.length < 2; $('redo
    offers the export, and never drops a picture to make itself fit. */
 const SAVE_TEXT = {
   new: 'Not saved yet',
+  waiting: 'Still checking this device for a saved project. Keep editing, or export a copy while you wait.',
+  unreadable: 'The saved project could not be read. Stored copies are unchanged. Import an editable copy, or make an edit to start a new saved design.',
   saving: 'Saving…',
   saved: 'Saved on this device',
   error: 'Not saved: this browser cannot store the project (storage full or blocked). Export it to keep it.',
 };
 let saveState = 'new', saveBusy = false, saveAgain = false, storageReady = false, loaded = false;
-/* The status line is not a live region: a screen reader would otherwise
-   hear "Saving… Saved" after every keystroke and slider step. The one
-   live region speaks when a save fails, and once when saving works again. */
+let saveTimer = null, saveNeedsAnnouncement = false, restoreTimedOut = false;
+let startupSnapshot = null;
+let recoverySnapshot = null;
+let saveBaseline = null, saveBaselineState = 'new';
+const hasStartupEdits = () => startupSnapshot !== null && JSON.stringify({ design, order }) !== startupSnapshot;
+/* A notice that storage failed, is still being read or could not be read
+   stays until a write succeeds: on a phone it sits in the pinned toolbar,
+   and swapping it for "Saving…" on every keystroke would move the field
+   being typed in by the notice's height, twice per key. */
+const noticeShowing = () => ['error', 'waiting', 'unreadable'].includes(saveState);
 function setSaveState(s) {
-  const was = saveState;
+  if (saveState === s) return;
   saveState = s;
   for (const el of document.querySelectorAll('.savestatus')) { el.textContent = SAVE_TEXT[s]; el.dataset.state = s; }
-  if (s === 'error' || (s === 'saved' && was === 'error')) $('savealert').textContent = SAVE_TEXT[s];
-  $('exportlink').hidden = s !== 'error';
+  if (['error', 'unreadable', 'waiting'].includes(s)) { saveNeedsAnnouncement = true; $('savealert').textContent = SAVE_TEXT[s]; }
+  else if (['new', 'saved'].includes(s) && saveNeedsAnnouncement) { $('savealert').textContent = SAVE_TEXT[s]; saveNeedsAnnouncement = false; }
+  $('exportlink').hidden = !['error', 'waiting'].includes(s);
+  // Recovery notices can resize the pinned toolbar after the last edit.
+  render();
 }
-function projectRecord() { return { version: PROJECT_VERSION, savedAt: new Date().toISOString(), design: parseSnapshot(snapshot()), order: { ...order, bagColors: [...order.bagColors] } }; }
-function save() { if (!storageReady) return; clearTimeout(saveTimer); saveTimer = 0; setSaveState('saving'); flush(); }
-/* Typing is saved as it happens, a moment after the last key, without a
-   history entry per letter; the page says "Saving…" meanwhile, so the
-   status is never "Saved" while the board shows words that are not. */
-let saveTimer = 0;
-function saveSoon() { if (!storageReady) return; setSaveState('saving'); clearTimeout(saveTimer); saveTimer = setTimeout(() => { saveTimer = 0; save(); }, 400); }
-const flushSoon = () => { if (saveTimer) save(); };
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSoon(); });
-window.addEventListener('pagehide', flushSoon);
+/* The record is a container copy that shares the pictures' strings, as the
+   history does: serialising a design with photos in it just to parse it
+   back froze the page for a good part of a second per edit on a phone. */
+function projectRecord() { return { version: PROJECT_VERSION, savedAt: new Date().toISOString(), design: copyHistoryState(design), order: copyHistoryState(order) }; }
+function maySave() {
+  // After an unreadable restore, navigation and unchanged inputs must not
+  // replace the stored draft with the initial page. A real edit starts saving.
+  if (recoverySnapshot !== null) {
+    if (JSON.stringify({ design, order }) === recoverySnapshot) return false;
+    recoverySnapshot = null;
+  }
+  if (!storageReady) {
+    // Initial rendering and navigation also call save. Only actual edits
+    // should take precedence over the project still being read from storage.
+    if (hasStartupEdits()) setSaveState(restoreTimedOut ? 'waiting' : 'saving');
+    return false;
+  }
+  return true;
+}
+function skipUnchangedSave() {
+  // Navigation also calls save. Keep an unchanged tab from replacing a
+  // newer draft written elsewhere. Container copies share image strings.
+  // A pending write must finish first: it may be replacing this baseline.
+  if (saveBusy || !sameHistoryState(saveBaseline, { design, order })) return false;
+  setSaveState(saveBaselineState);
+  return true;
+}
+function save() {
+  clearTimeout(saveTimer); saveTimer = null;
+  if (!maySave()) return;
+  if (skipUnchangedSave()) return;
+  if (!noticeShowing()) setSaveState('saving');
+  flush();
+}
+function saveSoon() {
+  if (!maySave()) return;
+  clearTimeout(saveTimer); saveTimer = null;
+  if (skipUnchangedSave()) return;
+  if (!noticeShowing()) setSaveState('saving');
+  saveTimer = setTimeout(() => { saveTimer = null; flush(); }, 400);
+}
 async function flush() {
   if (saveBusy) { saveAgain = true; return; }
+  if (skipUnchangedSave()) return;
   saveBusy = true;
-  try { await saveProject(projectRecord()); if (!saveAgain) setSaveState('saved'); }
+  // Remember the values sent to storage, not edits made while it writes.
+  const record = projectRecord(), written = { design: record.design, order: record.order };
+  try {
+    await saveProject(record);
+    saveBaseline = written; saveBaselineState = 'saved';
+    if (!saveAgain && !saveTimer) setSaveState('saved');
+  }
   catch (e) { console.warn('The project could not be saved on this device.', e); setSaveState('error'); }
   saveBusy = false;
   if (saveAgain) { saveAgain = false; flush(); }
 }
-window.addEventListener('beforeunload', (e) => { if (saveState === 'error') { e.preventDefault(); e.returnValue = ''; } });
+document.addEventListener('visibilitychange', () => { if (document.hidden && saveTimer) save(); });
+window.addEventListener('pagehide', () => { if (saveTimer) save(); });
+window.addEventListener('beforeunload', (e) => { if (saveState === 'error' || saveState === 'saving' || saveTimer || hasStartupEdits() || hasPendingImageUploads(['a', 'b'])) { e.preventDefault(); e.returnValue = ''; } });
 
 /* Order choices from storage or a file, taken only where they are valid. */
 function applyOrder(o) {
   if (!o || typeof o !== 'object') return;
-  if (PRICING.products[o.product]) order.product = o.product;
+  if (Object.hasOwn(PRICING.products, o.product)) order.product = o.product;
   const q = Number(o.quantity); if (Number.isInteger(q) && q >= 1 && q <= PRICING.maxQuantity) order.quantity = q;
-  if (PRICING.finishes[o.finish]) order.finish = o.finish;
-  if (PRICING.bags[o.bags]) order.bags = o.bags;
+  if (Object.hasOwn(PRICING.finishes, o.finish)) order.finish = o.finish;
+  if (Object.hasOwn(PRICING.bags, o.bags)) order.bags = o.bags;
   if (Array.isArray(o.bagColors) && o.bagColors.length === 2 && o.bagColors.every(isHex)) order.bagColors = [...o.bagColors];
   order.rush = o.rush === true; order.carryCase = o.carryCase === true;
-  if (OCCASIONS[o.occasion]) order.occasion = o.occasion;
+  if (Object.hasOwn(OCCASIONS, o.occasion)) order.occasion = o.occasion;
   order.needBy = typeof o.needBy === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.needBy) && o.needBy >= today() ? o.needBy : '';
   order.giftNote = typeof o.giftNote === 'string' ? o.giftNote.slice(0, 300) : '';
 }
 /* The project file: plain JSON, with the pictures' masters, that the
    Import button takes back. */
 function exportProject() {
+  if (hasPendingImageUploads(['a', 'b'])) { uploadStatus('A picture is still processing. Wait for it to finish before saving an editable copy.'); return; }
   const blob = new Blob([JSON.stringify({ app: 'cornhole-builder', ...projectRecord() }, null, 2)], { type: 'application/json' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'cornhole-project-' + today() + '.json';
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
 }
-function importProject(obj) {
-  if (!obj || typeof obj !== 'object' || !obj.design || !obj.design.a || !obj.design.b) throw new Error('that file is not a cornhole project');
-  askThenApply('the imported project', () => {
-    design = migrate(obj.design);
-    if (obj.order) applyOrder(obj.order);
+let projectImportSequence = 0;
+function captureImportGuard() {
+  const sequence = projectImportSequence, previousDesign = design, previousSnapshot = snapshot(), previousOrder = JSON.stringify(order);
+  return () => {
+    if (sequence !== projectImportSequence || design !== previousDesign || snapshot() !== previousSnapshot || JSON.stringify(order) !== previousOrder) {
+      throw new Error('Your project changed while this file was opening. Open the file again to replace the current project');
+    }
+  };
+}
+function importProject(obj, { confirmReplace = false } = {}) {
+  validateProject(obj, { clips: CLIPS, patterns: PATTERNS, stains: STAINS, maxQuantity: PRICING.maxQuantity,
+    orderChoices: { product: PRICING.products, finish: PRICING.finishes, bags: PRICING.bags, occasion: OCCASIONS } });
+  ++projectImportSequence;
+  const incoming = JSON.parse(JSON.stringify(obj));
+  const nextDesign = migrate(incoming.design);
+  const sources = new Map(), previewSources = new Set();
+  for (const key of ['a', 'b']) nextDesign[key].elements.forEach((el, index) => {
+    if (el.type !== 'image') return;
+    const label = 'Board ' + key.toUpperCase() + ' item ' + (index + 1);
+    sources.set(el.src, label + ' image');
+    previewSources.add(el.src);
+    if (el.orig) sources.set(el.orig, label + ' print master');
+  });
+  const apply = () => {
+    if (confirmReplace && !isPristine() && !confirm('Replace your current design with the imported project?')) return;
+    design = nextDesign;
+    if (incoming.order) applyOrder(incoming.order);
     selected = null; active = 'a';
     syncAll(); commit(); showTab('board');
-  });
+  };
+  // Preserve the synchronous no-picture API. Embedded Base64 must also
+  // decode successfully before an image-bearing project replaces a draft.
+  if (!sources.size) return apply();
+  const assertCurrentProject = captureImportGuard();
+  return (async () => {
+    const previews = [];
+    // Validate masters one at a time and release their decoded pixels.
+    // A source shared with any preview stays ready for the first paint.
+    for (const [src, label] of sources) {
+      const img = new Image(); img.src = src;
+      try { await img.decode(); if (!img.naturalWidth || !img.naturalHeight) throw new Error('empty image'); }
+      catch (_) { img.src = ''; throw new Error(label + ' could not be loaded. Upload the original picture again'); }
+      if (previewSources.has(src)) previews.push([src, img]);
+      else img.src = '';
+      assertCurrentProject();
+    }
+    assertCurrentProject();
+    for (const [src, img] of previews) imgCache.set(src, img);
+    apply();
+  })();
 }
 
 /* ====================================================================
@@ -667,11 +795,12 @@ for (const c of [$('canvasA'), $('canvasB')]) {
      the one the keys edit - so tabbing to Board A makes it the active one. */
   c.addEventListener('focus', () => { const key = c.dataset.board; if (!design.same && order.product === 'set' && key !== active) setActive(key); });
   c.addEventListener('pointerdown', (ev) => {
+    if (drag || !ev.isPrimary || ev.button !== 0) return;
     const key = c.dataset.board;
     if (!design.same && order.product === 'set' && key !== active) setActive(key);
     /* The board takes the focus, so the arrow keys and Delete that follow
        are meant for it - and not when a slider or a tab had the focus. */
-    c.focus({ preventScroll: true });
+    $(design.same ? 'canvasA' : c.id).focus({ preventScroll: true });
     const p = toInches(c, ev);
     const sel = selectedEl();
     const handle = sel && (design.same ? key === 'a' : key === active) ? handleAt(sel, p.x, p.y) : null;
@@ -686,16 +815,18 @@ for (const c of [$('canvasA'), $('canvasB')]) {
     if (!el) return;
     const box = boxes.get(el.id) || { oy: 0 };
     const l = toLocal(el, p.x, p.y);
-    drag = { id: el.id, mode: handle || 'move', dx: el.x - p.x, dy: el.y - p.y, moved: false,
-      d0: Math.max(0.2, Math.hypot(l.x, l.y - box.oy)), size0: el[sizeKey(el)],
-      before: { x: el.x, y: el.y, rotation: el.rotation, size: el[sizeKey(el)] } };
+    drag = { id: el.id, pointerId: ev.pointerId, canvas: c, board: activeBoard(), mode: handle || 'move', dx: el.x - p.x, dy: el.y - p.y, moved: false,
+      before: { x: el.x, y: el.y, rotation: el.rotation, [sizeKey(el)]: el[sizeKey(el)], ...(el.type === 'text' ? { autoFit: el.autoFit } : {}) },
+      d0: Math.max(0.2, Math.hypot(l.x, l.y - box.oy)), size0: el[sizeKey(el)] };
     c.setPointerCapture(ev.pointerId);
     c.classList.add('dragging');
     ev.preventDefault();
   });
   c.addEventListener('pointermove', (ev) => {
-    if (!drag) return;
-    const el = findEl(drag.id); if (!el) return;
+    if (!ownsPointer(ev)) return;
+    if (activeBoard() !== drag.board) { end(ev); return; }
+    const el = findEl(drag.id); if (!el) { end(ev); return; }
+    if (el.type === 'text') el.autoFit = false;
     const p = toInches(c, ev);
     if (drag.mode === 'move') {
       let x = clamp(r1(p.x + drag.dx), -4, BOARD.w + 4), y = clamp(r1(p.y + drag.dy), -4, BOARD.h + 4);
@@ -716,26 +847,36 @@ for (const c of [$('canvasA'), $('canvasB')]) {
     drag.moved = true;
     render(); syncProps();
   });
-  /* A gesture the browser takes over (a finger that turned out to be a
-     scroll) is cancelled: whatever it moved goes back, and nothing is
-     recorded. */
+  const ownsPointer = (ev) => drag && drag.canvas === c && drag.pointerId === ev.pointerId;
   const end = (ev) => {
-    if (!drag) return;
-    const el = findEl(drag.id), moved = drag.moved, cancelled = ev && ev.type === 'pointercancel';
-    if (cancelled && el) { el.x = drag.before.x; el.y = drag.before.y; el.rotation = drag.before.rotation; el[sizeKey(el)] = drag.before.size; }
-    drag = null; guides.v = guides.h = false; c.classList.remove('dragging');
+    if (!ownsPointer(ev)) return;
+    const { moved, pointerId, board, id, before } = drag;
+    const cancelled = ev.type === 'pointercancel';
+    let rolledBack = false;
+    if (cancelled && (design.a === board || design.b === board)) {
+      const el = board.elements.find(item => item.id === id);
+      if (el) { Object.assign(el, before); rolledBack = true; }
+    }
+    drag = null; guides.v = guides.h = false;
+    c.classList.remove('dragging');
+    if (c.hasPointerCapture(pointerId)) c.releasePointerCapture(pointerId);
     render(); syncProps(); settleTyping();
-    if (moved && !cancelled) commit();
+    /* A cancelled gesture is rolled back, so commit has nothing new to
+       record and only repeats the save, undoing one that completed while
+       the gesture was in progress. The one exception is a saved design
+       offered and declined meanwhile: it took history[0], and the
+       rolled-back design is recorded above it, one Undo away from it. */
+    if (moved && (!cancelled || rolledBack)) commit();
   };
   c.addEventListener('pointerup', end);
   c.addEventListener('pointercancel', end);
+  c.addEventListener('lostpointercapture', end);
 }
 /* Keyboard. Undo and redo work anywhere but inside a field. The keys that
    edit the artwork - arrows, plus, minus, Delete - work only while a board
    has the focus, so a Delete meant for a tab, a slider or a list never
    takes a word off the board. */
 document.addEventListener('keydown', (ev) => {
-  if (!loaded) return;
   const t = ev.target, tag = t && t.tagName;
   const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable);
   if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z') { if (typing) return; ev.preventDefault(); ev.shiftKey ? redo() : undo(); return; }
@@ -743,12 +884,15 @@ document.addEventListener('keydown', (ev) => {
      arrows are the browser's too. Only plain keys edit the artwork. */
   if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
   if (tag !== 'CANVAS') return;
+  if (t.dataset.board !== active) return;
   const el = selectedEl(); if (!el) return;
   const step = ev.shiftKey ? 1 : 0.1;
   const nudge = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[ev.key];
-  if (nudge) { el.x = r1(el.x + nudge[0]); el.y = r1(el.y + nudge[1]); render(); syncProps(); commit(); ev.preventDefault(); }
+  /* The keys stop where a drag stops: the server refuses artwork further off the board. */
+  if (nudge) { el.x = clamp(r1(el.x + nudge[0]), -4, BOARD.w + 4); el.y = clamp(r1(el.y + nudge[1]), -4, BOARD.h + 4); if (el.type === 'text') el.autoFit = false; render(); syncProps(); commit(); ev.preventDefault(); }
   else if (ev.key === '+' || ev.key === '=' || ev.key === '-') {
     const k = sizeKey(el); el[k] = clamp(Math.round(el[k] * (ev.key === '-' ? 0.95 : 1.05) * 20) / 20, 0.5, sizeMax(el));
+    if (el.type === 'text') el.autoFit = false;
     render(); syncProps(); commit(); ev.preventDefault();
   }
   else if (ev.key === 'Delete' || ev.key === 'Backspace') { removeElement(el.id); ev.preventDefault(); }
@@ -815,15 +959,19 @@ function syncScrollPadding() {
 /* Bring the controls up under the (sticky) board on a phone. */
 function scrollToPanel() {
   const st = document.querySelector('.stage');
-  const sticky = window.innerWidth <= 940 ? st.offsetHeight + 8 : 0;
+  const sticky = getComputedStyle(st).position === 'sticky' ? st.offsetHeight + 8 : 0;
   const top = panel.getBoundingClientRect().top + window.scrollY - 60 - sticky;
-  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  window.scrollTo({ top: Math.max(0, top), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
 }
 
 // -- templates, grouped by occasion, with a blank start
 function applyTemplate(id) {
   const t = TEMPLATES.find((x) => x.id === id); if (!t) return;
   design = { version: DESIGN_VERSION, same: true, a: t.board(), b: freshBoard() };
+  for (const el of design.a.elements) if (el.type === 'text') {
+    el.fitReference = { text: el.text, size: el.size, spacing: el.spacing, font: el.font };
+    el.autoFit = true;
+  }
   selected = null; active = 'a';
   order.occasion = t.occasion;
   syncAll(); commit(); promptForWords();
@@ -841,33 +989,78 @@ function promptForWords() {
   const hint = $('texthint');
   if (first) {
     select(first.id);
-    hint.textContent = 'Replace the sample words with your own: the names, the date, the team. Each line below is one piece of text on the board.';
+    hint.textContent = 'Replace the sample words below. Long names resize to fit; choose any line to change its font and colours.';
     hint.hidden = false;
-    const i = $('ttext'); i.focus({ preventScroll: true }); i.select();
+    const i = $('ttext'); i.focus(); i.select();
   } else {
     hint.textContent = 'A blank board. Add your first words with the button below, then colours and art from the other tabs.';
     hint.hidden = false;
+    $('addtext').focus();
   }
 }
 const askThenApply = (label, fn) => { if (isPristine() || confirm('Replace your current design with ' + label + '?')) fn(); };
 $('startblank').addEventListener('click', () => askThenApply('a blank board', applyBlank));
-{
-  const host = $('templates');
+const templateTools = document.createElement('div'); templateTools.className = 'template-tools';
+templateTools.innerHTML = '<label class="template-search" for="templatesearch">Find a design<input id="templatesearch" type="search" maxlength="100" placeholder="Try wedding, lake or team"></label><div class="template-filters"><label for="templateoccasion">Occasion</label><select id="templateoccasion"><option value="">All occasions</option></select><button id="cleartemplates" class="btn small" type="button">Clear filters</button></div><p id="templateresults" class="template-results" role="status" aria-live="polite"></p><p id="templateempty" class="template-empty" hidden>No matching designs. Try a different word or clear the filters.</p>';
+$('templates').before(templateTools);
+for (const [key, label] of TEMPLATE_GROUPS) { const option = document.createElement('option'); option.value = key; option.textContent = label; $('templateoccasion').appendChild(option); }
+const normalizeSearch = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+/* Same words, same text node: a status region announces a change, and
+   setting what it already says would have a screen reader read the whole
+   sentence again after every character typed. */
+function setText(el, text) { if (el.textContent !== text) el.textContent = text; }
+/* The thumbnails - a template's board at 128 x 256, a clip's path at
+   72 x 72, 160-odd of them - are drawn as they come into view, not all
+   at once while the page is still starting. A template's is drawn again
+   when a web font lands; one not drawn yet waits for the font. */
+const thumbnails = new Map();   // canvas -> { draw, text }
+const thumbnailWatch = typeof IntersectionObserver === 'function' ? new IntersectionObserver((entries) => { for (const e of entries) if (e.isIntersecting) drawThumbnail(e.target); }) : null;
+function lazyThumbnail(canvas, draw, text) {
+  thumbnails.set(canvas, { draw, text });
+  if (thumbnailWatch) thumbnailWatch.observe(canvas); else drawThumbnail(canvas);
+}
+function drawThumbnail(canvas) {
+  const t = thumbnails.get(canvas); if (!t) return;
+  t.draw(); canvas.dataset.drawn = 'true';
+  if (thumbnailWatch) thumbnailWatch.unobserve(canvas);
+}
+/* A card is built once; a search shows the cards that match, so a
+   keystroke costs a few list operations rather than every thumbnail. */
+const templateCards = new Map();
+function templateCard(t) {
+  let card = templateCards.get(t.id);
+  if (card) return card;
+  const b = document.createElement('button'); b.className = 'tpl'; b.type = 'button'; b.dataset.id = t.id; b.setAttribute('aria-label', t.label + ' template');
+  const c = document.createElement('canvas'); c.width = 64 * 2; c.height = 128 * 2;
+  c.setAttribute('aria-hidden', 'true');
+  lazyThumbnail(c, () => { const g = c.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, c.width, c.height); renderOutput(g, t.board(), c.height / BOARD.h); }, true);
+  const s = document.createElement('span'); s.textContent = t.label;
+  const action = document.createElement('small'); action.className = 'tpl-action'; action.textContent = 'Personalize design'; action.setAttribute('aria-hidden', 'true');
+  b.append(c, s, action);
+  b.addEventListener('click', () => askThenApply('the ' + t.label + ' template', () => applyTemplate(t.id)));
+  const terms = normalizeSearch([t.label, t.id, OCCASIONS[t.occasion], TEMPLATE_GROUPS.find(g => g[0] === t.occasion)?.[1], ...t.board().elements.map(e => e.text || CLIPS[e.name]?.label || '')].join(' '));
+  card = { button: b, terms };
+  templateCards.set(t.id, card);
+  return card;
+}
+function renderTemplates() {
+  const host = $('templates'); host.textContent = '';
+  const words = normalizeSearch($('templatesearch').value).split(/\s+/).filter(Boolean), occasion = $('templateoccasion').value;
+  const matches = TEMPLATES.filter(t => (!occasion || t.occasion === occasion) && words.every(word => templateCard(t).terms.includes(word)));
+  setText($('templateresults'), matches.length ? matches.length + (matches.length === 1 ? ' template' : ' templates') + ' to personalize' : 'No templates found');
+  $('templateempty').hidden = matches.length > 0;
+  $('cleartemplates').disabled = !words.length && !occasion;
   for (const [key, label] of TEMPLATE_GROUPS) {
-    const ts = TEMPLATES.filter((t) => t.occasion === key); if (!ts.length) continue;
+    const ts = matches.filter((t) => t.occasion === key); if (!ts.length) continue;
     const h = document.createElement('h3'); h.className = 'tplgroup'; h.textContent = label; host.appendChild(h);
     const grid = document.createElement('div'); grid.className = 'templates'; host.appendChild(grid);
-    for (const t of ts) {
-      const b = document.createElement('button'); b.className = 'tpl'; b.type = 'button'; b.dataset.id = t.id; b.setAttribute('aria-label', t.label + ' template');
-      const c = document.createElement('canvas'); c.width = 64 * 2; c.height = 128 * 2;
-      renderBoard(c.getContext('2d'), t.board(), 128 * 2 / BOARD.h);
-      const s = document.createElement('span'); s.textContent = t.label;
-      b.append(c, s);
-      b.addEventListener('click', () => askThenApply('the ' + t.label + ' template', () => applyTemplate(t.id)));
-      grid.appendChild(b);
-    }
+    for (const t of ts) grid.appendChild(templateCard(t).button);
   }
 }
+$('templatesearch').addEventListener('input', renderTemplates);
+$('templateoccasion').addEventListener('change', renderTemplates);
+$('cleartemplates').addEventListener('click', () => { $('templatesearch').value = ''; $('templateoccasion').value = ''; renderTemplates(); $('templatesearch').focus(); });
+renderTemplates();
 
 // -- board tab
 function swatch(parent, v, title, extra) {
@@ -885,18 +1078,24 @@ const pickPaint = (ev) => {
 $('paints').addEventListener('click', pickPaint);
 $('paints2').addEventListener('click', pickPaint);
 $('stains').addEventListener('click', (ev) => { const b = ev.target.closest('.sw'); if (!b) return; activeBoard().base.stain = b.dataset.v; activeBoard().base.kind = 'wood'; syncBoard(); render(); commit(); });
-$('paintcustom').addEventListener('input', () => { const base = activeBoard().base; base.color = $('paintcustom').value; if (base.kind === 'wood') base.kind = 'paint'; syncBoard(); render(); });
+$('paintcustom').addEventListener('input', () => { const base = activeBoard().base; base.color = $('paintcustom').value; if (base.kind === 'wood') base.kind = 'paint'; syncBoard(); render(); saveSoon(); });
 $('paintcustom').addEventListener('change', commit);
-$('paint2').addEventListener('input', () => { activeBoard().base.color2 = $('paint2').value; render(); });
+$('paint2').addEventListener('input', () => { activeBoard().base.color2 = $('paint2').value; render(); saveSoon(); });
 $('paint2').addEventListener('change', commit);
 $('gradangle').addEventListener('input', () => { activeBoard().base.angle = Number($('gradangle').value); $('gradangleval').textContent = $('gradangle').value + '°'; render(); });
 $('gradangle').addEventListener('change', commit);
 chips('basekind', (v) => { activeBoard().base.kind = v; syncBoard(); render(); commit(); });
-$('pattern').addEventListener('change', () => { activeBoard().pattern.kind = $('pattern').value; syncBoard(); render(); commit(); });
-$('patcolor').addEventListener('input', () => { activeBoard().pattern.color = $('patcolor').value; render(); });
+$('pattern').addEventListener('change', () => {
+  const pattern = activeBoard().pattern;
+  pattern.kind = $('pattern').value;
+  pattern.size = Math.max(pattern.kind === 'border' ? 0.1 : 0.5, pattern.size);
+  syncBoard(); render(); commit();
+});
+$('patcolor').addEventListener('input', () => { activeBoard().pattern.color = $('patcolor').value; render(); saveSoon(); });
 $('patcolor').addEventListener('change', commit);
 $('patsize').addEventListener('input', () => { activeBoard().pattern.size = Number($('patsize').value); $('patsizeval').textContent = $('patsize').value + '"'; render(); });
 $('patsize').addEventListener('change', commit);
+for (const id of ['gradangle', 'patsize']) $(id).addEventListener('input', saveSoon);
 /* Two boards: one design on both, or each its own. The switch sits above
    the preview; tapping a board switches too. Going from one design to two
    starts B as a copy of A, with fresh ids, unless B already has a design
@@ -910,7 +1109,13 @@ function setMode(v) {
   }
   selected = null; syncAll(); commit();
 }
-chips('boardmode', setMode);
+chips('boardmode', (v) => {
+  setMode(v);
+  if (matchMedia('(max-width: 940px)').matches) {
+    scrollToPanel();
+    if (getComputedStyle(document.querySelector('.stage')).position !== 'sticky') document.querySelector('.tabs [aria-selected="true"]').focus({ preventScroll: true });
+  }
+});
 const otherKey = () => (active === 'a' ? 'b' : 'a');
 $('copyother').addEventListener('click', () => { design[otherKey()] = withFreshIds(activeBoard()); syncAll(); commit(); });
 /* The classic set: the other board is this one with its two main colours
@@ -951,6 +1156,10 @@ function syncBoard() {
   $('gradangle').value = b.base.angle; $('gradangleval').textContent = b.base.angle + '°';
   $('pattern').value = b.pattern.kind;
   $('patcolor').value = b.pattern.color;
+  $('patsize').min = b.pattern.kind === 'border' ? '0.1' : '0.5';
+  // Preserve exact template/imported widths rather than letting the range
+  // round them to its usual half-inch step while the label shows another value.
+  $('patsize').step = b.pattern.kind === 'border' || b.pattern.size % 0.5 !== 0 ? '0.01' : '0.5';
   $('patsize').value = b.pattern.size; $('patsizeval').textContent = b.pattern.size + '"';
   $('patternopts').style.visibility = b.pattern.kind === 'none' ? 'hidden' : 'visible';
   const twoBoards = order.product === 'set', split = twoBoards && !design.same, other = active === 'a' ? 'b' : 'a';
@@ -974,6 +1183,51 @@ function syncBoard() {
 }
 
 // -- text tab
+/* Fitting belongs to the template's guided text edits. Manual geometry and
+   font controls turn it off, so an advanced edit is never silently undone. */
+const fitContext = document.createElement('canvas').getContext('2d');
+function measureTextBox(el) {
+  const id = '__fit_measure__';
+  drawText(fitContext, { ...el, id, shadow: false });
+  const box = boxes.get(id); boxes.delete(id);
+  const angle = rad(el.rotation || 0), cos = Math.abs(Math.cos(angle)), sin = Math.abs(Math.sin(angle));
+  return { w: cos * box.w + sin * box.h, h: sin * box.w + cos * box.h, oy: box.oy || 0 };
+}
+function fittingReference(el) {
+  const ref = el.fitReference;
+  if (ref && typeof ref.text === 'string' && ref.text.length <= 60 && Number.isFinite(ref.size) && ref.size >= 0.5 && ref.size <= 16 && Number.isFinite(ref.spacing) && ref.spacing >= -0.2 && ref.spacing <= 1.5 && typeof ref.font === 'string' && ref.font.length < 100) return { text: ref.text, size: ref.size, spacing: ref.spacing, font: ref.font };
+  return { text: el.text, size: el.size, spacing: el.spacing || 0, font: el.font };
+}
+function fitLimits(el, ref = fittingReference(el)) {
+  const original = measureTextBox({ ...el, ...ref });
+  return { w: Math.max(0, Math.min(original.w, 2 * Math.min(el.x - 1, BOARD.w - 1 - el.x))), h: Math.max(0, Math.min(original.h, 2 * Math.min(el.y + original.oy - 1, BOARD.h - 1 - el.y - original.oy))) };
+}
+function fitTemplateText(el) {
+  if (!el.autoFit) return;
+  const ref = fittingReference(el), limit = fitLimits(el, ref);
+  const fits = ratio => { const b = measureTextBox({ ...el, size: ref.size * ratio, spacing: ref.spacing * ratio }); return b.w <= limit.w && b.h <= limit.h; };
+  let lo = 0.5 / ref.size, hi = 1;
+  if (fits(1)) lo = 1;
+  else if (fits(lo)) for (let n = 0; n < 18; n++) { const mid = (lo + hi) / 2; if (fits(mid)) lo = mid; else hi = mid; }
+  el.size = Math.max(0.5, Math.floor(ref.size * lo * 1000) / 1000);
+  el.spacing = Math.round(ref.spacing * lo * 10000) / 10000;
+}
+function syncPersonalization() {
+  const host = $('personalization'); if (!host) return;
+  const el = selectedEl(); host.hidden = !el || el.type !== 'text'; if (host.hidden) return;
+  if (!host.childElementCount) {
+    host.innerHTML = '<p class="hint">Change each line below, then choose your colours. Select a line to adjust its font and placement.</p><div class="personalization-actions"><label><input type="checkbox" id="autofittext"> Keep this line within its original space</label><button class="btn small" id="fittext" type="button">Fit this line</button></div><p id="fitstatus" class="fit-status" role="status" aria-live="polite"></p>';
+    $('autofittext').addEventListener('change', () => { const e = selectedEl(); if (!e || e.type !== 'text') return; e.fitReference ||= fittingReference(e); e.autoFit = $('autofittext').checked; fitTemplateText(e); render(); syncProps(); commit(); });
+    $('fittext').addEventListener('click', () => { const e = selectedEl(); if (!e || e.type !== 'text') return; e.fitReference ||= fittingReference(e); e.autoFit = true; fitTemplateText(e); render(); syncProps(); commit(); });
+  }
+  $('autofittext').checked = !!el.autoFit;
+  const status = $('fitstatus');
+  const say = (state, text) => { if (status.dataset.state !== state) status.dataset.state = state; setText(status, text); };
+  if (!el.autoFit) { say('manual', 'Manual sizing. Fit this line whenever you need help with a long name.'); return; }
+  const ref = fittingReference(el), limit = fitLimits(el, ref), actual = measureTextBox(el);
+  const tooLong = actual.w > limit.w + 0.03 || actual.h > limit.h + 0.03;
+  say(tooLong ? 'warning' : 'fit', tooLong ? 'This line is still too long to fit clearly. Shorten the words or adjust the layout before ordering.' : el.size < ref.size - 0.01 ? 'Text reduced to fit its original space. Check the preview for readability.' : 'Text fits its original space. Longer names resize automatically.');
+}
 for (const [cat, fonts] of FONTS) {
   const g = document.createElement('optgroup'); g.label = cat;
   for (const [f] of fonts) { const o = document.createElement('option'); o.value = f; o.textContent = f; o.style.fontFamily = '"' + f + '"'; g.appendChild(o); }
@@ -991,7 +1245,17 @@ $('addtext').addEventListener('click', () => {
   if (el) { $('texthint').hidden = true; $('ttext').focus(); $('ttext').select(); }
 });
 const field = (id, key, map = (v) => v, label = null) => {
-  $(id).addEventListener('input', () => { const el = selectedEl(); if (!el) return; el[key] = map($(id).value); if (label) $(id + 'val').textContent = label(el[key]); render(); syncLists(); saveSoon(); });
+  $(id).addEventListener('input', () => {
+    const el = selectedEl(); if (!el) return; el[key] = map($(id).value);
+    if (el.type === 'text') {
+      if (key === 'text') fitTemplateText(el);
+      else if (['font', 'size', 'spacing', 'arc', 'rotation', 'x', 'y', 'outlineWidth'].includes(key)) el.autoFit = false;
+    }
+    if (label) $(id + 'val').textContent = label(el[key]);
+    render(); syncLists(); syncPersonalization();
+    if (key === 'text') syncProps();
+    saveSoon();
+  });
   $(id).addEventListener('change', commit);
 };
 const toggle = (id, key) => {
@@ -1019,14 +1283,52 @@ $('tback').addEventListener('click', () => moveLayer(-1));
 
 // -- art tab: pictures and clip art
 $('addimagebtn').addEventListener('click', () => $('addimage').click());
+const pendingImageUploads = new WeakMap();
+function hasPendingImageUploads(keys = boardKeys()) {
+  return keys.some(key => (pendingImageUploads.get(boardFor(key)) || 0) > 0);
+}
+function uploadStatus(message) {
+  const status = $('uploadstatus'); status.hidden = false; status.textContent = message;
+}
 $('addimage').addEventListener('change', async () => {
   const f = $('addimage').files[0]; $('addimage').value = '';
   if (!f) return;
-  if (countOf(activeBoard(), 'image') >= MAX_IMAGES) { alert('Up to ' + MAX_IMAGES + ' pictures per board.'); return; }
+  const originalDesign = design, key = active, target = activeBoard();
+  const originalSelection = selected, originalTab = document.querySelector('.tabs [aria-selected="true"]')?.dataset.tab;
+  const pending = pendingImageUploads.get(target) || 0;
+  if (countOf(target, 'image') + pending >= MAX_IMAGES) {
+    uploadStatus('Board ' + key.toUpperCase() + ' already has ' + MAX_IMAGES + ' pictures added or processing. ' + (pending ? 'Wait for processing to finish, then remove a picture to add another.' : 'Remove a picture to add another.'));
+    return;
+  }
+  pendingImageUploads.set(target, pending + 1);
+  uploadStatus('Preparing your picture for Board ' + key.toUpperCase() + '.');
+  if (!$('orderstep2').hidden && $('tab-order').dataset.open === 'true') renderReview();
   try {
     const pic = await readImage(f);
-    addElement(withDefaults({ type: 'image', ...pic, width: 10, x: 12, y: 30 }), 'art');
-  } catch (e) { alert('Could not read that image: ' + (e && e.message ? e.message : e)); }
+    if (design !== originalDesign || design[key] !== target || (key === 'b' && (design.same || order.product === 'single'))) {
+      uploadStatus('Picture not added because its board changed while it was processing. Choose the picture again for the current design.');
+      return;
+    }
+    if (countOf(target, 'image') >= MAX_IMAGES) {
+      uploadStatus('Picture not added: Board ' + key.toUpperCase() + ' now has ' + MAX_IMAGES + ' pictures. Remove one and choose the picture again.');
+      return;
+    }
+    const el = withDefaults({ type: 'image', ...pic, width: 10, x: 12, y: 30 });
+    target.elements.push(el);
+    const currentTab = document.querySelector('.tabs [aria-selected="true"]')?.dataset.tab;
+    const focused = document.activeElement;
+    const editingControl = focused?.closest('#textprops, #imageprops') || focused?.matches('input:not([type="file"]), textarea, select');
+    if (activeBoard() === target && selected === originalSelection && currentTab === originalTab && !editingControl && !drag) {
+      select(el.id); showTab('art');
+    } else { render(); syncLists(); syncProps(); }
+    commit();
+    uploadStatus('Picture added to Board ' + key.toUpperCase() + '.');
+  } catch (e) { uploadStatus('Could not read that image: ' + (e && e.message ? e.message : e) + '. Choose another picture and try again.'); }
+  finally {
+    const remaining = (pendingImageUploads.get(target) || 1) - 1;
+    if (remaining) pendingImageUploads.set(target, remaining); else pendingImageUploads.delete(target);
+    if (!$('orderstep2').hidden && $('tab-order').dataset.open === 'true') renderReview();
+  }
 });
 /* A picture, twice. The preview (1600 px on the long side at most) is what
    the board is drawn with and what travels in every request; the master is
@@ -1038,11 +1340,16 @@ $('addimage').addEventListener('change', async () => {
    pixel size is kept so the page can say when a picture is being printed
    bigger than it can take. */
 function hasAlpha(img) {
-  const k = Math.min(1, 256 / Math.max(img.naturalWidth, img.naturalHeight, 1)), c = document.createElement('canvas');
-  c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
-  const g = c.getContext('2d'); g.drawImage(img, 0, 0, c.width, c.height);
-  const d = g.getImageData(0, 0, c.width, c.height).data;
-  for (let i = 3; i < d.length; i += 4) if (d[i] < 250) return true;
+  // Inspect the source pixels in small tiles: downsampling can erase a
+  // narrow transparent detail and incorrectly turn its preview into JPEG.
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  for (let y = 0; y < img.naturalHeight; y += 256) for (let x = 0; x < img.naturalWidth; x += 256) {
+    const w = Math.min(256, img.naturalWidth - x), h = Math.min(256, img.naturalHeight - y);
+    g.clearRect(0, 0, 256, 256); g.drawImage(img, x, y, w, h, 0, 0, w, h);
+    const d = g.getImageData(0, 0, w, h).data;
+    for (let i = 3; i < d.length; i += 4) if (d[i] < 255) return true;
+  }
   return false;
 }
 const readAsDataUrl = (file) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(file); });
@@ -1052,29 +1359,41 @@ async function readImage(file) {
     const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('not an image')); i.src = url; });
     const W = img.naturalWidth, H = img.naturalHeight;
     if (!W || !H) throw new Error('the picture has no size');
-    const isRaster = /^image\/(png|jpeg|webp)$/i.test(file.type);
+    const isRaster = /^image\/(png|jpeg|webp)$/i.test(file.type), isVector = /^image\/svg\+xml$/i.test(file.type);
     /* JPEGs, and WebPs with nothing see-through, are previewed as JPEG;
        anything with a transparent pixel stays PNG so a cut-out stays cut out. */
     const lossy = /jpe?g/i.test(file.type) || (/webp/i.test(file.type) && !hasAlpha(img));
     const encode = (side, bytes, quality) => {
-      let s = side, out = null;
-      for (let tries = 0; tries < 6; tries++) {
-        const k = isRaster ? Math.min(1, s / Math.max(W, H)) : s / Math.max(W, H);
+      let s = isVector ? side : Math.min(side, Math.max(W, H));
+      // Every retry reduces the pixels; stop only when the byte budget
+      // fits, rather than retaining an oversized final attempt.
+      while (true) {
+        const k = isVector ? s / Math.max(W, H) : Math.min(1, s / Math.max(W, H));
         const c = document.createElement('canvas');
         c.width = Math.max(1, Math.round(W * k)); c.height = Math.max(1, Math.round(H * k));
         c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        out = { url: lossy ? c.toDataURL('image/jpeg', quality) : c.toDataURL('image/png'), px: [c.width, c.height] };
+        const out = { url: lossy ? c.toDataURL('image/jpeg', quality) : c.toDataURL('image/png'), px: [c.width, c.height] };
         if (out.url.length <= bytes * 1.37) return out;
-        s = Math.round(s * 0.75);
+        if (s <= 1) throw new Error('image encoding exceeds size limit');
+        s = Math.max(1, Math.floor(s * 0.75));
       }
-      return out;
     };
     const preview = encode(PREVIEW_SIDE, PREVIEW_BYTES, 0.88);
     const shrunk = preview.px[0] < W || preview.px[1] < H;
+    /* The master travels in the same request as its preview, so its budget
+       is what the order has left once the preview is in. */
+    const masterBytes = Math.min(ORIG_BYTES, Math.floor((PAYLOAD_BYTES - PAYLOAD_MARGIN - preview.url.length) / 1.37));
     let master = null;
-    if (isRaster && file.size <= ORIG_BYTES && Math.max(W, H) <= ORIG_SIDE) {
+    if (isRaster && file.size <= masterBytes && Math.max(W, H) <= ORIG_SIDE) {
+      /* Keep the untouched file when preview resizing discarded pixels,
+         including small-dimension artwork that exceeds the byte budget. */
       if (lossy || shrunk) master = { url: await readAsDataUrl(file), px: [W, H] };
-    } else if (shrunk || !isRaster) master = encode(ORIG_SIDE, ORIG_BYTES, 0.92);
+    } else if (shrunk || !isRaster) {
+      master = encode(ORIG_SIDE, masterBytes, 0.92);
+      /* A re-encoded master with no more pixels than the preview adds
+         nothing a print needs; the untouched file above always does. */
+      if (master.px[0] <= preview.px[0] && master.px[1] <= preview.px[1]) master = null;
+    }
     if (master && master.url === preview.url) master = null;
     return master ? { src: preview.url, orig: master.url, px: master.px } : { src: preview.url, px: preview.px };
   } finally { URL.revokeObjectURL(url); }
@@ -1113,58 +1432,90 @@ $('idup').addEventListener('click', duplicate);
 $('iforward').addEventListener('click', () => moveLayer(1));
 $('iback').addEventListener('click', () => moveLayer(-1));
 
-let clipCat = 'love';
-function clipThumb(name, color = '#1d1b18') {
-  const def = CLIPS[name], c = document.createElement('canvas'); c.width = c.height = 72;
-  const g = c.getContext('2d'); g.scale(0.72, 0.72);
+let clipCat = '';
+function drawClipThumb(c, name, color) {
+  const def = CLIPS[name], g = c.getContext('2d');
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, c.width, c.height); g.scale(0.72, 0.72);
   const p = new Path2D(); def.path(p); g.lineJoin = g.lineCap = 'round';
   if (def.mode === 'stroke') { g.lineWidth = def.lw || 8; g.strokeStyle = color; g.stroke(p); } else { g.fillStyle = color; g.fill(p, def.rule || 'nonzero'); }
+}
+function clipThumb(name, color = '#1d1b18') {
+  const c = document.createElement('canvas'); c.width = c.height = 72;
+  drawClipThumb(c, name, color);
   return c;
+}
+const clipCards = new Map();
+function clipCard(name) {
+  let card = clipCards.get(name);
+  if (card) return card;
+  const def = CLIPS[name];
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'clip'; b.dataset.name = name; b.title = def.label; b.setAttribute('aria-label', 'Add ' + def.label);
+  const thumbnail = document.createElement('canvas'); thumbnail.width = thumbnail.height = 72; thumbnail.setAttribute('aria-hidden', 'true');
+  lazyThumbnail(thumbnail, () => drawClipThumb(thumbnail, name, '#1d1b18'), false);
+  const label = document.createElement('span'); label.className = 'clip-label'; label.textContent = def.label;
+  b.append(thumbnail, label);
+  card = { button: b, terms: normalizeSearch([def.label, name.replaceAll('-', ' '), CLIP_CATS[def.cat]].join(' ')) };
+  clipCards.set(name, card);
+  return card;
 }
 function fillClips() {
   const box = $('clips'); box.textContent = '';
+  const words = normalizeSearch($('clipsearch').value).split(/\s+/).filter(Boolean);
+  let count = 0;
   for (const [name, def] of Object.entries(CLIPS)) {
-    if (def.cat !== clipCat) continue;
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'clip'; b.dataset.name = name; b.title = def.label; b.setAttribute('aria-label', 'Add ' + def.label);
-    b.appendChild(clipThumb(name)); box.appendChild(b);
+    if (clipCat && def.cat !== clipCat) continue;
+    const card = clipCard(name);
+    if (!words.every(word => card.terms.includes(word))) continue;
+    box.appendChild(card.button); count++;
   }
+  setText($('clipresults'), count ? count + (count === 1 ? ' artwork choice' : ' artwork choices') : 'No artwork found');
+  $('clipempty').hidden = count > 0;
+  $('clearclips').disabled = !words.length && !clipCat;
+  $('clipfilterlabel').textContent = 'Browse groups: ' + (CLIP_CATS[clipCat] || 'All artwork');
 }
-for (const [k, label] of Object.entries(CLIP_CATS)) { const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.dataset.v = k; b.textContent = label; b.setAttribute('aria-pressed', String(k === clipCat)); $('clipcats').appendChild(b); }
-chips('clipcats', (v) => { clipCat = v; fillClips(); });
+for (const [k, label] of [['', 'All artwork'], ...Object.entries(CLIP_CATS)]) { const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.dataset.v = k; b.textContent = label; b.setAttribute('aria-pressed', String(k === clipCat)); $('clipcats').appendChild(b); }
+chips('clipcats', (v) => { clipCat = v; fillClips(); $('clipfilters').open = false; $('clipfilterlabel').focus(); });
+$('clipsearch').addEventListener('input', fillClips);
+$('clearclips').addEventListener('click', () => { $('clipsearch').value = ''; clipCat = ''; setChip('clipcats', clipCat); fillClips(); $('clipfilters').open = false; $('clipsearch').focus(); });
 fillClips();
 function addClip(name, o = {}) {
   if (!CLIPS[name]) return null;
   const b = activeBoard();
   const color = b.base.kind === 'wood' || b.base.color === '#fffaf0' || b.base.color === '#f5f0e6' || b.base.color === '#ffffff' ? '#36393b' : '#f5f5f0';
-  return addElement(C(name, { color, width: 8, x: 12, y: 36, ...o }), 'art');
+  const el = addElement(C(name, { color, width: 8, x: 12, y: 36, ...o }), 'art');
+  if (el) $('iwidth').focus();
+  return el;
 }
 $('clips').addEventListener('click', (ev) => { const b = ev.target.closest('.clip'); if (b) addClip(b.dataset.name); });
 
 function removeElement(id) {
   const b = activeBoard();
-  const type = (b.elements.find((e) => e.id === id) || {}).type;
-  const ae = document.activeElement, fromProps = Boolean(ae && ae.closest('#textprops, #imageprops'));
+  const el = findEl(id); if (!el) return;
+  const fromProps = selected === id && document.activeElement?.closest('#textprops, #imageprops');
   b.elements = b.elements.filter((e) => e.id !== id);
   if (selected === id) selected = null;
   render(); syncLists(); syncProps(); commit();
-  /* The Remove button in the props hides with the props: the focus moves
-     to the list - the next row's remove button, or the button that adds. */
-  if (fromProps || document.activeElement === document.body) {
-    const list = $(type === 'text' ? 'texts' : 'images');
-    const next = list.querySelector('.itemdel') || $(type === 'text' ? 'addtext' : 'addimagebtn');
-    if (next) next.focus({ preventScroll: true });
+  // Removing the selection hides its property controls. Keep keyboard
+  // focus in this editor instead of leaving it on the page body.
+  if (fromProps) {
+    const next = $(el.type === 'text' ? 'texts' : 'images').querySelector('.item');
+    (next || $(el.type === 'text' ? 'addtext' : 'addimagebtn')).focus();
   }
 }
 function copyToOther() {
   const el = selectedEl(); if (!el || design.same) return;
-  const other = design[active === 'a' ? 'b' : 'a'];
-  if (countOf(other, el.type) >= limitOf(el.type)) return;
+  const key = active === 'a' ? 'b' : 'a', other = design[key], limit = limitOf(el.type);
+  if (countOf(other, el.type) >= limit) {
+    const board = 'Board ' + key.toUpperCase(), items = { image: 'pictures', text: 'text items', clip: 'clip art items' }[el.type];
+    alert(board + ' has reached its limit of ' + limit + ' ' + items + '. Remove ' + items + ' from ' + board + ' to make room, then copy again.');
+    return;
+  }
   other.elements.push({ ...JSON.parse(JSON.stringify(el)), id: uid() });
   render(); commit();
 }
 function duplicate() {
   const el = selectedEl(); if (!el) return;
-  const copy = { ...JSON.parse(JSON.stringify(el)), id: uid(), x: r1(el.x + 1), y: r1(el.y + 1) };
+  const copy = { ...JSON.parse(JSON.stringify(el)), id: uid(), x: clamp(r1(el.x + 1), -4, BOARD.w + 4), y: clamp(r1(el.y + 1), -4, BOARD.h + 4) };
   addElement(copy, null);
 }
 function moveLayer(dir) {
@@ -1189,9 +1540,9 @@ function itemRow(el, pressed, onClick) {
   if (el.type === 'text') {
     b.classList.add('pick'); b.title = 'Select, to change the font, size and colour';
     const q = document.createElement('input'); q.type = 'text'; q.className = 'quick'; q.value = el.text; q.maxLength = 60; q.dataset.id = el.id;
-    q.setAttribute('aria-label', 'Words'); q.style.fontFamily = '"' + el.font + '", Impact, sans-serif';
+    q.setAttribute('aria-label', 'Words: ' + (el.fitReference?.text || el.text)); q.style.fontFamily = '"' + el.font + '", Impact, sans-serif';
     q.addEventListener('focus', () => { if (selected !== el.id) select(el.id); });
-    q.addEventListener('input', () => { const e = findEl(el.id); if (!e) return; e.text = q.value; $('texthint').hidden = true; render(); labelRow(row, e); if (selected === e.id && document.activeElement !== $('ttext')) $('ttext').value = e.text; saveSoon(); });
+    q.addEventListener('input', () => { const e = findEl(el.id); if (!e) return; e.text = q.value; fitTemplateText(e); $('texthint').hidden = true; render(); updateRow(row, e, selected === e.id); if (selected === e.id) syncProps(); saveSoon(); });
     q.addEventListener('change', commit);
     row.append(b, q);
   } else {
@@ -1227,6 +1578,7 @@ function updateRow(row, el, pressed) {
   if (el.type === 'text') {
     t.style.background = el.color;
     const q = row.querySelector('.quick'); q.style.fontFamily = '"' + el.font + '", Impact, sans-serif';
+    q.setAttribute('aria-label', 'Words: ' + (el.fitReference?.text || el.text));
     if (document.activeElement !== q && q.value !== el.text) q.value = el.text;
   } else if (el.type === 'clip') {
     t.textContent = ''; const c = clipThumb(el.name, el.color); c.style.width = c.style.height = '28px'; t.appendChild(c);
@@ -1237,7 +1589,7 @@ function syncLists() {
   const b = activeBoard();
   const ae = document.activeElement;
   const cls = ae && ae.dataset && ae.dataset.id ? ['quick', 'item', 'itemdel'].find((c) => ae.classList.contains(c)) : null;
-  const keep = cls ? { id: ae.dataset.id, cls, s: ae.selectionStart, e: ae.selectionEnd, list: ae.closest('.items') } : null;
+  const keep = cls ? { id: ae.dataset.id, cls, s: ae.selectionStart, e: ae.selectionEnd, list: ae.closest('.items'), row: [...(ae.closest('.items') || ae).querySelectorAll('.itemrow')].indexOf(ae.closest('.itemrow')) } : null;
   let lostFocus = false;
   for (const [listId, types, emptyText] of [['texts', ['text'], 'No words yet.'], ['images', ['image', 'clip'], 'No pictures or clip art yet.']]) {
     const list = $(listId);
@@ -1254,12 +1606,18 @@ function syncLists() {
   }
   $('addtext').disabled = countOf(b, 'text') >= MAX_TEXTS;
   if (keep && lostFocus) {
-    const again = document.querySelector('.' + keep.cls + '[data-id="' + keep.id + '"]') || (keep.list && keep.list.querySelector('.itemdel')) || (keep.list && keep.list.id === 'texts' ? $('addtext') : $('addimagebtn'));
+    /* The row is gone (its own x was pressed): the focus goes to the Select
+       button of the row now in its place, or of the last row - never to
+       another row's x, where a second press would take a line nobody meant
+       to remove. An id from a project file can hold any character. */
+    const rows = keep.list ? [...keep.list.querySelectorAll('.itemrow')] : [], row = rows[Math.min(keep.row, rows.length - 1)];
+    const again = document.querySelector('.' + keep.cls + '[data-id="' + CSS.escape(keep.id) + '"]') || (row && row.querySelector('.item')) || (keep.list ? $(keep.list.id === 'texts' ? 'addtext' : 'addimagebtn') : null);
     if (again) { again.focus({ preventScroll: true }); if (keep.cls === 'quick' && keep.s != null && again.setSelectionRange) try { again.setSelectionRange(keep.s, keep.e); } catch (_) {} }
   }
 }
 function syncProps() {
   const el = selectedEl();
+  syncPersonalization();
   $('textprops').hidden = !(el && el.type === 'text');
   $('imageprops').hidden = !(el && el.type !== 'text');
   if (!el) return;
@@ -1312,6 +1670,9 @@ $('shipnote2').textContent = 'United States addresses in ' + PRICING.shipping.re
 const dispatchNote = () => 'Dispatch: about ' + PRICING.leadTimeDays + ' business days after your order (about ' + PRICING.rushDays + ' with a rush build). Delivery: freight transit is on top and depends on your address; we confirm an estimate with your order. Dates are estimates, not guarantees.';
 $('leadtime').textContent = 'Dispatch in about ' + PRICING.leadTimeDays + ' business days (' + PRICING.rushDays + ' with a rush build); delivery time is on top and not guaranteed.';
 $('howdispatch').textContent = 'Built to order and dispatched in about ' + PRICING.leadTimeDays + ' business days (about ' + PRICING.rushDays + ' with the rush option), then shipped by freight to your door anywhere in ' + PRICING.shipping.region + '. Transit time depends on your address and is confirmed with your order.';
+const statePrompt = document.createElement('option');
+statePrompt.value = ''; statePrompt.textContent = 'Select a state';
+$('state').appendChild(statePrompt);
 for (const s of SHIP_STATES) { const o = document.createElement('option'); o.value = s; o.textContent = s; $('state').appendChild(o); }
 for (const [k, label] of Object.entries(OCCASIONS)) { const o = document.createElement('option'); o.value = k; o.textContent = label; $('occasion').appendChild(o); }
 $('needby').min = today();
@@ -1328,36 +1689,50 @@ $('occasion').addEventListener('change', () => { order.occasion = $('occasion').
 $('needby').addEventListener('change', () => { order.needBy = $('needby').value; syncOrder(); });
 $('giftnote').addEventListener('input', () => { order.giftNote = $('giftnote').value; saveSoon(); });
 /* Three screens, each about the height of the other tabs: the order and
-   its price; the review, with both boards as they will print; the address.
-   The button that moves between them hides with its step, so the focus
-   goes to the new step's heading - a screen reader hears where it is. */
-function showOrderStep(n) {
+   its price; the review, with both boards as they will print; the address. */
+let confirmedSamples = null, reviewSamples = null, reviewReady = false, reviewSequence = 0, reviewedRevision = null;
+let orderSubmitting = false;
+const sampleSignature = () => JSON.stringify(sampleWordsIn().sort());
+const samplesConfirmed = () => !sampleWordsIn().length || confirmedSamples === sampleSignature();
+const orderRevision = () => JSON.stringify({ design, order });
+// The optional gift note is entered on the details step, after board review.
+const orderReviewRevision = () => JSON.stringify({ design, order: { ...order, giftNote: '' } });
+function syncReviewContinue() {
+  $('tocheckout').disabled = !reviewReady || hasPendingImageUploads() || !samplesConfirmed();
+}
+function reviewIfChanged() {
+  if ($('orderstep1').hidden && reviewedRevision !== orderReviewRevision()) {
+    showOrderStep(2, { focus: true });
+    $('reviewchanged').hidden = false;
+    return true;
+  }
+  return false;
+}
+function showOrderStep(n, { focus = false } = {}) {
+  if (n === 3 && (!reviewReady || reviewedRevision !== orderReviewRevision() || !samplesConfirmed() || hasPendingImageUploads())) n = 2;
+  if (n !== 2) reviewSequence++;
   $('orderstep1').hidden = n !== 1; $('orderstep2').hidden = n !== 2; $('orderstep3').hidden = n !== 3;
   if (n === 2) renderReview();
   if (n === 3) syncOrder();
-  const ae = document.activeElement;
-  if (!ae || ae === document.body || ae.offsetParent === null) { const h = $('orderstep' + n).querySelector('h3'); if (h && h.offsetParent !== null) h.focus({ preventScroll: true }); }
+  if (focus) {
+    $('orderstep' + n + '-title').focus({ preventScroll: true });
+    scrollToPanel();
+  }
 }
-/* The review is of one design and one set of choices: shown again, after
-   either changed, it is drawn afresh - and says so. */
-let reviewed = '';
-/* The gift note is written on the details step, after the review, so it is
-   not part of what the review is of. */
-const reviewKey = () => snapshot() + JSON.stringify({ ...order, giftNote: '' });
-function reviewIfChanged() {
-  if ($('orderstep1').hidden && reviewed !== reviewKey()) { showOrderStep(2); $('reviewchanged').hidden = false; return true; }
-  return false;
-}
-$('toreview').addEventListener('click', () => showOrderStep(2));
-$('backtooptions').addEventListener('click', () => showOrderStep(1));
-$('backtoedit').addEventListener('click', () => { showTab(lastEditTab); showOrderStep(1); const b = tabButtons.find((x) => x.dataset.tab === lastEditTab); if (b) b.focus({ preventScroll: true }); });
-$('tocheckout').addEventListener('click', () => showOrderStep(3));
-$('backtoorder').addEventListener('click', () => showOrderStep(2));
-/* The say-so for sample words is for the words it was given: different
-   words ask again. */
-let confirmedSamples = '';
-$('keepsamples').addEventListener('change', () => { confirmedSamples = $('keepsamples').checked ? sampleWordsIn().join('|') : ''; $('tocheckout').disabled = !$('keepsamples').checked; });
-$('reviewbtn').addEventListener('click', () => { showTab('order'); showOrderStep(2); scrollToPanel(); });
+$('toreview').addEventListener('click', () => showOrderStep(2, { focus: true }));
+$('backtooptions').addEventListener('click', () => showOrderStep(1, { focus: true }));
+$('backtoedit').addEventListener('click', () => {
+  showTab(lastEditTab); showOrderStep(1);
+  $('tabbtn-' + lastEditTab).focus({ preventScroll: true });
+  scrollToPanel();
+});
+$('tocheckout').addEventListener('click', () => showOrderStep(3, { focus: true }));
+$('backtoorder').addEventListener('click', () => showOrderStep(2, { focus: true }));
+$('keepsamples').addEventListener('change', () => {
+  confirmedSamples = $('keepsamples').checked && reviewSamples === sampleSignature() ? reviewSamples : null;
+  syncReviewContinue();
+});
+$('reviewbtn').addEventListener('click', () => { showTab('order'); showOrderStep(2, { focus: true }); });
 
 /* Weekdays between today and a date; weekends are not build days. */
 function businessDaysUntil(iso) {
@@ -1409,15 +1784,16 @@ function syncOrder() {
   save();
   return q;
 }
-function renderReview() {
+async function renderReview() {
+  const sequence = ++reviewSequence, revision = orderRevision(), source = JSON.parse(snapshot()), options = structuredClone(order);
+  reviewReady = false;
+  $('reviewchanged').hidden = true;
+  syncReviewContinue();
   const q = quote(order), keys = boardKeys();
   const rb = $('reviewboards'); rb.textContent = '';
-  for (const k of keys) {
-    const f = document.createElement('figure'), img = new Image(), cap = document.createElement('figcaption');
-    img.src = previewDataUrl(k, 8); img.alt = 'Board ' + k.toUpperCase() + ' as it will print';
-    cap.textContent = keys.length > 1 ? 'Board ' + k.toUpperCase() : order.product === 'set' ? 'Both boards' : 'Your board';
-    f.append(img, cap); rb.appendChild(f);
-  }
+  const message = document.createElement('p'); message.setAttribute('role', 'status');
+  message.textContent = hasPendingImageUploads() ? 'Your picture is still processing. The review will update when it is ready.' : 'Preparing your board previews…';
+  rb.appendChild(message);
   const list = $('reviewlist'); list.textContent = '';
   const li = (a, b) => { const l = document.createElement('li'), s1 = document.createElement('span'), s2 = document.createElement('span'); s1.textContent = a; if (typeof b === 'string') s2.textContent = b; else s2.append(...b); l.append(s1, s2); list.appendChild(l); return s2; };
   const dot = (hex) => { const s = document.createElement('span'); s.className = 'swatchdot'; s.style.background = hex; s.setAttribute('aria-hidden', 'true'); return s; };
@@ -1437,32 +1813,62 @@ function renderReview() {
   const samples = sampleWordsIn();
   $('samplewarn').hidden = !samples.length;
   $('sampletext').textContent = samples.length ? 'These look like the sample words a template came with: ' + samples.map((s) => '“' + s + '”').join(', ') + '. They would be printed exactly like that. Go back to editing to change them, or confirm that you want them.' : '';
-  $('keepsamples').checked = samples.length > 0 && samples.join('|') === confirmedSamples;
-  $('tocheckout').disabled = samples.length > 0 && !$('keepsamples').checked;
+  reviewSamples = sampleSignature();
+  $('keepsamples').checked = samples.length > 0 && confirmedSamples === reviewSamples;
   const low = lowResImages(keys);
   $('reswarn').hidden = !low.length; $('reswarn').textContent = low.join(' ');
-  reviewed = reviewKey();
-  $('reviewchanged').hidden = true;
+  $('assetwarn').hidden = true;
+  if (hasPendingImageUploads()) return;
+  try {
+    await prepareOutputFonts(source);
+    await preloadImages(keys, { print: false, source });
+    if (sequence !== reviewSequence) return;
+    if (revision !== orderRevision() || hasPendingImageUploads()) return renderReview();
+    const payload = await prepareRequestPayload({ source, options });
+    if (sequence !== reviewSequence) return;
+    if (revision !== orderRevision() || hasPendingImageUploads()) return renderReview();
+    $('assetwarn').hidden = payload.options.assets !== 'pending';
+    rb.textContent = '';
+    for (const k of keys) {
+      const f = document.createElement('figure'), img = new Image(), cap = document.createElement('figcaption');
+      img.src = previewDataUrl(k, 8, source); img.alt = 'Board ' + k.toUpperCase() + ' as it will print';
+      cap.textContent = keys.length > 1 ? 'Board ' + k.toUpperCase() : order.product === 'set' ? 'Both boards' : 'Your board';
+      f.append(img, cap); rb.appendChild(f);
+    }
+    reviewedRevision = orderReviewRevision();
+    reviewReady = true;
+    syncReviewContinue();
+  } catch (_) {
+    if (sequence !== reviewSequence) return;
+    if (revision !== orderRevision()) return renderReview();
+    message.textContent = 'Your board preview could not be prepared. Check your uploaded pictures and try again.';
+    const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'btn'; retry.textContent = 'Try preview again';
+    retry.addEventListener('click', renderReview); rb.appendChild(retry);
+  }
 }
 
-function status(kind, text) { const s = $('orderstatus'); s.dataset.kind = kind; s.textContent = text; }
-/* What is posted: only what is ordered. Board B is blank when both boards
-   match or a single board is ordered, and empty text is left out. The
-   pictures' masters go along when the whole order fits the server's limit;
-   otherwise they stay out, and if the previews alone are still too much
-   those come down in size, largest first - and options.assets says the
-   full-size files are still to come. */
-async function orderPayload() {
+function status(kind, text) { const s = $('orderstatus'); s.dataset.kind = kind; s.textContent = text; $('saveunsubmitted').hidden = true; }
+$('saveunsubmitted').addEventListener('click', exportProject);
+function orderDetails() {
   const f = $('orderform');
   const v = (id) => f.elements[id].value.trim();
-  const previews = [previewDataUrl('a')];
-  if (order.product === 'set' && !design.same) previews.push(previewDataUrl('b'));
-  const opts = { product: order.product, quantity: order.quantity, finish: order.finish, bags: order.bags, rush: order.rush,
-    carryCase: order.carryCase, occasion: order.occasion, giftNote: order.giftNote.trim() };
-  if (order.bags === 'regulation') opts.bagColors = [...order.bagColors];
-  if (order.needBy) opts.needBy = order.needBy;
-  const designOut = parseSnapshot(snapshot());
-  if (designOut.same || order.product === 'single') designOut.b = freshBoard();
+  return {
+    customer: { name: v('name'), email: v('email'), phone: v('phone') },
+    shipping: { line1: v('line1'), line2: v('line2'), city: v('city'), state: v('state'), postal: v('postal'), country: v('country') },
+    notes: v('notes'),
+  };
+}
+/* Build a copy of only the artwork being ordered. The saved project keeps
+   its unused board, blank text and full-size pictures for later editing. */
+function orderPayload({ source = design, options = order } = {}) {
+  const previews = [previewDataUrl('a', 10, source)];
+  if (options.product === 'set' && !source.same) previews.push(previewDataUrl('b', 10, source));
+  const opts = { product: options.product, quantity: options.quantity, finish: options.finish, bags: options.bags, rush: options.rush,
+    carryCase: options.carryCase, occasion: options.occasion, giftNote: options.giftNote.trim() };
+  if (options.bags === 'regulation') opts.bagColors = [...options.bagColors];
+  if (options.needBy) opts.needBy = options.needBy;
+  const designOut = JSON.parse(JSON.stringify(source));
+  if (designOut.same || options.product === 'single') designOut.b = freshBoard();
   for (const k of ['a', 'b']) designOut[k].elements = designOut[k].elements.filter((e) => e.type !== 'text' || e.text.trim());
   const pictures = [];
   for (const k of ['a', 'b']) for (const e of designOut[k].elements) if (e.type === 'image') pictures.push(e);
@@ -1470,38 +1876,78 @@ async function orderPayload() {
     options: opts,
     design: designOut,
     previews,
-    customer: { name: v('name'), email: v('email'), phone: v('phone') },
-    shipping: { line1: v('line1'), line2: v('line2'), city: v('city'), state: v('state'), postal: v('postal'), country: v('country') },
-    notes: v('notes'),
+    ...orderDetails(),
   };
   if (pictures.length) {
-    const size = () => JSON.stringify(payload).length;
-    let dropped = false;
-    if (size() > PAYLOAD_BYTES) for (const e of pictures) if (e.orig) { delete e.orig; dropped = true; }
-    for (let tries = 0; tries < 10 && size() > PAYLOAD_BYTES; tries++) {
-      const big = pictures.reduce((a, b) => (a.src.length >= b.src.length ? a : b));
-      big.src = await shrunkPreview(big.src, 0.7); dropped = true;
+    // A small lossless picture has no separate master: src is already its
+    // full image. Files are pending only when a real master is left out.
+    opts.assets = 'included';
+    if (pictures.some((e) => e.orig) && JSON.stringify(payload).length > PAYLOAD_BYTES) {
+      for (const e of pictures) delete e.orig;
+      opts.assets = 'pending';
     }
-    opts.assets = dropped ? 'pending' : 'included';
   }
+  return payload;
+}
+/* When previews alone exceed the request budget, reduce the largest first.
+   This operates only on the outgoing copy and reports the file handoff. */
+async function prepareRequestPayload({ source, options }) {
+  const payload = orderPayload({ source, options });
+  const pictures = ['a', 'b'].flatMap(k => payload.design[k].elements.filter(e => e.type === 'image'));
+  const reductions = new Map(), maxReductions = Math.min(64, pictures.length * 8);
+  for (let tries = 0; tries < maxReductions && JSON.stringify(payload).length > PAYLOAD_BYTES; tries++) {
+    // A full pair can contain eight large previews. Give each one room
+    // to shrink without spending the entire budget on the first pass.
+    const available = pictures.filter(picture => (reductions.get(picture) || 0) < 8);
+    if (!available.length) break;
+    const biggest = available.reduce((a, b) => a.src.length >= b.src.length ? a : b);
+    const smaller = await shrunkPreview(biggest.src, 0.7);
+    // Interpolation can temporarily increase PNG bytes while reducing
+    // pixels. An unchanged encoding makes no progress; retries stay bounded.
+    if (smaller === biggest.src) break;
+    biggest.src = smaller;
+    reductions.set(biggest, (reductions.get(biggest) || 0) + 1);
+    payload.options.assets = 'pending';
+  }
+  if (JSON.stringify(payload).length > PAYLOAD_BYTES) throw new Error('The design is too large to send. Save an editable copy and reduce the pictures before trying again.');
   return payload;
 }
 $('orderform').addEventListener('submit', async (ev) => {
   ev.preventDefault();
+  if (orderSubmitting) return;
   const f = $('orderform');
   if (!f.checkValidity()) { f.reportValidity(); return; }
-  if (reviewIfChanged()) return;
+  if (!reviewReady || reviewedRevision !== orderReviewRevision() || !samplesConfirmed()) { showOrderStep(2, { focus: true }); return; }
+  if (hasPendingImageUploads()) { status('warn', 'Your picture is still processing. Wait for it to finish, then review your design before continuing.'); return; }
   if (!activeBoard().elements.length && design.a.base.kind === 'paint' && design.a.pattern.kind === 'none') {
     if (!confirm('Your board is a plain colour with nothing on it. Order it like that?')) return;
   }
-  const btn = $('checkout'); btn.disabled = true; status('info', 'Sending your design…');
+  const revision = orderRevision(), source = JSON.parse(snapshot()), options = structuredClone(order);
+  const keys = options.product === 'set' && !source.same ? ['a', 'b'] : ['a'];
+  const btn = $('checkout'); orderSubmitting = true; btn.disabled = true; status('info', 'Preparing your design…');
   try {
-    const payload = await orderPayload();
+    let payload;
+    try {
+      await prepareOutputFonts(source);
+      await preloadImages(keys, { print: false, source });
+      payload = await prepareRequestPayload({ source, options });
+    } catch (_) {
+      status('bad', 'Your design could not be prepared. Check your uploaded pictures and try again. Nothing was charged.');
+      return;
+    }
+    if (revision !== orderRevision() || hasPendingImageUploads() || !samplesConfirmed()) {
+      showTab('order'); showOrderStep(2, { focus: true });
+      return;
+    }
+    if (!f.checkValidity()) { f.reportValidity(); return; }
+    Object.assign(payload, orderDetails());
+    status('info', 'Sending your design…');
     const r = await fetch('api/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const j = await r.json().catch(() => ({}));
-    const files = payload.options.assets === 'pending' ? ' Your pictures were too large to send in full with the order, so we will email you for the full-size files.' : '';
+    const files = payload.options.assets === 'pending' ? ' Your pictures were too large to send in full with the order: keep your originals, as the full-size files will need to be supplied separately.' : '';
     if (r.status === 503 && j.error === 'not_configured') {
-      status('warn', 'Ordering is not switched on for this site yet. Download the print file above and send it to us, and we will quote it by hand.');
+      status('warn', 'Ordering is not switched on for this site yet. Your order was not submitted. Nothing was charged. Save an editable copy below to keep your design, then try again when ordering is available.');
+      $('saveunsubmitted').hidden = false;
     } else if (!r.ok) {
       status('bad', j.message || ('Something went wrong (' + r.status + '). Nothing was charged.'));
     } else if (j.url) {
@@ -1513,8 +1959,10 @@ $('orderform').addEventListener('submit', async (ev) => {
     }
   } catch (e) {
     status('bad', 'Could not reach the server. Check your connection and try again - nothing was charged.');
+  } finally {
+    orderSubmitting = false;
+    btn.disabled = false;
   }
-  btn.disabled = false;
 });
 
 /* The thank-you and the cancelled notes, from the URL Stripe sent the
@@ -1536,31 +1984,100 @@ async function showOutcome() {
     $('donetitle').textContent = 'Payment cancelled.';
     $('donebody').innerHTML = '<p>No charge was made, and your design is still here. When you are ready, go to the Order tab, review it and continue to payment again: that places a new order with a new code' + (code ? ', and the unpaid one, <code>' + code.replace(/[^A-Z0-9-]/g, '') + '</code>, is simply left' : '') + '.</p>';
   }
-  box.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  box.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
 }
 
 // -- stage bar, project buttons
+async function prepareOutputFonts(source) {
+  if (document.fonts?.ready) await document.fonts.ready;
+  // Fit captured words using the loaded font while leaving live edits alone.
+  for (const board of [source.a, source.b]) for (const el of board.elements) {
+    if (el.type === 'text' && el.autoFit && el.fitReference && el.text !== el.fitReference.text) fitTemplateText(el);
+  }
+}
+async function sharePreview() {
+  const btn = $('sharepreview'), message = $('sharestatus');
+  if (btn.disabled) return;
+  if (hasPendingImageUploads()) { message.hidden = false; message.textContent = 'A picture is still processing. Wait for it to finish, then share your preview.'; return; }
+  btn.disabled = true; message.hidden = false; message.textContent = 'Preparing your preview…';
+  try {
+    const keys = order.product === 'set' ? ['a', 'b'] : ['a'];
+    const source = JSON.parse(snapshot());
+    await preloadImages(keys, { print: false, source });
+    await prepareOutputFonts(source);
+    const ppi = 12, width = BOARD.w * ppi, height = BOARD.h * ppi, pad = 32, gap = 24;
+    const canvas = document.createElement('canvas'); canvas.width = pad * 2 + keys.length * width + (keys.length - 1) * gap; canvas.height = height + 124;
+    const ctx = canvas.getContext('2d'); ctx.fillStyle = '#f7f4ed'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#26344c'; ctx.font = '600 20px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('My cornhole board design', canvas.width / 2, 34);
+    keys.forEach((key, index) => {
+      const x = pad + index * (width + gap); ctx.save(); ctx.translate(x, 56); renderOutput(ctx, boardFor(key, source), ppi); ctx.restore();
+      ctx.fillStyle = '#26344c'; ctx.font = '14px sans-serif'; ctx.fillText('Board ' + key.toUpperCase(), x + width / 2, height + 80);
+    });
+    ctx.fillStyle = '#5c6370'; ctx.font = '12px sans-serif'; ctx.fillText('Design preview · 24 × 48 inch boards', canvas.width / 2, height + 108);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) throw new Error('Preview could not be generated.');
+    const file = new File([blob], 'cornhole-preview-' + today() + '.png', { type: 'image/png' });
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ title: 'My cornhole board design', files: [file] });
+        message.textContent = 'Preview shared. Save an editable copy from Start to keep working on another device.'; return;
+      } catch (error) { if (error.name === 'AbortError') { message.textContent = 'Sharing cancelled. Your design is still here.'; return; } }
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+    message.textContent = 'Preview downloaded. Send the image to someone, or save an editable copy from Start to continue later.';
+  } catch (_) { message.textContent = 'The preview could not be prepared. Check your uploaded pictures and try again; your editable design is still here.'; }
+  finally { btn.disabled = false; render(); }
+}
+$('sharepreview').addEventListener('click', sharePreview);
 $('undo').addEventListener('click', undo);
 $('redo').addEventListener('click', redo);
-$('reset').addEventListener('click', () => { if (!confirm('Start over with a blank board? This clears your design.')) return; design = freshDesign(); selected = null; active = 'a'; syncAll(); commit(); });
+$('reset').addEventListener('click', () => { if (!confirm('Start over with the default design? You can restore your current design with Undo.')) return; design = freshDesign(); selected = null; active = 'a'; syncAll(); commit(); });
 $('download').addEventListener('click', async () => {
-  const keys = boardKeys();
-  await preloadImages(keys);
-  for (const k of keys) {
-    const blob = await new Promise((res) => printCanvas(k).toBlob(res, 'image/png'));
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'cornhole-board-' + k.toUpperCase() + '-24x48in-100ppi.png';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+  const btn = $('download'); if (btn.disabled) return;
+  if (hasPendingImageUploads()) { alert('A picture is still processing. Wait for it to finish, then download the print file.'); return; }
+  const keys = boardKeys(), source = JSON.parse(snapshot());
+  const long = btn.querySelector('.long'), short = btn.querySelector('.short');
+  const labels = [long.textContent, short.textContent];
+  btn.disabled = true; btn.setAttribute('aria-busy', 'true');
+  long.textContent = 'Preparing print file'; short.textContent = 'Preparing…';
+  try {
+    await preloadImages(keys, { source });
+    await prepareOutputFonts(source);
+    for (const k of keys) {
+      const blob = await new Promise((res) => printCanvas(k, source).toBlob(res, 'image/png'));
+      if (!blob) throw new Error('The browser could not generate the print file. Please try again.');
+      const printFile = await pngWithResolution(blob, PRINT_PPI);
+      const a = document.createElement('a'); a.href = URL.createObjectURL(printFile); a.download = 'cornhole-board-' + k.toUpperCase() + '-24x48in-100ppi.png';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+    }
+  } catch (error) { alert(error.message + ' Your design is still here.'); }
+  finally {
+    btn.disabled = false; btn.removeAttribute('aria-busy');
+    long.textContent = labels[0]; short.textContent = labels[1]; render();
   }
 });
 $('exportbtn').addEventListener('click', exportProject);
 $('exportlink').addEventListener('click', exportProject);
 $('importbtn').addEventListener('click', () => $('importfile').click());
+let projectFileSequence = 0;
 $('importfile').addEventListener('change', async () => {
   const f = $('importfile').files[0]; $('importfile').value = '';
   if (!f) return;
-  try { importProject(JSON.parse(await f.text())); }
-  catch (e) { alert('Could not import that file: ' + (e && e.message ? e.message : e) + '.'); }
+  const sequence = ++projectFileSequence;
+  // The latest picker selection owns the operation, even while its file
+  // is still being read and an earlier project's pictures are decoding.
+  ++projectImportSequence;
+  const assertCurrentProject = captureImportGuard();
+  try {
+    if (f.size > MAX_PROJECT_BYTES) throw new Error('Project files must be 64 MB or smaller');
+    const contents = await f.text();
+    if (sequence !== projectFileSequence) return;
+    assertCurrentProject();
+    await importProject(JSON.parse(contents), { confirmReplace: true });
+  }
+  catch (e) { if (sequence === projectFileSequence) alert('Could not import that file: ' + (e && e.message ? e.message : e) + '.'); }
 });
 
 /* The business behind the site, from lib/site.mjs. A detail that is not
@@ -1569,10 +2086,10 @@ function renderSite() {
   const name = SITE.name || 'Cornhole Board Builder';
   $('brand').textContent = name; document.title = name;
   const contact = [SITE.email && 'Email ' + SITE.email, SITE.phone && 'Phone ' + SITE.phone, SITE.address, SITE.hours].filter(Boolean);
-  $('contactcard').textContent = contact.length ? contact.join('. ') + '.' : 'Contact details are being set up. Until then, the notes box on the order form reaches us with your order.';
+  $('contactcard').textContent = contact.length ? contact.join('. ') + '.' : 'Contact details have not been added yet. Order notes are only submitted when an order is successfully received; they are not a separate way to contact the business.';
   $('deliverycard').textContent = SITE.delivery || (SHIP_NOTE + ' ' + dispatchNote());
-  $('customcard').textContent = SITE.customOrders || 'Need something the builder cannot do? Say so in the notes box on the order form.';
-  $('approvalcard').textContent = SITE.approval || 'The preview is the file we print from: what you see on the board is what we print, with the hole cut where it is shown. Check every word before you pay.';
+  $('customcard').textContent = SITE.customOrders || (contact.length ? 'For something the builder cannot do, confirm your requirements with the business before ordering.' : 'Custom-order details have not been added yet. Save an editable copy and wait for a confirmed contact method before ordering a custom request.');
+  $('approvalcard').textContent = SITE.approval || 'Check every word, colour and picture in your board design before ordering. Share preview creates an image for showing others; Print file creates full-size artwork. Save editable copy keeps a project you can reopen in the builder.';
   const photos = $('photos'); photos.textContent = ''; photos.hidden = !SITE.photos.length;
   for (const p of SITE.photos) { const img = new Image(); img.src = p.src; img.alt = p.alt || ''; img.loading = 'lazy'; photos.appendChild(img); }
   $('footer').textContent = name + '. Boards are regulation ACA/ACL size.' + (contact.length ? ' ' + contact.join('. ') + '.' : '');
@@ -1583,42 +2100,104 @@ function syncAll() { syncBoard(); syncLists(); syncProps(); syncOrder(); syncHis
 /* ====================================================================
    BOOT. The page draws at once, then the saved project (if any) is read
    from the device and put in place. Until then the builder takes no click
-   and no key (body.loading), so an edit can never race the restore and
-   lose it; nothing is written back until the restore has finished, so a
-   restored project is never overwritten by the fresh page. A device that
-   does not answer in a few seconds is not waited for: the page goes on,
-   and a project that turns up late is offered, not forced.
+   and no key (body.loading, and the regions are inert), so an edit can
+   never race the restore and lose it; nothing is written back until the
+   restore has finished, so a restored project is never overwritten by
+   the fresh page. A device that does not answer in six seconds is not
+   waited for: the builder opens, says it is still checking, and keeps
+   what is typed meanwhile. A project that turns up after that is
+   offered, not forced, and Undo reaches whichever design was not kept.
    ==================================================================== */
-history = [snapshot()];
+startupSnapshot = JSON.stringify({ design, order });
+history = [copyHistoryState(design)];
 syncAll();
 showOutcome();
 renderSite();
-function restoreProject(p) {
-  design = migrate(p.design);
-  if (p.order) applyOrder(p.order);
-  selected = null; active = 'a';
-  history = [snapshot()]; future = [];
-  syncAll(); showTab('board');
-}
-(async () => {
-  const loading = loadProject().catch(() => null);
-  let p = await Promise.race([loading, new Promise((res) => setTimeout(() => res(undefined), 6000))]);
-  if (p === undefined) {
-    /* Late: by now the customer may be at work on the fresh page. */
-    loading.then((late) => { if (!late) return; if (history.length < 2) { restoreProject(late); setSaveState('saved'); } else if (confirm('A design saved earlier on this device was found. Replace what you have started with it?')) { restoreProject(late); commit(); } });
-    p = null;
-  }
-  if (p) { restoreProject(p); storageReady = true; setSaveState('saved'); }
-  else { storageReady = true; setSaveState('new'); }
+const LATE_PROJECT_PROMPT = 'A design saved earlier on this device was found. Replace what you have started with it?';
+function openBuilder() {
   loaded = true;
   document.body.classList.remove('loading');
+  for (const el of document.querySelectorAll('.panel, .stage, #mobilebar')) el.inert = false;
+}
+(async () => {
+  let p = null, unreadable = false, restored = false;
+  const timeout = setTimeout(() => {
+    restoreTimedOut = true; openBuilder(); setSaveState('waiting');
+  }, 6000);
+  try {
+    p = await loadProject({ validate: (project) => {
+      // Stored order choices still use applyOrder's legacy sanitization.
+      // Validate the artwork before migrate can default or render it.
+      validateProject({ design: project.design }, { clips: CLIPS, patterns: PATTERNS, stains: STAINS, allowOffboardPositions: true });
+    } });
+  } catch (_) { unreadable = true; }
+  clearTimeout(timeout);
+  // Edits are possible only once the six-second notice has opened the
+  // builder. Include ones still in progress (typing, a colour picker, or
+  // dragging) even when their change/commit event has not happened yet.
+  const editedDuringLoad = hasStartupEdits();
+  startupSnapshot = null;
+  let keepEdits = editedDuringLoad;
+  if (p && editedDuringLoad) {
+    // Whichever design the customer keeps, the other is one Undo away. An
+    // edit still in progress (typing, a colour pick) is not in the history
+    // yet, so the design is recorded as it stands; a drag is recorded when
+    // it ends, whether it completes or is cancelled.
+    if (!drag && !sameHistoryState(history[history.length - 1], design)) history.push(copyHistoryState(design));
+    if (confirm(LATE_PROJECT_PROMPT)) keepEdits = false;
+    else {
+      // The saved design takes the untouched default's place at the start
+      // of the history. When that default is still the design on screen
+      // (an order-only edit), it keeps an entry of its own above it.
+      if (history.length === 1 && !drag) history.push(copyHistoryState(design));
+      history[0] = copyHistoryState(migrate(p.design)); future = []; syncHistoryButtons();
+    }
+  }
+  if (p && !keepEdits) {
+    const previousDesign = design, previousOrder = { ...order, bagColors: [...order.bagColors] };
+    try {
+      design = migrate(p.design);
+      if (p.order) applyOrder(p.order);
+      selected = null; active = 'a';
+      if (editedDuringLoad) history.push(copyHistoryState(design)); else history = [copyHistoryState(design)];
+      future = [];
+      syncAll(); showTab('board');
+      restored = true;
+    } catch (_) {
+      // A restoration failure must not leave a partly applied project or
+      // permanently disable saves for the customer's next edit.
+      design = previousDesign; Object.assign(order, previousOrder);
+      selected = null; active = 'a';
+      history = [copyHistoryState(design)]; future = [];
+      syncAll(); unreadable = true;
+    }
+  }
+  if (!keepEdits) {
+    saveBaseline = copyHistoryState({ design, order });
+    saveBaselineState = restored ? 'saved' : unreadable ? 'unreadable' : 'new';
+  }
+  storageReady = true;
+  if (keepEdits) save();
+  else if (restored) setSaveState('saved');
+  else if (unreadable) {
+    recoverySnapshot = JSON.stringify({ design, order });
+    setSaveState('unreadable');
+  } else setSaveState('new');
+  openBuilder();
 })();
 window.addEventListener('resize', render);
 /* Web fonts arrive after the first paint; a text set in one is measured
-   and drawn in the fallback until then. Repaint when each one lands, and
-   redraw the template thumbnails too. */
-const refontThumbs = () => { for (const b of document.querySelectorAll('#templates .tpl')) { const t = TEMPLATES.find((x) => x.id === b.dataset.id), c = b.querySelector('canvas'); if (!t || !c) continue; c.getContext('2d').clearRect(0, 0, c.width, c.height); renderBoard(c.getContext('2d'), t.board(), c.height / BOARD.h); } render(); };
-if (document.fonts && document.fonts.ready) document.fonts.ready.then(refontThumbs);
+   and drawn in the fallback until then. When faces land, repaint, refit
+   the guided text, and redraw the template thumbnails already drawn (the
+   rest are drawn with the loaded fonts when they come into view). A
+   loading round that brought no face in changes nothing. */
+const refontThumbs = (ev) => {
+  if (ev && ev.fontfaces && !ev.fontfaces.length) return;
+  for (const [c, t] of thumbnails) if (t.text && c.dataset.drawn) t.draw();
+  let resized = false;
+  for (const board of [design.a, design.b]) for (const el of board.elements) if (el.type === 'text' && el.autoFit && el.fitReference && el.text !== el.fitReference.text) { const before = el.size; fitTemplateText(el); resized ||= before !== el.size; }
+  syncProps(); render(); if (resized) commit();
+};
 if (document.fonts) document.fonts.addEventListener('loadingdone', refontThumbs);
 /* The font stylesheet is fetched without holding the first paint (the link
    in index.html), so its @font-face rules can land after the boards are
@@ -1650,7 +2229,7 @@ window.cornhole = {
   get boxes() { return boxes; },
   get loaded() { return loaded; },
   get saveState() { return saveState; },
-  get historyBytes() { return history.reduce((n, s) => n + s.length, 0) + future.reduce((n, s) => n + s.length, 0); },
+  get historyLength() { return history.length; },
   setDesign(d) { design = migrate(JSON.parse(JSON.stringify(d))); selected = null; syncAll(); commit(); },
   setOrder(o) { Object.assign(order, o); syncAll(); },
   select, commit, undo, redo, render, paint, showTab, printCanvas, previewDataUrl, orderPayload, preloadImages,

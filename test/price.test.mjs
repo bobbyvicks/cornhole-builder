@@ -31,6 +31,23 @@ test('the carrying case is per unit and the guest-book finish is a finish', () =
   assert.equal(quote({ product: 'set', quantity: 1, carryCase: 'yes' }).options.carryCase, false);
 });
 
+test('all 480 option combinations price as their lines and the price list say', () => {
+  let combinations = 0;
+  for (const product of Object.keys(PRICING.products)) for (const finish of Object.keys(PRICING.finishes)) for (const bags of Object.keys(PRICING.bags))
+    for (const rush of [false, true]) for (const carryCase of [false, true]) for (let quantity = 1; quantity <= PRICING.maxQuantity; quantity++) {
+      const q = quote({ product, quantity, finish, bags, rush, carryCase });
+      const perUnit = PRICING.products[product].cents + PRICING.finishes[finish].cents + PRICING.bags[bags].cents + (carryCase ? PRICING.carryCase.cents : 0);
+      const expected = perUnit * quantity + (rush ? PRICING.rush.cents : 0) + PRICING.shipping.first + PRICING.shipping.additional * (quantity - 1);
+      const label = JSON.stringify(q.options);
+      assert.equal(q.total, expected, label);
+      assert.equal(q.total, q.lines.reduce((n, l) => n + l.cents, 0), label + ' total is the sum of its lines');
+      assert.equal(q.subtotal + q.shipping, q.total, label);
+      for (const l of q.lines) assert.equal(l.cents, l.unit * l.qty, label + ' ' + l.label);
+      combinations++;
+    }
+  assert.equal(combinations, 480);
+});
+
 test('free options do not produce a zero line', () => {
   const labels = quote({ product: 'set', quantity: 1, finish: 'satin', bags: 'none' }).lines.map((l) => l.label);
   assert.ok(!labels.includes(PRICING.finishes.satin.label));

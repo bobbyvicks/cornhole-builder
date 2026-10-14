@@ -1,0 +1,85 @@
+{
+  "id": "bbp1-game-on",
+  "label": "Game on",
+  "category": "pack-sports",
+  "occasion": "team",
+  "description": "A varsity trophy, oversized team lettering, and a subtle blue stripe background.",
+  "palette": [
+    "#193D72",
+    "#244C83",
+    "#F1BC53",
+    "#FFF6DF"
+  ],
+  "base": {
+    "kind": "paint",
+    "color": "#193D72"
+  },
+  "pattern": {
+    "kind": "vstripes",
+    "color": "#244C83",
+    "size": 4
+  },
+  "elements": [
+    {
+      "type": "text",
+      "text": "HOME FIELD ADVANTAGE",
+      "font": "Montserrat",
+      "size": 0.71,
+      "color": "#FFF6DF",
+      "x": 12,
+      "y": 3.15,
+      "spacing": 0.08
+    },
+    {
+      "type": "clip",
+      "name": "bbp1-varsity-trophy",
+      "width": 13,
+      "x": 12,
+      "y": 22,
+      "color": "#F1BC53"
+    },
+    {
+      "type": "text",
+      "text": "GAME",
+      "font": "Anton",
+      "size": 5,
+      "color": "#FFF6DF",
+      "x": 12,
+      "y": 32.8,
+      "spacing": 0.08
+    },
+    {
+      "type": "text",
+      "text": "ON",
+      "font": "Anton",
+      "size": 5.1,
+      "color": "#FFF6DF",
+      "x": 12,
+      "y": 39.1,
+      "spacing": 0.12
+    },
+    {
+      "type": "text",
+      "text": "THE WILDCATS",
+      "font": "Montserrat",
+      "size": 1.03,
+      "color": "#F1BC53",
+      "x": 12,
+      "y": 44.6,
+      "spacing": 0.12
+    }
+  ],
+  "personalize": [
+    "THE WILDCATS"
+  ],
+  "board": {
+    "widthInches": 24,
+    "heightInches": 48,
+    "hole": {
+      "x": 12,
+      "y": 9,
+      "diameter": 6
+    }
+  },
+  "sameDesignOnBothBoards": true
+}

@@ -1,0 +1,578 @@
+[
+  {
+    "templateId": "bbp1-garden-vows",
+    "text": "TOGETHER IS HOME",
+    "x": 6.959999999403953,
+    "y": 2.6,
+    "w": 10.080000001192094,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-garden-vows",
+    "text": "AVERY",
+    "x": 7.909999847412109,
+    "y": 23,
+    "w": 8.180000305175781,
+    "h": 4
+  },
+  {
+    "templateId": "bbp1-garden-vows",
+    "text": "&",
+    "x": 11.319999992847443,
+    "y": 27.6,
+    "w": 1.3600000143051147,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-garden-vows",
+    "text": "JORDAN",
+    "x": 7.449999809265137,
+    "y": 29.6,
+    "w": 9.100000381469727,
+    "h": 3
+  },
+  {
+    "templateId": "bbp1-garden-vows",
+    "text": "JUNE 14, 2027",
+    "x": 7.880000023841858,
+    "y": 39.00000002980232,
+    "w": 8.239999952316284,
+    "h": 1.9999999403953552
+  },
+  {
+    "templateId": "bbp1-garden-vows",
+    "text": "TOGETHER IS HOME",
+    "x": 6.959999999403953,
+    "y": 2.6,
+    "w": 10.080000001192094,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-garden-vows",
+    "text": "AVERY",
+    "x": 7.909999847412109,
+    "y": 23,
+    "w": 8.180000305175781,
+    "h": 4
+  },
+  {
+    "templateId": "bbp1-garden-vows",
+    "text": "&",
+    "x": 11.319999992847443,
+    "y": 27.6,
+    "w": 1.3600000143051147,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-garden-vows",
+    "text": "JORDAN",
+    "x": 7.449999809265137,
+    "y": 29.6,
+    "w": 9.100000381469727,
+    "h": 3
+  },
+  {
+    "templateId": "bbp1-garden-vows",
+    "text": "JUNE 14, 2027",
+    "x": 7.880000023841858,
+    "y": 39.00000002980232,
+    "w": 8.239999952316284,
+    "h": 1.9999999403953552
+  },
+  {
+    "templateId": "bbp1-family-roots",
+    "text": "OUR BACKYARD",
+    "x": 7.0250000089406965,
+    "y": 2.2,
+    "w": 9.949999982118607,
+    "h": 2
+  },
+  {
+    "templateId": "bbp1-family-roots",
+    "text": "THE PARKERS",
+    "x": 4.334999936819076,
+    "y": 35.6,
+    "w": 15.330000126361847,
+    "h": 2
+  },
+  {
+    "templateId": "bbp1-family-roots",
+    "text": "EST. 2018",
+    "x": 8.600000019073487,
+    "y": 40.5,
+    "w": 6.799999961853027,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-family-roots",
+    "text": "GOOD TIMES GROW HERE",
+    "x": 7.465000027418137,
+    "y": 43.9,
+    "w": 9.069999945163726,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-family-roots",
+    "text": "OUR BACKYARD",
+    "x": 7.0250000089406965,
+    "y": 2.2,
+    "w": 9.949999982118607,
+    "h": 2
+  },
+  {
+    "templateId": "bbp1-family-roots",
+    "text": "THE PARKERS",
+    "x": 4.334999936819076,
+    "y": 35.6,
+    "w": 15.330000126361847,
+    "h": 2
+  },
+  {
+    "templateId": "bbp1-family-roots",
+    "text": "EST. 2018",
+    "x": 8.600000019073487,
+    "y": 40.5,
+    "w": 6.799999961853027,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-family-roots",
+    "text": "GOOD TIMES GROW HERE",
+    "x": 7.465000027418137,
+    "y": 43.9,
+    "w": 9.069999945163726,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-lake-days",
+    "text": "LIFE AT THE LAKE",
+    "x": 7.210000021755695,
+    "y": 2.6,
+    "w": 9.57999995648861,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-lake-days",
+    "text": "LAKE",
+    "x": 6.795000023841858,
+    "y": 28.4,
+    "w": 10.409999952316284,
+    "h": 5
+  },
+  {
+    "templateId": "bbp1-lake-days",
+    "text": "DAYS",
+    "x": 6.460000104904175,
+    "y": 35.1,
+    "w": 11.07999979019165,
+    "h": 5
+  },
+  {
+    "templateId": "bbp1-lake-days",
+    "text": "THE CARTERS",
+    "x": 7.370000016689301,
+    "y": 43.2,
+    "w": 9.259999966621399,
+    "h": 2
+  },
+  {
+    "templateId": "bbp1-lake-days",
+    "text": "LIFE AT THE LAKE",
+    "x": 7.210000021755695,
+    "y": 2.6,
+    "w": 9.57999995648861,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-lake-days",
+    "text": "LAKE",
+    "x": 6.795000023841858,
+    "y": 28.4,
+    "w": 10.409999952316284,
+    "h": 5
+  },
+  {
+    "templateId": "bbp1-lake-days",
+    "text": "DAYS",
+    "x": 6.460000104904175,
+    "y": 35.1,
+    "w": 11.07999979019165,
+    "h": 5
+  },
+  {
+    "templateId": "bbp1-lake-days",
+    "text": "THE CARTERS",
+    "x": 7.370000016689301,
+    "y": 43.2,
+    "w": 9.259999966621399,
+    "h": 2
+  },
+  {
+    "templateId": "bbp1-off-the-grid",
+    "text": "TAKE THE LONG WAY",
+    "x": 6.96000003695488,
+    "y": 2.7,
+    "w": 10.07999992609024,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-off-the-grid",
+    "text": "OFF THE GRID",
+    "x": 5.8599999833107,
+    "y": 34,
+    "w": 12.2800000333786,
+    "h": 3
+  },
+  {
+    "templateId": "bbp1-off-the-grid",
+    "text": "THE BENNETTS",
+    "x": 7.069999989271164,
+    "y": 39.7,
+    "w": 9.860000021457672,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-off-the-grid",
+    "text": "CAMP / PLAY / REPEAT",
+    "x": 7.810000023841858,
+    "y": 43.1,
+    "w": 8.379999952316284,
+    "h": 2
+  },
+  {
+    "templateId": "bbp1-off-the-grid",
+    "text": "TAKE THE LONG WAY",
+    "x": 6.96000003695488,
+    "y": 2.7,
+    "w": 10.07999992609024,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-off-the-grid",
+    "text": "OFF THE GRID",
+    "x": 5.8599999833107,
+    "y": 34,
+    "w": 12.2800000333786,
+    "h": 3
+  },
+  {
+    "templateId": "bbp1-off-the-grid",
+    "text": "THE BENNETTS",
+    "x": 7.069999989271164,
+    "y": 39.7,
+    "w": 9.860000021457672,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-off-the-grid",
+    "text": "CAMP / PLAY / REPEAT",
+    "x": 7.810000023841858,
+    "y": 43.1,
+    "w": 8.379999952316284,
+    "h": 2
+  },
+  {
+    "templateId": "bbp1-backyard-pitmaster",
+    "text": "LOW & SLOW",
+    "x": 7.840000002384186,
+    "y": 2.65,
+    "w": 8.319999995231628,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-backyard-pitmaster",
+    "text": "MORGAN'S",
+    "x": 5.414999926090241,
+    "y": 32.9,
+    "w": 13.170000147819518,
+    "h": 3
+  },
+  {
+    "templateId": "bbp1-backyard-pitmaster",
+    "text": "BACKYARD BBQ",
+    "x": 6.660000038146973,
+    "y": 37.6,
+    "w": 10.679999923706054,
+    "h": 3
+  },
+  {
+    "templateId": "bbp1-backyard-pitmaster",
+    "text": "LOW & SLOW",
+    "x": 7.840000002384186,
+    "y": 2.65,
+    "w": 8.319999995231628,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-backyard-pitmaster",
+    "text": "MORGAN'S",
+    "x": 5.414999926090241,
+    "y": 32.9,
+    "w": 13.170000147819518,
+    "h": 3
+  },
+  {
+    "templateId": "bbp1-backyard-pitmaster",
+    "text": "BACKYARD BBQ",
+    "x": 6.660000038146973,
+    "y": 37.6,
+    "w": 10.679999923706054,
+    "h": 3
+  },
+  {
+    "templateId": "bbp1-game-on",
+    "text": "HOME FIELD ADVANTAGE",
+    "x": 6.335000021159649,
+    "y": 2.65,
+    "w": 11.329999957680702,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-game-on",
+    "text": "GAME",
+    "x": 6.5599999475479125,
+    "y": 30.299999999999997,
+    "w": 10.880000104904175,
+    "h": 5
+  },
+  {
+    "templateId": "bbp1-game-on",
+    "text": "ON",
+    "x": 9.430000009536743,
+    "y": 36.6,
+    "w": 5.139999980926514,
+    "h": 5
+  },
+  {
+    "templateId": "bbp1-game-on",
+    "text": "THE WILDCATS",
+    "x": 7.199999969601631,
+    "y": 43.600000029802324,
+    "w": 9.600000060796738,
+    "h": 1.9999999403953552
+  },
+  {
+    "templateId": "bbp1-game-on",
+    "text": "HOME FIELD ADVANTAGE",
+    "x": 6.335000021159649,
+    "y": 2.65,
+    "w": 11.329999957680702,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-game-on",
+    "text": "GAME",
+    "x": 6.5599999475479125,
+    "y": 30.299999999999997,
+    "w": 10.880000104904175,
+    "h": 5
+  },
+  {
+    "templateId": "bbp1-game-on",
+    "text": "ON",
+    "x": 9.430000009536743,
+    "y": 36.6,
+    "w": 5.139999980926514,
+    "h": 5
+  },
+  {
+    "templateId": "bbp1-game-on",
+    "text": "THE WILDCATS",
+    "x": 7.199999969601631,
+    "y": 43.600000029802324,
+    "w": 9.600000060796738,
+    "h": 1.9999999403953552
+  },
+  {
+    "templateId": "bbp1-garden-vows",
+    "text": "TOGETHER IS HOME",
+    "x": 6.959999999403953,
+    "y": 2.6,
+    "w": 10.080000001192094,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-garden-vows",
+    "text": "AVERY",
+    "x": 7.909999847412109,
+    "y": 23,
+    "w": 8.180000305175781,
+    "h": 4
+  },
+  {
+    "templateId": "bbp1-garden-vows",
+    "text": "&",
+    "x": 11.319999992847443,
+    "y": 27.6,
+    "w": 1.3600000143051147,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-garden-vows",
+    "text": "JORDAN",
+    "x": 7.449999809265137,
+    "y": 29.6,
+    "w": 9.100000381469727,
+    "h": 3
+  },
+  {
+    "templateId": "bbp1-garden-vows",
+    "text": "JUNE 14, 2027",
+    "x": 7.880000023841858,
+    "y": 39.00000002980232,
+    "w": 8.239999952316284,
+    "h": 1.9999999403953552
+  },
+  {
+    "templateId": "bbp1-family-roots",
+    "text": "OUR BACKYARD",
+    "x": 7.0250000089406965,
+    "y": 2.2,
+    "w": 9.949999982118607,
+    "h": 2
+  },
+  {
+    "templateId": "bbp1-family-roots",
+    "text": "THE PARKERS",
+    "x": 4.334999936819076,
+    "y": 35.6,
+    "w": 15.330000126361847,
+    "h": 2
+  },
+  {
+    "templateId": "bbp1-family-roots",
+    "text": "EST. 2018",
+    "x": 8.600000019073487,
+    "y": 40.5,
+    "w": 6.799999961853027,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-family-roots",
+    "text": "GOOD TIMES GROW HERE",
+    "x": 7.465000027418137,
+    "y": 43.9,
+    "w": 9.069999945163726,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-lake-days",
+    "text": "LIFE AT THE LAKE",
+    "x": 7.210000021755695,
+    "y": 2.6,
+    "w": 9.57999995648861,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-lake-days",
+    "text": "LAKE",
+    "x": 6.795000023841858,
+    "y": 28.4,
+    "w": 10.409999952316284,
+    "h": 5
+  },
+  {
+    "templateId": "bbp1-lake-days",
+    "text": "DAYS",
+    "x": 6.460000104904175,
+    "y": 35.1,
+    "w": 11.07999979019165,
+    "h": 5
+  },
+  {
+    "templateId": "bbp1-lake-days",
+    "text": "THE CARTERS",
+    "x": 7.370000016689301,
+    "y": 43.2,
+    "w": 9.259999966621399,
+    "h": 2
+  },
+  {
+    "templateId": "bbp1-off-the-grid",
+    "text": "TAKE THE LONG WAY",
+    "x": 6.96000003695488,
+    "y": 2.7,
+    "w": 10.07999992609024,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-off-the-grid",
+    "text": "OFF THE GRID",
+    "x": 5.8599999833107,
+    "y": 34,
+    "w": 12.2800000333786,
+    "h": 3
+  },
+  {
+    "templateId": "bbp1-off-the-grid",
+    "text": "THE BENNETTS",
+    "x": 7.069999989271164,
+    "y": 39.7,
+    "w": 9.860000021457672,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-off-the-grid",
+    "text": "CAMP / PLAY / REPEAT",
+    "x": 7.810000023841858,
+    "y": 43.1,
+    "w": 8.379999952316284,
+    "h": 2
+  },
+  {
+    "templateId": "bbp1-backyard-pitmaster",
+    "text": "LOW & SLOW",
+    "x": 7.840000002384186,
+    "y": 2.65,
+    "w": 8.319999995231628,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-backyard-pitmaster",
+    "text": "MORGAN'S",
+    "x": 5.414999926090241,
+    "y": 32.9,
+    "w": 13.170000147819518,
+    "h": 3
+  },
+  {
+    "templateId": "bbp1-backyard-pitmaster",
+    "text": "BACKYARD BBQ",
+    "x": 6.660000038146973,
+    "y": 37.6,
+    "w": 10.679999923706054,
+    "h": 3
+  },
+  {
+    "templateId": "bbp1-game-on",
+    "text": "HOME FIELD ADVANTAGE",
+    "x": 6.335000021159649,
+    "y": 2.65,
+    "w": 11.329999957680702,
+    "h": 1
+  },
+  {
+    "templateId": "bbp1-game-on",
+    "text": "GAME",
+    "x": 6.5599999475479125,
+    "y": 30.299999999999997,
+    "w": 10.880000104904175,
+    "h": 5
+  },
+  {
+    "templateId": "bbp1-game-on",
+    "text": "ON",
+    "x": 9.430000009536743,
+    "y": 36.6,
+    "w": 5.139999980926514,
+    "h": 5
+  },
+  {
+    "templateId": "bbp1-game-on",
+    "text": "THE WILDCATS",
+    "x": 7.199999969601631,
+    "y": 43.600000029802324,
+    "w": 9.600000060796738,
+    "h": 1.9999999403953552
+  }
+]

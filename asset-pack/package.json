@@ -1,0 +1,8 @@
+{
+  "name": "cornhole-creative-pack-v1",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {"build": "node tools/build.mjs", "verify": "node tools/verify.mjs"},
+  "devDependencies": {"@napi-rs/canvas": "0.1.100", "sharp": "0.35.5"}
+}
