@@ -137,6 +137,15 @@ the page uses; each carries an `occasion`, which is the group it is shown
 under, and its words are what the review calls sample words. The browser suite draws every piece and loads
 every template, so a broken addition fails a test rather than a customer.
 
+### Creative pack for Claude
+
+[`asset-pack/`](asset-pack/README.md) contains 24 original SVG icons and six
+editable board templates, plus their source data, previews and font licences.
+Open [`asset-pack/preview.html`](asset-pack/preview.html) locally to browse the
+collection. Give Claude [`asset-pack/CLAUDE-INTEGRATION.txt`](asset-pack/CLAUDE-INTEGRATION.txt)
+to connect the native artwork module to the current designer. The pack is
+ready for integration; it is not yet registered in the live app.
+
 ## Still to do
 
 - An admin view of orders (the table is the only one today).

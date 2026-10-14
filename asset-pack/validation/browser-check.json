@@ -1,0 +1,16 @@
+{
+  "result": "passed",
+  "page": "preview.html",
+  "viewport": {"width": 390, "height": 844},
+  "documentScrollWidth": 375,
+  "horizontalOverflow": false,
+  "brokenImages": [],
+  "consoleErrors": [],
+  "checks": [
+    "All 24 icons and six template images present on initial load",
+    "Camping collection filter shows four icons",
+    "Search for lantern within Camping shows exactly Trail Lantern",
+    "Ink #A74330 updates computed artwork colour to rgb(167, 67, 48)",
+    "Clearing search and category filter restores all 24 icons"
+  ]
+}

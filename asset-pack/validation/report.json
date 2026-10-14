@@ -1,0 +1,344 @@
+{
+  "status": "passed",
+  "iconCount": 24,
+  "templateCount": 6,
+  "checks": [
+    "24 unique SVGs; six categories with four icons each",
+    "Every SVG parses and renders with a recoloured fill and transparent background",
+    "Native Path2D renderer and standalone SVG silhouettes agree",
+    "Artwork bounds retain at least 6.5% margins",
+    "Six editable template factories use the current helper contract and fresh element IDs",
+    "Template instances are independent and do not mutate source definitions",
+    "Default text and clip art remain inside safe trim margins and clear of the hole",
+    "Six board SVGs render at 24 × 48 inches and contain outlined vector text",
+    "Gallery, contact sheets, source data, font notices and Claude handoff present"
+  ],
+  "icons": [
+    {
+      "id": "bbp1-botanical-arch",
+      "bounds": [
+        7.687623977661133,
+        7,
+        92.3123779296875,
+        92
+      ],
+      "opaquePixels": 17091,
+      "svgVsNativeAlphaError": 0.001431
+    },
+    {
+      "id": "bbp1-linked-rings",
+      "bounds": [
+        12.003216743469238,
+        8,
+        87.99679565429688,
+        78.0009994506836
+      ],
+      "opaquePixels": 15765,
+      "svgVsNativeAlphaError": 0.000973
+    },
+    {
+      "id": "bbp1-toast",
+      "bounds": [
+        7.489999771118164,
+        8,
+        92.51000213623047,
+        85.0199966430664
+      ],
+      "opaquePixels": 14969,
+      "svgVsNativeAlphaError": 0.000709
+    },
+    {
+      "id": "bbp1-love-letter",
+      "bounds": [
+        11,
+        13,
+        89,
+        86
+      ],
+      "opaquePixels": 35389,
+      "svgVsNativeAlphaError": 0.001043
+    },
+    {
+      "id": "bbp1-family-oak",
+      "bounds": [
+        8.780132293701172,
+        8.5,
+        91.59229278564453,
+        90
+      ],
+      "opaquePixels": 38436,
+      "svgVsNativeAlphaError": 0.000947
+    },
+    {
+      "id": "bbp1-home-heart",
+      "bounds": [
+        8,
+        10,
+        92,
+        86
+      ],
+      "opaquePixels": 35365,
+      "svgVsNativeAlphaError": 0.000509
+    },
+    {
+      "id": "bbp1-paw-heart",
+      "bounds": [
+        8.777777671813965,
+        14.9495849609375,
+        91.22222137451172,
+        90
+      ],
+      "opaquePixels": 28589,
+      "svgVsNativeAlphaError": 0.001365
+    },
+    {
+      "id": "bbp1-family-crest",
+      "bounds": [
+        7.407769203186035,
+        15,
+        92.59223175048828,
+        90.8338623046875
+      ],
+      "opaquePixels": 23338,
+      "svgVsNativeAlphaError": 0.001316
+    },
+    {
+      "id": "bbp1-lakeside-cabin",
+      "bounds": [
+        9,
+        13,
+        91,
+        93
+      ],
+      "opaquePixels": 32774,
+      "svgVsNativeAlphaError": 0.001148
+    },
+    {
+      "id": "bbp1-canoe-sunset",
+      "bounds": [
+        9,
+        7,
+        93,
+        93
+      ],
+      "opaquePixels": 27700,
+      "svgVsNativeAlphaError": 0.001756
+    },
+    {
+      "id": "bbp1-mountain-pines",
+      "bounds": [
+        7,
+        15,
+        93,
+        93
+      ],
+      "opaquePixels": 24082,
+      "svgVsNativeAlphaError": 0.000718
+    },
+    {
+      "id": "bbp1-leaping-fish",
+      "bounds": [
+        7,
+        18,
+        92,
+        93
+      ],
+      "opaquePixels": 25747,
+      "svgVsNativeAlphaError": 0.001012
+    },
+    {
+      "id": "bbp1-ridge-tent",
+      "bounds": [
+        9,
+        9,
+        91,
+        93
+      ],
+      "opaquePixels": 27017,
+      "svgVsNativeAlphaError": 0.000867
+    },
+    {
+      "id": "bbp1-campfire",
+      "bounds": [
+        12.770841598510742,
+        9,
+        89.15605926513672,
+        93
+      ],
+      "opaquePixels": 32604,
+      "svgVsNativeAlphaError": 0.001296
+    },
+    {
+      "id": "bbp1-trail-lantern",
+      "bounds": [
+        26,
+        7.75,
+        74,
+        92
+      ],
+      "opaquePixels": 22987,
+      "svgVsNativeAlphaError": 0.000965
+    },
+    {
+      "id": "bbp1-compass-rose",
+      "bounds": [
+        7,
+        7,
+        93,
+        93
+      ],
+      "opaquePixels": 23431,
+      "svgVsNativeAlphaError": 0.001354
+    },
+    {
+      "id": "bbp1-kettle-grill",
+      "bounds": [
+        15,
+        7,
+        85,
+        93
+      ],
+      "opaquePixels": 33561,
+      "svgVsNativeAlphaError": 0.001172
+    },
+    {
+      "id": "bbp1-pitmaster-tools",
+      "bounds": [
+        11,
+        9,
+        85,
+        93
+      ],
+      "opaquePixels": 26591,
+      "svgVsNativeAlphaError": 0.000563
+    },
+    {
+      "id": "bbp1-smoker",
+      "bounds": [
+        9,
+        8,
+        92,
+        90
+      ],
+      "opaquePixels": 33561,
+      "svgVsNativeAlphaError": 0.000818
+    },
+    {
+      "id": "bbp1-stacked-burger",
+      "bounds": [
+        9.800000190734863,
+        9,
+        90.19999694824219,
+        93
+      ],
+      "opaquePixels": 46684,
+      "svgVsNativeAlphaError": 0.001161
+    },
+    {
+      "id": "bbp1-cornhole-badge",
+      "bounds": [
+        10,
+        7,
+        90,
+        93
+      ],
+      "opaquePixels": 31243,
+      "svgVsNativeAlphaError": 0.001174
+    },
+    {
+      "id": "bbp1-varsity-trophy",
+      "bounds": [
+        9,
+        13,
+        91,
+        93
+      ],
+      "opaquePixels": 35367,
+      "svgVsNativeAlphaError": 0.000915
+    },
+    {
+      "id": "bbp1-baseball-diamond",
+      "bounds": [
+        7,
+        7,
+        93,
+        93
+      ],
+      "opaquePixels": 23919,
+      "svgVsNativeAlphaError": 0.000929
+    },
+    {
+      "id": "bbp1-football-play",
+      "bounds": [
+        6.999999523162842,
+        8,
+        93,
+        92.99970245361328
+      ],
+      "opaquePixels": 27295,
+      "svgVsNativeAlphaError": 0.000967
+    }
+  ],
+  "templates": [
+    {
+      "id": "bbp1-garden-vows",
+      "elementCount": 7,
+      "independentInstances": true,
+      "trimInches": [
+        24,
+        48
+      ],
+      "textAndArtClearOfHole": true
+    },
+    {
+      "id": "bbp1-family-roots",
+      "elementCount": 5,
+      "independentInstances": true,
+      "trimInches": [
+        24,
+        48
+      ],
+      "textAndArtClearOfHole": true
+    },
+    {
+      "id": "bbp1-lake-days",
+      "elementCount": 5,
+      "independentInstances": true,
+      "trimInches": [
+        24,
+        48
+      ],
+      "textAndArtClearOfHole": true
+    },
+    {
+      "id": "bbp1-off-the-grid",
+      "elementCount": 5,
+      "independentInstances": true,
+      "trimInches": [
+        24,
+        48
+      ],
+      "textAndArtClearOfHole": true
+    },
+    {
+      "id": "bbp1-backyard-pitmaster",
+      "elementCount": 5,
+      "independentInstances": true,
+      "trimInches": [
+        24,
+        48
+      ],
+      "textAndArtClearOfHole": true
+    },
+    {
+      "id": "bbp1-game-on",
+      "elementCount": 5,
+      "independentInstances": true,
+      "trimInches": [
+        24,
+        48
+      ],
+      "textAndArtClearOfHole": true
+    }
+  ]
+}

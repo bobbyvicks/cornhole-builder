@@ -1,0 +1,566 @@
+{
+  "name": "Cornhole Creative Pack",
+  "version": "1.0.0",
+  "created": "2026-10-13",
+  "categories": {
+    "pack-wedding": "Wedding collection",
+    "pack-family": "Family collection",
+    "pack-lake": "Cabin & lake collection",
+    "pack-camping": "Camping collection",
+    "pack-bbq": "Backyard BBQ collection",
+    "pack-sports": "Game day collection"
+  },
+  "iconCount": 24,
+  "templateCount": 6,
+  "iconFormat": {
+    "viewBox": "0 0 100 100",
+    "color": "currentColor",
+    "filledVectors": true
+  },
+  "boardFormat": {
+    "widthInches": 24,
+    "heightInches": 48,
+    "hole": {
+      "centerXInches": 12,
+      "centerYInches": 9,
+      "diameterInches": 6
+    },
+    "bleedInches": 0
+  },
+  "icons": [
+    {
+      "id": "bbp1-botanical-arch",
+      "label": "Botanical Arch",
+      "category": "pack-wedding",
+      "description": "An open botanical arch with a broad central space for names or a wedding date.",
+      "tags": [
+        "wedding",
+        "botanical",
+        "arch",
+        "leaves",
+        "names",
+        "frame"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-botanical-arch.svg",
+      "thumbnail": "previews/icons/bbp1-botanical-arch.png"
+    },
+    {
+      "id": "bbp1-linked-rings",
+      "label": "Linked Rings",
+      "category": "pack-wedding",
+      "description": "Two bold interlocking wedding bands with deliberate woven breaks and a bright star.",
+      "tags": [
+        "wedding",
+        "rings",
+        "marriage",
+        "engagement",
+        "sparkle",
+        "love"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-linked-rings.svg",
+      "thumbnail": "previews/icons/bbp1-linked-rings.png"
+    },
+    {
+      "id": "bbp1-toast",
+      "label": "Celebration Toast",
+      "category": "pack-wedding",
+      "description": "A pair of inward-leaning champagne flutes, a small heart and celebratory sparks.",
+      "tags": [
+        "wedding",
+        "toast",
+        "champagne",
+        "celebration",
+        "anniversary",
+        "cheers"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-toast.svg",
+      "thumbnail": "previews/icons/bbp1-toast.png"
+    },
+    {
+      "id": "bbp1-love-letter",
+      "label": "Love Letter",
+      "category": "pack-wedding",
+      "description": "A heart-sealed note peeking out of a bold folded envelope.",
+      "tags": [
+        "wedding",
+        "letter",
+        "heart",
+        "invitation",
+        "envelope",
+        "love"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-love-letter.svg",
+      "thumbnail": "previews/icons/bbp1-love-letter.png"
+    },
+    {
+      "id": "bbp1-family-oak",
+      "label": "Family Oak",
+      "category": "pack-family",
+      "description": "A full-canopy oak with strong spreading roots and a heart carved into its trunk.",
+      "tags": [
+        "family",
+        "oak",
+        "tree",
+        "roots",
+        "heritage",
+        "heart"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-family-oak.svg",
+      "thumbnail": "previews/icons/bbp1-family-oak.png"
+    },
+    {
+      "id": "bbp1-home-heart",
+      "label": "Home Is Love",
+      "category": "pack-family",
+      "description": "A solid welcoming home with a large heart-shaped opening.",
+      "tags": [
+        "family",
+        "home",
+        "house",
+        "heart",
+        "welcome",
+        "housewarming"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-home-heart.svg",
+      "thumbnail": "previews/icons/bbp1-home-heart.png"
+    },
+    {
+      "id": "bbp1-paw-heart",
+      "label": "Paw Heart",
+      "category": "pack-family",
+      "description": "A generous heart with an unmistakable paw-print opening for the whole family.",
+      "tags": [
+        "family",
+        "pets",
+        "paw",
+        "heart",
+        "dog",
+        "cat"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-paw-heart.svg",
+      "thumbnail": "previews/icons/bbp1-paw-heart.png"
+    },
+    {
+      "id": "bbp1-family-crest",
+      "label": "Family Crest",
+      "category": "pack-family",
+      "description": "A clean heritage shield with balanced laurel leaves and an empty monogram center.",
+      "tags": [
+        "family",
+        "crest",
+        "shield",
+        "monogram",
+        "heritage",
+        "laurel"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-family-crest.svg",
+      "thumbnail": "previews/icons/bbp1-family-crest.png"
+    },
+    {
+      "id": "bbp1-lakeside-cabin",
+      "label": "Lakeside Cabin",
+      "category": "pack-lake",
+      "description": "A welcoming gabled cabin with a chimney, bright windows, and bold lake ripples.",
+      "tags": [
+        "cabin",
+        "lake",
+        "cottage",
+        "weekend",
+        "water",
+        "outdoors"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-lakeside-cabin.svg",
+      "thumbnail": "previews/icons/bbp1-lakeside-cabin.png"
+    },
+    {
+      "id": "bbp1-canoe-sunset",
+      "label": "Canoe Sunset",
+      "category": "pack-lake",
+      "description": "A deep canoe and broad paddle drift beneath a low evening sun.",
+      "tags": [
+        "canoe",
+        "paddle",
+        "sunset",
+        "lake",
+        "water",
+        "summer"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-canoe-sunset.svg",
+      "thumbnail": "previews/icons/bbp1-canoe-sunset.png"
+    },
+    {
+      "id": "bbp1-mountain-pines",
+      "label": "Mountain Pines",
+      "category": "pack-lake",
+      "description": "A snow-capped summit stands between two stepped evergreen silhouettes above still water.",
+      "tags": [
+        "mountain",
+        "pines",
+        "forest",
+        "lake",
+        "nature",
+        "summit"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-mountain-pines.svg",
+      "thumbnail": "previews/icons/bbp1-mountain-pines.png"
+    },
+    {
+      "id": "bbp1-leaping-fish",
+      "label": "Leaping Fish",
+      "category": "pack-lake",
+      "description": "An arcing game fish with a broad tail, dorsal fin, and crisp eye leaps over a splash.",
+      "tags": [
+        "fish",
+        "fishing",
+        "lake",
+        "bass",
+        "splash",
+        "outdoors"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-leaping-fish.svg",
+      "thumbnail": "previews/icons/bbp1-leaping-fish.png"
+    },
+    {
+      "id": "bbp1-ridge-tent",
+      "label": "Ridge Tent",
+      "category": "pack-camping",
+      "description": "A pitched A-frame tent with an open doorway sits beneath a bold double mountain ridge.",
+      "tags": [
+        "tent",
+        "camping",
+        "mountain",
+        "ridge",
+        "adventure",
+        "outdoors"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-ridge-tent.svg",
+      "thumbnail": "previews/icons/bbp1-ridge-tent.png"
+    },
+    {
+      "id": "bbp1-campfire",
+      "label": "Campfire",
+      "category": "pack-camping",
+      "description": "A sweeping flame with a bright inner tongue rises above two crossed campfire logs.",
+      "tags": [
+        "campfire",
+        "flame",
+        "fire",
+        "logs",
+        "camping",
+        "night"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-campfire.svg",
+      "thumbnail": "previews/icons/bbp1-campfire.png"
+    },
+    {
+      "id": "bbp1-trail-lantern",
+      "label": "Trail Lantern",
+      "category": "pack-camping",
+      "description": "A classic trail lantern with a sturdy carry handle, tapered glass, and a small flame.",
+      "tags": [
+        "lantern",
+        "light",
+        "trail",
+        "camping",
+        "night",
+        "vintage"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-trail-lantern.svg",
+      "thumbnail": "previews/icons/bbp1-trail-lantern.png"
+    },
+    {
+      "id": "bbp1-compass-rose",
+      "label": "Compass Rose",
+      "category": "pack-camping",
+      "description": "An eight-point compass with carved cardinal facets and four crisp circular arcs.",
+      "tags": [
+        "compass",
+        "navigation",
+        "adventure",
+        "trail",
+        "camping",
+        "direction"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-compass-rose.svg",
+      "thumbnail": "previews/icons/bbp1-compass-rose.png"
+    },
+    {
+      "id": "bbp1-kettle-grill",
+      "label": "Kettle Grill",
+      "category": "pack-bbq",
+      "description": "A broad kettle barbecue with a domed lid, sturdy legs, and three bowl vents.",
+      "tags": [
+        "grill",
+        "barbecue",
+        "cookout",
+        "kettle",
+        "backyard"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-kettle-grill.svg",
+      "thumbnail": "previews/icons/bbp1-kettle-grill.png"
+    },
+    {
+      "id": "bbp1-pitmaster-tools",
+      "label": "Pitmaster Tools",
+      "category": "pack-bbq",
+      "description": "A slotted grill spatula and long barbecue fork framing a lively flame.",
+      "tags": [
+        "pitmaster",
+        "spatula",
+        "fork",
+        "flame",
+        "barbecue",
+        "tools"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-pitmaster-tools.svg",
+      "thumbnail": "previews/icons/bbp1-pitmaster-tools.png"
+    },
+    {
+      "id": "bbp1-smoker",
+      "label": "Offset Smoker",
+      "category": "pack-bbq",
+      "description": "A barrel smoker with a capped chimney, lid handle, thermometer, and side firebox.",
+      "tags": [
+        "smoker",
+        "barbecue",
+        "pit",
+        "slow-cooked",
+        "firebox"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-smoker.svg",
+      "thumbnail": "previews/icons/bbp1-smoker.png"
+    },
+    {
+      "id": "bbp1-stacked-burger",
+      "label": "Stacked Burger",
+      "category": "pack-bbq",
+      "description": "A generous sesame bun, zigzag lettuce, thick patty, and rounded bottom bun.",
+      "tags": [
+        "burger",
+        "hamburger",
+        "cookout",
+        "food",
+        "sesame"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-stacked-burger.svg",
+      "thumbnail": "previews/icons/bbp1-stacked-burger.png"
+    },
+    {
+      "id": "bbp1-cornhole-badge",
+      "label": "Cornhole Badge",
+      "category": "pack-sports",
+      "description": "A shield holding a perspective cornhole board, its round scoring hole, and a tossed bag.",
+      "tags": [
+        "cornhole",
+        "board",
+        "bag-toss",
+        "shield",
+        "yard-game"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-cornhole-badge.svg",
+      "thumbnail": "previews/icons/bbp1-cornhole-badge.png"
+    },
+    {
+      "id": "bbp1-varsity-trophy",
+      "label": "Varsity Trophy",
+      "category": "pack-sports",
+      "description": "A substantial handled trophy with a star cutout and a broad stepped pedestal.",
+      "tags": [
+        "trophy",
+        "champion",
+        "varsity",
+        "winner",
+        "star",
+        "award"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-varsity-trophy.svg",
+      "thumbnail": "previews/icons/bbp1-varsity-trophy.png"
+    },
+    {
+      "id": "bbp1-baseball-diamond",
+      "label": "Baseball Diamond",
+      "category": "pack-sports",
+      "description": "A baseball with bold stitched seams inside a diamond-shaped field emblem.",
+      "tags": [
+        "baseball",
+        "diamond",
+        "ball",
+        "field",
+        "team-sport"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-baseball-diamond.svg",
+      "thumbnail": "previews/icons/bbp1-baseball-diamond.png"
+    },
+    {
+      "id": "bbp1-football-play",
+      "label": "Football Play",
+      "category": "pack-sports",
+      "description": "A laced football beside an advancing route arrow and an X play marker.",
+      "tags": [
+        "football",
+        "playbook",
+        "route",
+        "ball",
+        "game-day"
+      ],
+      "fillRule": "evenodd",
+      "aspect": 1,
+      "file": "svg/bbp1-football-play.svg",
+      "thumbnail": "previews/icons/bbp1-football-play.png"
+    }
+  ],
+  "templates": [
+    {
+      "id": "bbp1-garden-vows",
+      "label": "Garden vows",
+      "category": "pack-wedding",
+      "description": "An ivory and olive botanical arch with editable names and a wedding date.",
+      "palette": [
+        "#F6F1E5",
+        "#314D3E",
+        "#B4765B"
+      ],
+      "personalize": [
+        "AVERY",
+        "JORDAN",
+        "JUNE 14, 2027"
+      ],
+      "json": "templates/bbp1-garden-vows.json",
+      "svg": "templates/svg/bbp1-garden-vows.svg",
+      "preview": "previews/templates/bbp1-garden-vows.png"
+    },
+    {
+      "id": "bbp1-family-roots",
+      "label": "Family roots",
+      "category": "pack-family",
+      "description": "A warm cream family oak on deep navy, finished with a surname and established date.",
+      "palette": [
+        "#223D4A",
+        "#FFF0CF",
+        "#D18B61"
+      ],
+      "personalize": [
+        "THE PARKERS",
+        "EST. 2018"
+      ],
+      "json": "templates/bbp1-family-roots.json",
+      "svg": "templates/svg/bbp1-family-roots.svg",
+      "preview": "previews/templates/bbp1-family-roots.png"
+    },
+    {
+      "id": "bbp1-lake-days",
+      "label": "Lake days",
+      "category": "pack-lake",
+      "description": "A canoe and setting sun above a bold two-tone lake-house layout.",
+      "palette": [
+        "#B9D8D5",
+        "#174E58",
+        "#FFF0CF"
+      ],
+      "personalize": [
+        "THE CARTERS"
+      ],
+      "json": "templates/bbp1-lake-days.json",
+      "svg": "templates/svg/bbp1-lake-days.svg",
+      "preview": "previews/templates/bbp1-lake-days.png"
+    },
+    {
+      "id": "bbp1-off-the-grid",
+      "label": "Off the grid",
+      "category": "pack-camping",
+      "description": "A mountain campsite in forest green and warm cream, with a personalized camp name.",
+      "palette": [
+        "#233E32",
+        "#F4E8CA",
+        "#D99660"
+      ],
+      "personalize": [
+        "THE BENNETTS"
+      ],
+      "json": "templates/bbp1-off-the-grid.json",
+      "svg": "templates/svg/bbp1-off-the-grid.svg",
+      "preview": "previews/templates/bbp1-off-the-grid.png"
+    },
+    {
+      "id": "bbp1-backyard-pitmaster",
+      "label": "Backyard pitmaster",
+      "category": "pack-bbq",
+      "description": "A bold kettle-grill emblem and personalized BBQ lettering in ember red and cream.",
+      "palette": [
+        "#A74330",
+        "#FFF0CF",
+        "#F2BF72"
+      ],
+      "personalize": [
+        "MORGAN'S"
+      ],
+      "json": "templates/bbp1-backyard-pitmaster.json",
+      "svg": "templates/svg/bbp1-backyard-pitmaster.svg",
+      "preview": "previews/templates/bbp1-backyard-pitmaster.png"
+    },
+    {
+      "id": "bbp1-game-on",
+      "label": "Game on",
+      "category": "pack-sports",
+      "description": "A varsity trophy, oversized team lettering, and a subtle blue stripe background.",
+      "palette": [
+        "#193D72",
+        "#244C83",
+        "#F1BC53",
+        "#FFF6DF"
+      ],
+      "personalize": [
+        "THE WILDCATS"
+      ],
+      "json": "templates/bbp1-game-on.json",
+      "svg": "templates/svg/bbp1-game-on.svg",
+      "preview": "previews/templates/bbp1-game-on.png"
+    }
+  ]
+}

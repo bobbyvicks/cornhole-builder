@@ -1,0 +1,85 @@
+{
+  "id": "bbp1-family-roots",
+  "label": "Family roots",
+  "category": "pack-family",
+  "occasion": "family",
+  "description": "A warm cream family oak on deep navy, finished with a surname and established date.",
+  "palette": [
+    "#223D4A",
+    "#FFF0CF",
+    "#D18B61"
+  ],
+  "base": {
+    "kind": "paint",
+    "color": "#223D4A"
+  },
+  "pattern": {
+    "kind": "border",
+    "color": "#D18B61",
+    "size": 0.45
+  },
+  "elements": [
+    {
+      "type": "text",
+      "text": "OUR BACKYARD",
+      "font": "Montserrat",
+      "size": 0.95,
+      "color": "#FFF0CF",
+      "x": 12,
+      "y": 3.2,
+      "spacing": 0.15
+    },
+    {
+      "type": "clip",
+      "name": "bbp1-family-oak",
+      "width": 17,
+      "x": 12,
+      "y": 24,
+      "color": "#FFF0CF"
+    },
+    {
+      "type": "text",
+      "text": "THE PARKERS",
+      "font": "Montserrat",
+      "size": 2,
+      "color": "#FFF0CF",
+      "x": 12,
+      "y": 36.6,
+      "spacing": 0.04
+    },
+    {
+      "type": "text",
+      "text": "EST. 2018",
+      "font": "Montserrat",
+      "size": 1.04,
+      "color": "#D18B61",
+      "x": 12,
+      "y": 41,
+      "spacing": 0.22
+    },
+    {
+      "type": "text",
+      "text": "GOOD TIMES GROW HERE",
+      "font": "Bebas Neue",
+      "size": 1.13,
+      "color": "#FFF0CF",
+      "x": 12,
+      "y": 44.4,
+      "spacing": 0.05
+    }
+  ],
+  "personalize": [
+    "THE PARKERS",
+    "EST. 2018"
+  ],
+  "board": {
+    "widthInches": 24,
+    "heightInches": 48,
+    "hole": {
+      "x": 12,
+      "y": 9,
+      "diameter": 6
+    }
+  },
+  "sameDesignOnBothBoards": true
+}

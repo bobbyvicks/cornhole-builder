@@ -1,0 +1,84 @@
+{
+  "id": "bbp1-lake-days",
+  "label": "Lake days",
+  "category": "pack-lake",
+  "occasion": "other",
+  "description": "A canoe and setting sun above a bold two-tone lake-house layout.",
+  "palette": [
+    "#B9D8D5",
+    "#174E58",
+    "#FFF0CF"
+  ],
+  "base": {
+    "kind": "paint",
+    "color": "#B9D8D5"
+  },
+  "pattern": {
+    "kind": "bottom",
+    "color": "#174E58",
+    "size": 3
+  },
+  "elements": [
+    {
+      "type": "text",
+      "text": "LIFE AT THE LAKE",
+      "font": "Montserrat",
+      "size": 0.82,
+      "color": "#174E58",
+      "x": 12,
+      "y": 3.1,
+      "spacing": 0.12
+    },
+    {
+      "type": "clip",
+      "name": "bbp1-canoe-sunset",
+      "width": 11.7,
+      "x": 12,
+      "y": 18.4,
+      "color": "#174E58"
+    },
+    {
+      "type": "text",
+      "text": "LAKE",
+      "font": "Anton",
+      "size": 5.7,
+      "color": "#FFF0CF",
+      "x": 12,
+      "y": 30.9,
+      "spacing": 0.12
+    },
+    {
+      "type": "text",
+      "text": "DAYS",
+      "font": "Anton",
+      "size": 5.7,
+      "color": "#FFF0CF",
+      "x": 12,
+      "y": 37.6,
+      "spacing": 0.12
+    },
+    {
+      "type": "text",
+      "text": "THE CARTERS",
+      "font": "Montserrat",
+      "size": 1.05,
+      "color": "#B9D8D5",
+      "x": 12,
+      "y": 44.2,
+      "spacing": 0.16
+    }
+  ],
+  "personalize": [
+    "THE CARTERS"
+  ],
+  "board": {
+    "widthInches": 24,
+    "heightInches": 48,
+    "hole": {
+      "x": 12,
+      "y": 9,
+      "diameter": 6
+    }
+  },
+  "sameDesignOnBothBoards": true
+}

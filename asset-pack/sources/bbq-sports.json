@@ -1,0 +1,82 @@
+[
+  {
+    "id": "bbp1-kettle-grill",
+    "label": "Kettle Grill",
+    "category": "pack-bbq",
+    "description": "A broad kettle barbecue with a domed lid, sturdy legs, and three bowl vents.",
+    "tags": ["grill", "barbecue", "cookout", "kettle", "backyard"],
+    "path": "M45 22V17H40V11Q40 7 44 7H56Q60 7 60 11V17H55V22C70 24 82 34 85 47H15C18 34 30 24 45 22Z M46 12H54V17H46Z M15 51H85C84 65 76 73 65 78L73 93H63L55 81H45L37 93H27L35 78C24 74 16 64 15 51Z M38 61A3 3 0 1 1 32 61A3 3 0 1 1 38 61Z M53 61A3 3 0 1 1 47 61A3 3 0 1 1 53 61Z M68 61A3 3 0 1 1 62 61A3 3 0 1 1 68 61Z",
+    "fillRule": "evenodd",
+    "aspect": 1
+  },
+  {
+    "id": "bbp1-pitmaster-tools",
+    "label": "Pitmaster Tools",
+    "category": "pack-bbq",
+    "description": "A slotted grill spatula and long barbecue fork framing a lively flame.",
+    "tags": ["pitmaster", "spatula", "fork", "flame", "barbecue", "tools"],
+    "path": "M14 9H39Q42 9 42 12V36Q42 41 35 44L31 47V87Q31 93 26 93Q21 93 21 87V47L17 44Q11 41 11 36V12Q11 9 14 9Z M17 16H21V34H17Z M24 16H28V34H24Z M31 16H35V34H31Z M24 81H28V87H24Z M60 9H65V28H70V9H75V28H80V9H85V33Q85 41 77 45V87Q77 93 72.5 93Q68 93 68 87V45Q60 41 60 33Z M71 81H75V87H71Z M50 39C54 46 60 50 59 58C58 66 53 71 48 70C40 69 38 61 42 55C44 51 46 48 46 44C50 49 51 53 50 57C55 52 53 46 50 39Z",
+    "fillRule": "evenodd",
+    "aspect": 1
+  },
+  {
+    "id": "bbp1-smoker",
+    "label": "Offset Smoker",
+    "category": "pack-bbq",
+    "description": "A barrel smoker with a capped chimney, lid handle, thermometer, and side firebox.",
+    "tags": ["smoker", "barbecue", "pit", "slow-cooked", "firebox"],
+    "path": "M18 30V15H15V8H32V15H27V29H37V23Q37 20 40 20H53Q56 20 56 23V29H62Q70 29 73 36H88Q92 36 92 40V62Q92 66 88 66H77L84 90H76L68 68H31L24 90H16L24 66Q9 63 9 50V45Q9 34 18 30Z M42 25H51V29H42Z M15 48H65V52H15Z M58 38A4 4 0 1 1 50 38A4 4 0 1 1 58 38Z M85 51A4 4 0 1 1 77 51A4 4 0 1 1 85 51Z",
+    "fillRule": "evenodd",
+    "aspect": 1
+  },
+  {
+    "id": "bbp1-stacked-burger",
+    "label": "Stacked Burger",
+    "category": "pack-bbq",
+    "description": "A generous sesame bun, zigzag lettuce, thick patty, and rounded bottom bun.",
+    "tags": ["burger", "hamburger", "cookout", "food", "sesame"],
+    "path": "M13 41Q9 41 10 36C15 18 30 9 50 9C70 9 85 18 90 36Q91 41 87 41Z M26 23Q27 20 29 21L34 23Q36 25 34 27Q33 28 31 27Z M47 17Q47 15 50 15Q53 15 53 18V23Q53 26 50 26Q47 26 47 23Z M66 24L71 21Q73 20 75 23Q76 25 74 26L69 29Q67 30 65 28Q64 26 66 24Z M10 45H90V50L81 57L70 52L59 58L49 52L38 58L27 52L17 57L10 51Z M13 64Q13 60 17 60H83Q87 60 87 64V72Q87 76 83 76H17Q13 76 13 72Z M11 81H89C87 90 79 93 68 93H32C21 93 13 90 11 81Z",
+    "fillRule": "evenodd",
+    "aspect": 1
+  },
+  {
+    "id": "bbp1-cornhole-badge",
+    "label": "Cornhole Badge",
+    "category": "pack-sports",
+    "description": "A shield holding a perspective cornhole board, its round scoring hole, and a tossed bag.",
+    "tags": ["cornhole", "board", "bag-toss", "shield", "yard-game"],
+    "path": "M50 7L90 20V50C90 71 75 86 50 93C25 86 10 71 10 50V20Z M50 14L83 25V50C83 67 70 80 50 86C30 80 17 67 17 50V25Z M42 24L75 35V58H69V46L57 72L23 61V56Z M55 31C61 31 65 36 61 40C58 44 51 41 50 38C49 34 51 31 55 31Z M27 56L55 66L53 69L25 59Z M24 26L33 30L28 39L19 35Z",
+    "fillRule": "evenodd",
+    "aspect": 1
+  },
+  {
+    "id": "bbp1-varsity-trophy",
+    "label": "Varsity Trophy",
+    "category": "pack-sports",
+    "description": "A substantial handled trophy with a star cutout and a broad stepped pedestal.",
+    "tags": ["trophy", "champion", "varsity", "winner", "star", "award"],
+    "path": "M25 13H75V22H91V35C91 52 81 60 65 61C62 66 59 68 55 70V80H67V86H78V93H22V86H33V80H45V70C41 68 38 66 35 61C19 60 9 52 9 35V22H25Z M75 29H84V35C84 44 78 49 71 51C74 43 75 36 75 29Z M25 29H16V35C16 44 22 49 29 51C26 43 25 36 25 29Z M50 23L54 34L66 35L57 43L60 55L50 48L40 55L43 43L34 35L46 34Z",
+    "fillRule": "evenodd",
+    "aspect": 1
+  },
+  {
+    "id": "bbp1-baseball-diamond",
+    "label": "Baseball Diamond",
+    "category": "pack-sports",
+    "description": "A baseball with bold stitched seams inside a diamond-shaped field emblem.",
+    "tags": ["baseball", "diamond", "ball", "field", "team-sport"],
+    "path": "M50 7L93 50L50 93L7 50Z M50 15L85 50L50 85L15 50Z M72 50A22 22 0 1 1 28 50A22 22 0 1 1 72 50Z M37 35C40 37 41 39 42 42L45 41L46 44L43 45C44 48 44 52 43 55L46 56L45 59L42 58C40 62 38 64 37 65L35 62C37 60 38 58 39 56L36 55L37 52L40 53Q41 50 40 47L37 48L36 45L39 44C38 41 37 39 35 38Z M63 35C60 37 59 39 58 42L55 41L54 44L57 45C56 48 56 52 57 55L54 56L55 59L58 58C60 62 62 64 63 65L65 62C63 60 62 58 61 56L64 55L63 52L60 53Q59 50 60 47L63 48L64 45L61 44C62 41 63 39 65 38Z",
+    "fillRule": "evenodd",
+    "aspect": 1
+  },
+  {
+    "id": "bbp1-football-play",
+    "label": "Football Play",
+    "category": "pack-sports",
+    "description": "A laced football beside an advancing route arrow and an X play marker.",
+    "tags": ["football", "playbook", "route", "ball", "game-day"],
+    "path": "M15 69.686V20Q15 15 20 15H50V8L65 19L50 30V23H23V69.686A12 12 0 1 1 15 69.686Z M25 81A6 6 0 1 1 13 81A6 6 0 1 1 25 81Z M38 70C42 52 65 37 91 42C94 62 75 84 49 89C43 84 40 78 38 70Z M51 70L56 65L52 61L55 58L59 62L63 58L59 54L62 51L66 55L70 51L66 47L69 44L73 48L77 44L80 47L76 51L80 55L77 58L73 54L69 58L73 62L70 65L66 61L62 65L66 69L63 72L59 68L54 73Z M75 9L82 16L89 9L93 13L86 20L93 27L89 31L82 24L75 31L71 27L78 20L71 13Z",
+    "fillRule": "evenodd",
+    "aspect": 1
+  }
+]

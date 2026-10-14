@@ -1,0 +1,94 @@
+[
+  {
+    "id": "bbp1-garden-vows", "label": "Garden vows", "category": "pack-wedding", "occasion": "wedding",
+    "description": "An ivory and olive botanical arch with editable names and a wedding date.",
+    "palette": ["#F6F1E5", "#314D3E", "#B4765B"],
+    "base": {"kind":"paint","color":"#F6F1E5"},
+    "pattern": {"kind":"border","color":"#314D3E","size":0.28},
+    "elements": [
+      {"type":"text","text":"TOGETHER IS HOME","font":"Montserrat","size":0.78,"color":"#314D3E","x":12,"y":3.1,"spacing":0.12},
+      {"type":"clip","name":"bbp1-botanical-arch","width":21,"x":12,"y":26.8,"color":"#314D3E"},
+      {"type":"text","text":"AVERY","font":"Cinzel","size":2.45,"color":"#314D3E","x":12,"y":25.0},
+      {"type":"text","text":"&","font":"Cinzel","size":1.7,"color":"#B4765B","x":12,"y":28.1},
+      {"type":"text","text":"JORDAN","font":"Cinzel","size":2.1,"color":"#314D3E","x":12,"y":31.1},
+      {"type":"text","text":"JUNE 14, 2027","font":"Montserrat","size":0.93,"color":"#314D3E","x":12,"y":40.0,"spacing":0.12},
+      {"type":"clip","name":"bbp1-linked-rings","width":3.6,"x":12,"y":44,"color":"#B4765B"}
+    ],
+    "personalize": ["AVERY", "JORDAN", "JUNE 14, 2027"]
+  },
+  {
+    "id":"bbp1-family-roots","label":"Family roots","category":"pack-family","occasion":"family",
+    "description":"A warm cream family oak on deep navy, finished with a surname and established date.",
+    "palette":["#223D4A","#FFF0CF","#D18B61"],
+    "base":{"kind":"paint","color":"#223D4A"},
+    "pattern":{"kind":"border","color":"#D18B61","size":0.45},
+    "elements":[
+      {"type":"text","text":"OUR BACKYARD","font":"Montserrat","size":0.95,"color":"#FFF0CF","x":12,"y":3.2,"spacing":0.15},
+      {"type":"clip","name":"bbp1-family-oak","width":17,"x":12,"y":24,"color":"#FFF0CF"},
+      {"type":"text","text":"THE PARKERS","font":"Montserrat","size":2.0,"color":"#FFF0CF","x":12,"y":36.6,"spacing":0.04},
+      {"type":"text","text":"EST. 2018","font":"Montserrat","size":1.04,"color":"#D18B61","x":12,"y":41,"spacing":0.22},
+      {"type":"text","text":"GOOD TIMES GROW HERE","font":"Bebas Neue","size":1.13,"color":"#FFF0CF","x":12,"y":44.4,"spacing":0.05}
+    ],
+    "personalize":["THE PARKERS","EST. 2018"]
+  },
+  {
+    "id":"bbp1-lake-days","label":"Lake days","category":"pack-lake","occasion":"other",
+    "description":"A canoe and setting sun above a bold two-tone lake-house layout.",
+    "palette":["#B9D8D5","#174E58","#FFF0CF"],
+    "base":{"kind":"paint","color":"#B9D8D5"},
+    "pattern":{"kind":"bottom","color":"#174E58","size":3},
+    "elements":[
+      {"type":"text","text":"LIFE AT THE LAKE","font":"Montserrat","size":0.82,"color":"#174E58","x":12,"y":3.1,"spacing":0.12},
+      {"type":"clip","name":"bbp1-canoe-sunset","width":11.7,"x":12,"y":18.4,"color":"#174E58"},
+      {"type":"text","text":"LAKE","font":"Anton","size":5.7,"color":"#FFF0CF","x":12,"y":30.9,"spacing":0.12},
+      {"type":"text","text":"DAYS","font":"Anton","size":5.7,"color":"#FFF0CF","x":12,"y":37.6,"spacing":0.12},
+      {"type":"text","text":"THE CARTERS","font":"Montserrat","size":1.05,"color":"#B9D8D5","x":12,"y":44.2,"spacing":0.16}
+    ],
+    "personalize":["THE CARTERS"]
+  },
+  {
+    "id":"bbp1-off-the-grid","label":"Off the grid","category":"pack-camping","occasion":"family",
+    "description":"A mountain campsite in forest green and warm cream, with a personalized camp name.",
+    "palette":["#233E32","#F4E8CA","#D99660"],
+    "base":{"kind":"paint","color":"#233E32"},
+    "pattern":{"kind":"border","color":"#D99660","size":0.45},
+    "elements":[
+      {"type":"text","text":"TAKE THE LONG WAY","font":"Montserrat","size":0.75,"color":"#F4E8CA","x":12,"y":3.2,"spacing":0.09},
+      {"type":"clip","name":"bbp1-ridge-tent","width":18,"x":12,"y":23.4,"color":"#F4E8CA"},
+      {"type":"text","text":"OFF THE GRID","font":"Bebas Neue","size":3.0,"color":"#F4E8CA","x":12,"y":35.5,"spacing":0.04},
+      {"type":"text","text":"THE BENNETTS","font":"Montserrat","size":1.07,"color":"#D99660","x":12,"y":40.2,"spacing":0.12},
+      {"type":"text","text":"CAMP / PLAY / REPEAT","font":"Bebas Neue","size":1.02,"color":"#F4E8CA","x":12,"y":44.1,"spacing":0.07}
+    ],
+    "personalize":["THE BENNETTS"]
+  },
+  {
+    "id":"bbp1-backyard-pitmaster","label":"Backyard pitmaster","category":"pack-bbq","occasion":"family",
+    "description":"A bold kettle-grill emblem and personalized BBQ lettering in ember red and cream.",
+    "palette":["#A74330","#FFF0CF","#F2BF72"],
+    "base":{"kind":"paint","color":"#A74330"},
+    "pattern":{"kind":"border","color":"#FFF0CF","size":0.35},
+    "elements":[
+      {"type":"text","text":"LOW & SLOW","font":"Montserrat","size":0.95,"color":"#FFF0CF","x":12,"y":3.15,"spacing":0.16},
+      {"type":"clip","name":"bbp1-kettle-grill","width":14,"x":12,"y":23,"color":"#FFF0CF"},
+      {"type":"text","text":"MORGAN'S","font":"Bebas Neue","size":4.0,"color":"#FFF0CF","x":12,"y":34.4,"spacing":0.10},
+      {"type":"text","text":"BACKYARD BBQ","font":"Montserrat","size":1.1,"color":"#F2BF72","x":12,"y":39.1,"spacing":0.10},
+      {"type":"clip","name":"bbp1-pitmaster-tools","width":4,"x":12,"y":44,"color":"#FFF0CF"}
+    ],
+    "personalize":["MORGAN'S"]
+  },
+  {
+    "id":"bbp1-game-on","label":"Game on","category":"pack-sports","occasion":"team",
+    "description":"A varsity trophy, oversized team lettering, and a subtle blue stripe background.",
+    "palette":["#193D72","#244C83","#F1BC53","#FFF6DF"],
+    "base":{"kind":"paint","color":"#193D72"},
+    "pattern":{"kind":"vstripes","color":"#244C83","size":4},
+    "elements":[
+      {"type":"text","text":"HOME FIELD ADVANTAGE","font":"Montserrat","size":0.71,"color":"#FFF6DF","x":12,"y":3.15,"spacing":0.08},
+      {"type":"clip","name":"bbp1-varsity-trophy","width":13,"x":12,"y":22,"color":"#F1BC53"},
+      {"type":"text","text":"GAME","font":"Anton","size":5.0,"color":"#FFF6DF","x":12,"y":32.8,"spacing":0.08},
+      {"type":"text","text":"ON","font":"Anton","size":5.1,"color":"#FFF6DF","x":12,"y":39.1,"spacing":0.12},
+      {"type":"text","text":"THE WILDCATS","font":"Montserrat","size":1.03,"color":"#F1BC53","x":12,"y":44.6,"spacing":0.12}
+    ],
+    "personalize":["THE WILDCATS"]
+  }
+]

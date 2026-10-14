@@ -1,0 +1,82 @@
+[
+  {
+    "id": "bbp1-lakeside-cabin",
+    "label": "Lakeside Cabin",
+    "category": "pack-lake",
+    "description": "A welcoming gabled cabin with a chimney, bright windows, and bold lake ripples.",
+    "tags": ["cabin", "lake", "cottage", "weekend", "water", "outdoors"],
+    "path": "M11 48 L26 35 V22 H36 V26 L50 13 L89 48 L83 55 L78 51 V71 H87 V78 H13 V71 H22 V51 L17 55 Z M40 42 H60 L50 32 Z M29 51 V62 H39 V51 Z M61 51 V62 H71 V51 Z M45 71 H55 V57 A5 5 0 0 0 45 57 Z M9 85 Q19 80 29 85 Q39 90 49 85 Q59 80 69 85 Q79 90 91 84 V90 Q79 95 69 91 Q59 86 49 91 Q39 95 29 91 Q19 86 9 91 Z",
+    "fillRule": "evenodd",
+    "aspect": 1
+  },
+  {
+    "id": "bbp1-canoe-sunset",
+    "label": "Canoe Sunset",
+    "category": "pack-lake",
+    "description": "A deep canoe and broad paddle drift beneath a low evening sun.",
+    "tags": ["canoe", "paddle", "sunset", "lake", "water", "summer"],
+    "path": "M46 32 A19 19 0 0 1 84 32 Q84 41 78 47 H52 Q46 41 46 32 Z M63 7 H68 V10 H63 Z M87 29 H93 V34 H87 Z M80 12 L84 9 L88 14 L84 17 Z M16 27 Q20 24 24 29 L32 39 V43 L49 54 L45 57 L28 47 H24 L15 36 Q11 30 16 27 Z M9 55 Q50 66 91 55 L86 67 Q50 88 14 67 Z M22 64 L24 68 Q50 77 76 68 L78 64 Q50 71 22 64 Z M12 86 Q24 80 36 85 Q48 90 60 85 Q72 80 88 85 V91 Q72 86 60 91 Q48 95 36 91 Q24 86 12 92 Z",
+    "fillRule": "evenodd",
+    "aspect": 1
+  },
+  {
+    "id": "bbp1-mountain-pines",
+    "label": "Mountain Pines",
+    "category": "pack-lake",
+    "description": "A snow-capped summit stands between two stepped evergreen silhouettes above still water.",
+    "tags": ["mountain", "pines", "forest", "lake", "nature", "summit"],
+    "path": "M33 65 L52 15 L70 65 Z M44 42 L52 28 L61 48 L53 42 L48 48 Z M19 35 L28 51 H24 L31 65 H26 L34 80 H23 V85 H16 V80 H7 L14 65 H9 L16 51 H12 Z M82 30 L91 47 H87 L93 61 H88 L93 77 H86 V84 H79 V77 H69 L76 61 H71 L78 47 H74 Z M8 89 H43 V93 H8 Z M50 89 H92 V93 H50 Z",
+    "fillRule": "evenodd",
+    "aspect": 1
+  },
+  {
+    "id": "bbp1-leaping-fish",
+    "label": "Leaping Fish",
+    "category": "pack-lake",
+    "description": "An arcing game fish with a broad tail, dorsal fin, and crisp eye leaps over a splash.",
+    "tags": ["fish", "fishing", "lake", "bass", "splash", "outdoors"],
+    "path": "M20 55 C27 41 37 32 48 29 L51 18 L63 25 L65 29 C79 28 88 35 92 43 L84 44 L90 49 C81 51 71 58 61 63 L47 77 L45 69 C36 74 27 74 21 70 L8 79 L12 62 L7 46 Z M80 37 A3 3 0 1 0 74 37 A3 3 0 1 0 80 37 Z M68 35 Q58 44 64 55 L69 52 Q64 44 73 38 Z M52 45 L38 60 L54 53 Z M23 85 L27 81 L33 87 L29 91 Z M42 88 Q52 81 64 86 Q74 91 84 84 L88 89 Q76 95 63 92 Q52 87 44 93 Z M13 85 L18 88 L16 93 L11 90 Z",
+    "fillRule": "evenodd",
+    "aspect": 1
+  },
+  {
+    "id": "bbp1-ridge-tent",
+    "label": "Ridge Tent",
+    "category": "pack-camping",
+    "description": "A pitched A-frame tent with an open doorway sits beneath a bold double mountain ridge.",
+    "tags": ["tent", "camping", "mountain", "ridge", "adventure", "outdoors"],
+    "path": "M9 38 L28 15 L42 27 L58 9 L91 38 L85 44 L58 21 L42 39 L28 27 L15 44 Z M50 37 L84 79 H90 V86 H10 V79 H16 Z M47 53 L28 78 H47 Z M53 49 V78 H59 Z M17 90 H37 V93 H17 Z M44 90 H83 V93 H44 Z",
+    "fillRule": "evenodd",
+    "aspect": 1
+  },
+  {
+    "id": "bbp1-campfire",
+    "label": "Campfire",
+    "category": "pack-camping",
+    "description": "A sweeping flame with a bright inner tongue rises above two crossed campfire logs.",
+    "tags": ["campfire", "flame", "fire", "logs", "camping", "night"],
+    "path": "M52 9 C57 23 74 28 73 42 C78 37 80 32 79 26 C94 45 91 59 79 67 C65 76 43 76 29 69 C12 61 9 49 17 35 C20 43 26 47 29 48 C26 31 35 24 52 9 Z M51 43 C53 52 64 55 63 63 C61 70 48 71 41 65 C33 58 41 50 51 43 Z M18 76 L50 82 L82 76 L84 82 L65 86 L84 90 L82 93 L50 89 L18 93 L16 90 L35 86 L16 82 Z",
+    "fillRule": "evenodd",
+    "aspect": 1
+  },
+  {
+    "id": "bbp1-trail-lantern",
+    "label": "Trail Lantern",
+    "category": "pack-camping",
+    "description": "A classic trail lantern with a sturdy carry handle, tapered glass, and a small flame.",
+    "tags": ["lantern", "light", "trail", "camping", "night", "vintage"],
+    "path": "M33 25 V22 C33 3 67 3 67 22 V25 H60 V22 C60 12 40 12 40 22 V25 Z M29 37 L35 28 H65 L71 37 V42 H29 Z M26 47 H74 V72 L68 84 H73 V92 H27 V84 H32 L26 72 Z M34 54 V69 L39 79 H61 L66 69 V54 Z M49 57 Q51 65 57 69 Q60 77 51 77 Q42 77 43 70 Q45 64 49 57 Z",
+    "fillRule": "evenodd",
+    "aspect": 1
+  },
+  {
+    "id": "bbp1-compass-rose",
+    "label": "Compass Rose",
+    "category": "pack-camping",
+    "description": "An eight-point compass with carved cardinal facets and four crisp circular arcs.",
+    "tags": ["compass", "navigation", "adventure", "trail", "camping", "direction"],
+    "path": "M50 7 L60 34 L69 31 L66 40 L93 50 L66 60 L69 69 L60 66 L50 93 L40 66 L31 69 L34 60 L7 50 L34 40 L31 31 L40 34 Z M50 17 V35 L56 38 Z M65 50 H83 L62 56 Z M50 65 V83 L44 62 Z M17 50 H35 L38 44 Z M57 50 A7 7 0 1 0 43 50 A7 7 0 1 0 57 50 Z M63.3 13.4 A39 39 0 0 1 86.6 36.7 L82 38.4 A34 34 0 0 0 61.6 18 Z M86.6 63.3 A39 39 0 0 1 63.3 86.6 L61.6 82 A34 34 0 0 0 82 61.6 Z M36.7 86.6 A39 39 0 0 1 13.4 63.3 L18 61.6 A34 34 0 0 0 38.4 82 Z M13.4 36.7 A39 39 0 0 1 36.7 13.4 L38.4 18 A34 34 0 0 0 18 38.4 Z",
+    "fillRule": "evenodd",
+    "aspect": 1
+  }
+]
