@@ -160,7 +160,7 @@ the clock and repository state before each run.
   An account with this team's access is needed to verify/create the correct
   PR preview. Do not retry the same denied operation without an access change.
 
-## Measured follow-up: photo history memory
+## Photo history memory baseline
 
 - A local Chromium audit on `7b15e28` uploaded one 1500 x 1500 JPEG (2.43 MB file, 1.24 MB
   preview URL, 3.24 MB master URL), then made 60 alternating keyboard nudges.
@@ -170,14 +170,40 @@ the clock and repository state before each run.
   bounded change to history representation, with undo/redo/import/reload tests.
   Preserve exact original picture data and the existing history length.
 
+## Fifth increment - photo history memory
+
+- After pushing the fourth batch as `40ead65`, continued with the measured
+  history problem. A committed regression on that code measured 224,027,980
+  bytes of additional post-GC JavaScript heap after 60 small photo nudges.
+- Undo history now copies mutable plain-data containers while sharing immutable
+  image strings. Restoring an entry copies its containers again, so later edits
+  cannot mutate past or future states. Equality checks avoid creating an entry
+  or clearing redo when nothing changed. The existing 60-entry cap remains.
+- Kept serialization for saving, exporting, importing, review and printing
+  unchanged. No project-file migration or image-data registry is introduced.
+- Seven node tests cover nested isolation and prior JSON snapshot semantics.
+  Two browser regressions cover retained heap, all 59 available undo/redo steps,
+  exact image-source hashes across history and reload, unchanged commits after
+  undo, nested metadata and branching from a restored state.
+- Independent review reported no findings. Its real Chromium run measured
+  717,664 bytes of additional retained heap for the same 60 nudges; the committed
+  test allows a broad 32 MiB ceiling to account for browser variance. This is
+  measured JavaScript heap, not total browser or canvas memory.
+- Final whole-suite run: **54 node tests, 182 Chromium browser tests and
+  TypeScript checks passed**. The full-run photo regression retained 720,224
+  additional heap bytes after 60 moves; source hashes and all history steps
+  passed. `node --check app.mjs` and `git diff --check` passed. Remote main and
+  the overnight branch were refetched before completion; no concurrent changes.
+
 ## Next overnight priorities
 
 1. Check the existing overnight PR and remote main for Claude changes before editing.
 2. Check any new PR preview/check results. The currently inspected public site
    and preview are older; explicit Vercel team access is blocked as noted above.
-3. Address the measured photo-history memory retention in a separate reviewed
-   increment. Confirm memory improvement and preserve history/recovery behavior.
-4. Audit fresh desktop/mobile journeys if they reveal another concrete gap.
+3. Audit fresh desktop/mobile customer journeys, including image placement,
+   text personalization and keyboard navigation; change only concrete gaps.
+4. Check resource use with several photos if actual editing reveals another
+   problem. Photo-history duplication is addressed by the fifth increment.
 5. Device-test native sharing and the iOS keyboard when a physical device is
    available; Chromium emulation does not establish those behaviors.
 6. Keep changes small, independently reviewed and tested; update this work log

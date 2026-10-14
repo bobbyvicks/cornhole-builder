@@ -5,6 +5,7 @@ import { PACK_CLIPS, PACK_CATEGORIES, makeCreativeTemplates } from './lib/creati
 import { loadProject, saveProject } from './lib/store.mjs';
 import { SITE } from './lib/site.mjs';
 import { MAX_PROJECT_BYTES, validateProject } from './lib/project-validation.mjs';
+import { copyHistoryState, sameHistoryState } from './lib/history.mjs';
 
 const CLIPS = { ...CORE_CLIPS, ...PACK_CLIPS };
 const CLIP_CATS = { ...CORE_CLIP_CATS, ...PACK_CATEGORIES };
@@ -542,15 +543,15 @@ function previewDataUrl(key, ppi = 10, source = design) {
    ==================================================================== */
 const snapshot = () => JSON.stringify(design);
 function commit() {
-  const s = snapshot();
-  if (history[history.length - 1] === s) { save(); return; }
+  if (sameHistoryState(history[history.length - 1], design)) { save(); return; }
+  const s = copyHistoryState(design);
   history.push(s); if (history.length > 60) history.shift();
   future = [];
   save();
   syncHistoryButtons();
 }
 function restore(s) {
-  design = JSON.parse(s);
+  design = copyHistoryState(s);
   // A matching pair or a single board always edits A, including after
   // undoing a switch to B. Otherwise the controls edit an invisible board.
   if (design.same || order.product === 'single') active = 'a';
@@ -1818,7 +1819,7 @@ function syncAll() { syncBoard(); syncLists(); syncProps(); syncOrder(); syncHis
    finished, so a restored project is never overwritten by the fresh page.
    ==================================================================== */
 startupSnapshot = JSON.stringify({ design, order });
-history = [snapshot()];
+history = [copyHistoryState(design)];
 syncAll();
 showOutcome();
 renderSite();
@@ -1833,7 +1834,7 @@ renderSite();
     design = migrate(p.design);
     if (p.order) applyOrder(p.order);
     selected = null; active = 'a';
-    history = [snapshot()]; future = [];
+    history = [copyHistoryState(design)]; future = [];
     syncAll(); showTab('board');
     storageReady = true; setSaveState('saved');
   } else {
