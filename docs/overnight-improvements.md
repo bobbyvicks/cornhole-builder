@@ -122,15 +122,62 @@ the clock and repository state before each run.
   it is readable and introduces no horizontal overflow. Physical-device limits
   still apply. All order requests used stubs; no live purchases were made.
 
+## Fourth batch - October 14, 1:47 a.m. Toronto continuation
+
+- Repository clean at `7b15e28`; main remained `136fe35`. PR #2 was open and
+  mergeable, with no GitHub check runs or deployment records.
+- Reproduced choosing the final gallery template leaving its focused words
+  above the viewport on both desktop and phone. Native focus now reveals and
+  selects the first text field. Starting blank focuses the Add text button.
+  The regression checks mouse/keyboard activation, visibility below sticky
+  controls and immediate personalization.
+- Reproduced detailed 900 x 900 PNGs losing their original pixels when the
+  preview byte budget shrank them to 506 x 506. Keep the untouched source
+  whenever it fits the existing original-file limits and preview dimensions
+  have changed. Oversized PNGs with modest dimensions now receive a larger
+  re-encoded print master within the same limits. Small lossless pictures
+  still need only one source. New regressions cover genuine uploads, decoded
+  dimensions, editable-file export/import, reload and print drawing source.
+- Independent review found detailed transparent PNGs could exhaust the old
+  six encoding attempts and retain an oversized master. Start resizing at the
+  actual image size, reduce on each retry and return only within the configured
+  byte limit. Both 1000 px and 4000 px RGBA regressions reproduce the failure
+  before the fix and pass with preserved transparency afterward.
+- Final full run: **47 node tests, 180 Chromium browser tests and TypeScript
+  checks passed**. This batch adds 11 browser regressions. Independent review
+  closed all findings within this increment; syntax and whitespace checks
+  passed. Prices, project format and checkout API are unchanged.
+- Vercel inspection found the production deployment ready at
+  `cornhole-builder-ejxo7nbel-market-makers1.vercel.app` (created 00:58 UTC)
+  and a later ready preview at
+  `cornhole-builder-jm7t5qavs-market-makers1.vercel.app` (created 02:31 UTC).
+  At 05:49 UTC the public site and that preview served identical `app.mjs`
+  content without template search or the overnight upload/output guards.
+  Neither matches the overnight branch; deployment metadata supplied no Git SHA.
+- Commit-specific Vercel inspection with the explicit team returned HTTP 403:
+  no access to `market-makers1` (`team_LItzcxZ0sHhTHp02o9kJbJd4`). The Vercel
+  CLI is not installed. Project ID: `prj_ZVMhU1GndNu75US1pTcDAD864IWU`.
+  An account with this team's access is needed to verify/create the correct
+  PR preview. Do not retry the same denied operation without an access change.
+
+## Measured follow-up: photo history memory
+
+- A local Chromium audit on `7b15e28` uploaded one 1500 x 1500 JPEG (2.43 MB file, 1.24 MB
+  preview URL, 3.24 MB master URL), then made 60 alternating keyboard nudges.
+  After explicit garbage collection, JS heap grew from 6.56 MB after upload
+  to 271.96 MB. The 60 history entries serialize identical picture data again.
+  No browser crash was observed; the measured retention warrants a separate
+  bounded change to history representation, with undo/redo/import/reload tests.
+  Preserve exact original picture data and the existing history length.
+
 ## Next overnight priorities
 
 1. Check the existing overnight PR and remote main for Claude changes before editing.
-2. Inspect any Vercel preview/check results for the pushed commit. Report blockers
-   with evidence; do not claim production deployment from a Git push.
-3. Audit usability with fresh desktop/mobile journeys: finding artwork, changing
-   boards, recovering drafts and reviewing a complete personalized order.
-4. Inspect remaining slow-device interactions and large-image memory use if
-   real journeys or regression tests reveal a specific gap.
+2. Check any new PR preview/check results. The currently inspected public site
+   and preview are older; explicit Vercel team access is blocked as noted above.
+3. Address the measured photo-history memory retention in a separate reviewed
+   increment. Confirm memory improvement and preserve history/recovery behavior.
+4. Audit fresh desktop/mobile journeys if they reveal another concrete gap.
 5. Device-test native sharing and the iOS keyboard when a physical device is
    available; Chromium emulation does not establish those behaviors.
 6. Keep changes small, independently reviewed and tested; update this work log

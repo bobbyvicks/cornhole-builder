@@ -862,10 +862,11 @@ function promptForWords() {
     select(first.id);
     hint.textContent = 'Replace the sample words below. Long names resize to fit; choose any line to change its font and colours.';
     hint.hidden = false;
-    const i = $('ttext'); i.focus({ preventScroll: true }); i.select();
+    const i = $('ttext'); i.focus(); i.select();
   } else {
     hint.textContent = 'A blank board. Add your first words with the button below, then colours and art from the other tabs.';
     hint.hidden = false;
+    $('addtext').focus();
   }
 }
 const askThenApply = (label, fn) => { if (isPristine() || confirm('Replace your current design with ' + label + '?')) fn(); };
@@ -1182,25 +1183,27 @@ async function readImage(file) {
     const W = img.naturalWidth, H = img.naturalHeight;
     const isPhoto = /jpe?g/i.test(file.type), isRaster = /^image\/(png|jpeg|webp)$/i.test(file.type);
     const encode = (side, bytes, quality) => {
-      let s = side, out = null;
-      for (let tries = 0; tries < 6; tries++) {
+      let s = Math.min(side, Math.max(W, H));
+      // Every retry reduces the pixels; stop only when the byte budget
+      // fits, rather than retaining an oversized final attempt.
+      while (true) {
         const k = Math.min(1, s / Math.max(W, H));
         const c = document.createElement('canvas');
         c.width = Math.max(1, Math.round(W * k)); c.height = Math.max(1, Math.round(H * k));
         c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        out = { url: isPhoto ? c.toDataURL('image/jpeg', quality) : c.toDataURL('image/png'), px: [c.width, c.height] };
+        const out = { url: isPhoto ? c.toDataURL('image/jpeg', quality) : c.toDataURL('image/png'), px: [c.width, c.height] };
         if (out.url.length <= bytes * 1.37) return out;
-        s = Math.round(s * 0.75);
+        if (s <= 1) throw new Error('image encoding exceeds size limit');
+        s = Math.max(1, Math.floor(s * 0.75));
       }
-      return out;
     };
     const preview = encode(PREVIEW_SIDE, PREVIEW_BYTES, 0.88);
     let master = null;
     if (isRaster && file.size <= ORIG_BYTES && Math.max(W, H) <= ORIG_SIDE) {
-      /* The file itself, untouched - unless it is a lossless file no bigger
-         than the preview, which is then the preview already. */
-      if (isPhoto || Math.max(W, H) > PREVIEW_SIDE) master = { url: await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(file); }), px: [W, H] };
-    } else if (Math.max(W, H) > PREVIEW_SIDE || !isRaster) master = encode(ORIG_SIDE, ORIG_BYTES, 0.92);
+      /* Keep the untouched file when preview resizing discarded pixels,
+         including small-dimension artwork that exceeds the byte budget. */
+      if (isPhoto || preview.px[0] !== W || preview.px[1] !== H) master = { url: await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(file); }), px: [W, H] };
+    } else master = encode(ORIG_SIDE, ORIG_BYTES, 0.92);
     if (master && master.url === preview.url) master = null;
     return master ? { src: preview.url, orig: master.url, px: master.px } : { src: preview.url, px: preview.px };
   } finally { URL.revokeObjectURL(url); }
