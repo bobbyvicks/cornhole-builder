@@ -10,7 +10,9 @@ export async function open(page, { query = '' } = {}) {
   page.on('pageerror', (e) => errors.push(String(e.message)));
   /* No web fonts in the suite: the measurements below are of layout and
      colour, not of a typeface, and a fetch to Google that hangs would
-     hold the load event. */
+     hold the load event (the sheet no longer holds the paint, but every
+     link still counts towards load). The empty answer still lands, so
+     the link's onload turns the sheet on just as it would for real. */
   await page.route('**/fonts.googleapis.com/**', (r) => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
   await page.route('**/fonts.gstatic.com/**', (r) => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
   await page.goto('/index.html' + query);

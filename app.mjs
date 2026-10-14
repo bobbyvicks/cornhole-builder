@@ -1620,6 +1620,23 @@ window.addEventListener('resize', render);
 const refontThumbs = () => { for (const b of document.querySelectorAll('#templates .tpl')) { const t = TEMPLATES.find((x) => x.id === b.dataset.id), c = b.querySelector('canvas'); if (!t || !c) continue; c.getContext('2d').clearRect(0, 0, c.width, c.height); renderBoard(c.getContext('2d'), t.board(), c.height / BOARD.h); } render(); };
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(refontThumbs);
 if (document.fonts) document.fonts.addEventListener('loadingdone', refontThumbs);
+/* The font stylesheet is fetched without holding the first paint (the link
+   in index.html), so its @font-face rules can land after the boards are
+   drawn - and a face is only fetched once something is drawn in it. When
+   the sheet is turned on, draw everything again: the canvas then asks for
+   every family on the boards and in the thumbnails, and loadingdone above
+   repaints as the files arrive. The load() is for a browser whose canvas
+   does not ask by itself. */
+const webfonts = $('webfonts');
+const askForFonts = () => {
+  if (document.fonts && document.fonts.load) {
+    const used = new Set();
+    for (const k of ['a', 'b']) for (const el of design[k].elements) if (el.type === 'text' && el.font) used.add(el.font);
+    for (const f of used) document.fonts.load((FONT_WEIGHT[f] || 400) + ' 16px "' + f + '"').catch(() => {});
+  }
+  refontThumbs();
+};
+if (webfonts) webfonts.addEventListener('load', askForFonts);
 
 /* For the tests, and for anyone poking at it in the console. The page is a
    module, so nothing here is a global by accident; this is the one on

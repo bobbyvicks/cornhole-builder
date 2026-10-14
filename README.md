@@ -58,7 +58,11 @@ A site where people design their own cornhole boards and order them.
 Everything the customer sees is static: `index.html`, `app.mjs` and the
 modules in `lib/` (`price.mjs`, `clips.mjs`, `templates.mjs`, `store.mjs`,
 `site.mjs`). Two serverless functions in `api/` do the parts that need
-secrets. No build step.
+secrets. No build step. The 35 web fonts come from Google Fonts through one
+stylesheet that is fetched without holding the first paint: the page draws
+straight away in system fonts, and the boards and the template thumbnails
+are drawn again as the real faces land (a `<noscript>` copy of the link
+serves a browser with scripts off).
 
 ## Business details
 
