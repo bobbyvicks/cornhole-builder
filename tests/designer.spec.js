@@ -346,12 +346,15 @@ test.describe('the quote and the order', () => {
     await expect(page.locator('#orderstatus')).toContainText('Could not reach the server');
   });
 
-  test('coming back from a cancelled payment keeps the design and says nothing was charged', async ({ page }) => {
+  test('coming back from a cancelled payment reports the verified pending order', async ({ page }) => {
+    await page.route('**/api/order?code=*', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      code: 'CH-ABC234', status: 'pending', product: 'set', quantity: 1, amount_cents: 30800, currency: 'usd',
+    }) }));
     await open(page, { query: '?order=cancelled&code=CH-ABC234' });
     expect(await page.isHidden('#done')).toBe(false);
-    expect(await page.textContent('#donetitle')).toContain('cancelled');
     expect(await page.textContent('#donebody')).toContain('CH-ABC234');
-    expect(await page.textContent('#donebody')).toContain('No charge');
+    await expect(page.locator('#done')).toContainText(/payment.*not.*confirmed|not.*confirmed.*payment/i);
+    await expect(page.locator('#done')).not.toContainText(/no charge|nothing was charged/i);
   });
 });
 

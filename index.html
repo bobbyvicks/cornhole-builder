@@ -50,8 +50,9 @@
   .hero h1 { font-size: clamp(26px, 4vw, 40px); font-weight: 800; }
   .hero p { margin: 8px 0 0; color: var(--muted); max-width: 64ch; }
 
-  #done { margin: 18px auto 0; background: var(--panel); border: 1px solid var(--line); border-left: 6px solid var(--ok); border-radius: var(--radius); padding: 18px 20px; }
-  #done.cancelled { border-left-color: var(--warn); }
+  #done { margin: 18px auto 0; background: var(--panel); border: 1px solid var(--line); border-left: 6px solid var(--line); border-radius: var(--radius); padding: 18px 20px; }
+  #done:is([data-state="paid"], [data-state="in_production"], [data-state="shipped"]) { border-left-color: var(--ok); }
+  #done:is([data-state="pending"], [data-state="cancelled"], [data-state="unavailable"], [data-state="not-found"], [data-state="invalid"]) { border-left-color: var(--warn); }
   #done h2 { font-size: 20px; margin-bottom: 6px; }
   #done p { margin: 4px 0; }
   #done code { background: var(--bg); padding: 2px 8px; border-radius: 6px; font-weight: 700; }
@@ -88,7 +89,7 @@
   .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 12px; cursor: pointer; font-weight: 600; min-height: 44px; min-width: 44px; }
   label.btn { display: inline-flex; align-items: center; }
   .btn:hover { border-color: #c9c1b4; background: #faf8f4; }
-  .btn:disabled { opacity: .5; cursor: default; }
+  .btn:disabled, .btn[aria-disabled="true"] { opacity: .5; cursor: default; }
   .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .btn.primary:hover { background: #17307a; }
   .btn.danger { color: var(--bad); }
@@ -338,9 +339,14 @@
     <p>Regulation 2' x 4' boards, built from Baltic birch and finished by hand. For the backyard, the tailgate, the big day: start from a template or a blank board, add your words, your colours, clip art and pictures, and order the set.</p>
   </section>
 
-  <section id="done" hidden>
+  <section id="done" aria-labelledby="donetitle" hidden>
     <h2 id="donetitle"></h2>
-    <div id="donebody"></div>
+    <div id="donebody">
+      <p id="orderreference" hidden>Your order code is <code id="returnedordercode"></code>. Keep it for reference.</p>
+      <p id="donestatus" role="status" aria-live="polite" aria-atomic="true"></p>
+      <p id="returnedordersummary" hidden></p>
+      <button id="retryorder" class="btn" type="button" hidden>Check status again</button>
+    </div>
   </section>
 
   <div class="builder" id="builder">

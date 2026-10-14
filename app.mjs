@@ -1896,26 +1896,72 @@ $('orderform').addEventListener('submit', async (ev) => {
   }
 });
 
-/* The thank-you and the cancelled notes, from the URL Stripe sent the
-   customer back to. */
-async function showOutcome() {
+/* A return URL identifies the order to check, not its payment status.
+   Use the saved status for both successful and cancelled checkout links. */
+function showOutcome() {
   const p = new URLSearchParams(location.search);
   const o = p.get('order'), code = (p.get('code') || '').toUpperCase();
-  if (!o) return;
+  if (!['success', 'cancelled'].includes(o)) return;
   const box = $('done'); box.hidden = false;
-  if (o === 'success') {
-    $('donetitle').textContent = 'Thank you - your order is in.';
-    $('donebody').innerHTML = '<p>Your order code is <code>' + code.replace(/[^A-Z0-9-]/g, '') + '</code>. Keep it for any questions. Stripe is emailing you a receipt, and we will be in touch when your boards ship.</p><p id="donestatus"></p>';
-    try {
-      const r = await fetch('api/order?code=' + encodeURIComponent(code));
-      if (r.ok) { const j = await r.json(); $('donestatus').textContent = 'Status: ' + j.status + '. ' + j.quantity + ' x ' + (PRICING.products[j.product] || {}).label + ', ' + money(j.amount_cents) + '.'; }
-    } catch (_) {}
-  } else if (o === 'cancelled') {
-    box.classList.add('cancelled');
-    $('donetitle').textContent = 'Payment cancelled.';
-    $('donebody').innerHTML = '<p>No charge was made, and your design is still here. When you are ready, go to the Order tab, review it and continue to payment again: that places a new order with a new code' + (code ? ', and the unpaid one, <code>' + code.replace(/[^A-Z0-9-]/g, '') + '</code>, is simply left' : '') + '.</p>';
-  }
+  const retry = $('retryorder'), summary = $('returnedordersummary');
+  const show = (state, title, message) => {
+    box.dataset.state = state; $('donetitle').textContent = title;
+    $('donestatus').textContent = message; summary.hidden = true;
+  };
+  // Scroll only on arrival. A late lookup must not move someone who is editing.
   box.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  if (!/^CH-[A-Z0-9]{6}$/.test(code)) {
+    show('invalid', 'Order status unavailable.', 'This link is missing a valid order code. Open the complete checkout return link to check your order.');
+    return;
+  }
+  $('orderreference').hidden = false; $('returnedordercode').textContent = code;
+  retry.hidden = false;
+  const states = {
+    pending: ['Payment not confirmed yet.', 'Your order is recorded, but payment has not been confirmed. Check the status again before starting another payment.'],
+    paid: ['Payment confirmed.', 'Your order is marked as paid.'],
+    in_production: ['Your boards are in production.', 'Order status: in production.'],
+    shipped: ['Your order has shipped.', 'Order status: shipped.'],
+    cancelled: ['Order cancelled.', 'The stored order is marked as cancelled. Keep this order code for reference.'],
+  };
+  const check = async () => {
+    if (retry.getAttribute('aria-disabled') === 'true') return;
+    // Retain keyboard focus while preventing another request. A native
+    // disabled button drops focus, and restoring it later could steal an edit.
+    retry.setAttribute('aria-disabled', 'true'); retry.setAttribute('aria-busy', 'true');
+    show('checking', 'Checking your order.', 'Checking the saved order status.');
+    const controller = new AbortController();
+    const notFound = Symbol('order-not-found');
+    let timeout;
+    try {
+      const lookup = (async () => {
+        const r = await fetch('api/order?code=' + encodeURIComponent(code), { signal: controller.signal, cache: 'no-store' });
+        if (r.status === 404) return notFound;
+        if (!r.ok) throw new Error('Order lookup unavailable');
+        return await r.json();
+      })();
+      // Bound the whole read, including a response body that never finishes.
+      const j = await Promise.race([lookup, new Promise((_, reject) => {
+        timeout = setTimeout(() => { reject(new Error('Order lookup timed out')); controller.abort(); }, 8000);
+      })]);
+      if (j === notFound) {
+        show('not-found', 'Order code not found.', 'This order code was not found. Check the code and try again before starting another payment.');
+        return;
+      }
+      if (!j || j.code !== code || typeof j.status !== 'string' || !Object.hasOwn(states, j.status) ||
+          typeof j.product !== 'string' || !Object.hasOwn(PRICING.products, j.product) ||
+          !Number.isSafeInteger(j.quantity) || j.quantity < 1 || !Number.isSafeInteger(j.amount_cents) || j.amount_cents < 0 ||
+          typeof j.currency !== 'string' || j.currency.toLowerCase() !== PRICING.currency) throw new Error('Unrecognized order response');
+      show(j.status, ...states[j.status]);
+      summary.textContent = j.quantity + ' x ' + PRICING.products[j.product].label + ', ' + money(j.amount_cents) + ' USD before tax.';
+      summary.hidden = false;
+    } catch (_) {
+      show('unavailable', 'Order status unavailable.', 'We could not confirm this order\'s status right now. Check again before starting another payment.');
+    } finally {
+      clearTimeout(timeout); retry.removeAttribute('aria-disabled'); retry.removeAttribute('aria-busy');
+    }
+  };
+  retry.addEventListener('click', check);
+  check();
 }
 
 // -- stage bar, project buttons
