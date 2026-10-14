@@ -33,6 +33,25 @@ async function finishRecovery(page) {
   await page.waitForFunction(() => cornhole.loaded);
 }
 
+for (const edit of [false, true]) test(`a stalled read offers export and its late result ${edit ? 'preserves new typing' : 'restores the unchanged draft'}`, async ({ page }) => {
+  await startWithSlowRecovery(page);
+  await expect(page.locator('.stagebar .savestatus')).toContainText('Still checking', { timeout: 8000 });
+  await page.getByRole('tab', { name: 'Start', exact: true }).click();
+  await expect(page.locator('#exportlink')).toBeVisible();
+  const download = page.waitForEvent('download');
+  await page.locator('#exportlink').click();
+  expect((await download).suggestedFilename()).toMatch(/^cornhole-project-/);
+  if (edit) {
+    await page.getByRole('tab', { name: 'Text', exact: true }).click();
+    await page.locator('#texts .quick').first().fill('EDITED WHILE WAITING');
+  }
+  await page.evaluate(() => window.releaseStartupRead());
+  await settled(page);
+  expect(await page.evaluate(() => cornhole.design.a.elements[0].text)).toBe(edit ? 'EDITED WHILE WAITING' : 'SAVED EARLIER');
+  await reloaded(page);
+  expect(await page.evaluate(() => cornhole.design.a.elements[0].text)).toBe(edit ? 'EDITED WHILE WAITING' : 'SAVED EARLIER');
+});
+
 for (const field of ['#texts .quick', '#ttext']) {
   test(`text entered into ${field} before recovery finishes survives without blur`, async ({ page }) => {
     await startWithSlowRecovery(page);

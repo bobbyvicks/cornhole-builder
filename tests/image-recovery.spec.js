@@ -1,6 +1,16 @@
 import { test, expect } from '@playwright/test';
 import { open, reset, settled, reloaded, picture, pixelAt } from './helpers.js';
 
+function acceptReplacement(page) {
+  const messages = [], confirmations = [];
+  page.on('dialog', async dialog => {
+    if (dialog.type() === 'confirm' && /Replace your current design with the imported project/.test(dialog.message())) {
+      confirmations.push(dialog.message()); await dialog.accept();
+    } else { messages.push(dialog.message()); await dialog.dismiss(); }
+  });
+  return { messages, confirmations };
+}
+
 // A correct data URL header and Base64 payload do not prove that the raster
 // can decode. Reject it before import commits over the customer's draft.
 for (const field of ['src', 'orig']) test('a corrupt imported ' + (field === 'src' ? 'preview' : 'print master') + ' leaves the live and saved draft intact', async ({ page }) => {
@@ -72,8 +82,7 @@ test('a newer valid project wins while an older project is still decoding', asyn
       await gate; window.importDecodeFinished = true;
     };
   });
-  const messages = [];
-  page.on('dialog', async (dialog) => { messages.push(dialog.message()); await dialog.dismiss(); });
+  const { messages, confirmations } = acceptReplacement(page);
   await page.setInputFiles('#importfile', { name: 'older-project.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(incoming)) });
   await page.waitForFunction(() => window.importDecodeStarted);
   await page.setInputFiles('#importfile', { name: 'newer-project.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(newer)) });
@@ -82,6 +91,7 @@ test('a newer valid project wins while an older project is still decoding', asyn
   await page.waitForFunction(() => window.importDecodeFinished);
   expect(await page.evaluate(() => cornhole.design)).toEqual(newer.design);
   expect(messages, 'superseded imports finish quietly').toEqual([]);
+  expect(confirmations, 'only the latest valid import asks to replace the design').toHaveLength(1);
   await settled(page); await reloaded(page);
   expect(await page.evaluate(() => cornhole.design)).toEqual(newer.design);
 });
@@ -103,8 +113,7 @@ test('a slower earlier file read cannot replace the latest selected project', as
       return text;
     };
   });
-  const messages = [];
-  page.on('dialog', async (dialog) => { messages.push(dialog.message()); await dialog.dismiss(); });
+  const { messages, confirmations } = acceptReplacement(page);
   await page.setInputFiles('#importfile', { name: 'older-project.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(older)) });
   await page.waitForFunction(() => window.projectReadStarted);
   await page.setInputFiles('#importfile', { name: 'newer-project.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(newer)) });
@@ -113,6 +122,7 @@ test('a slower earlier file read cannot replace the latest selected project', as
   await page.waitForFunction(() => window.projectReadFinished);
   expect(await page.evaluate(() => cornhole.design)).toEqual(newer.design);
   expect(messages, 'superseded file reads finish quietly').toEqual([]);
+  expect(confirmations, 'the superseded read must not ask to replace the newer project').toHaveLength(1);
   await settled(page); await reloaded(page);
   expect(await page.evaluate(() => cornhole.design)).toEqual(newer.design);
 });
@@ -148,6 +158,7 @@ test('editing while a project file is being read preserves the newer saved draft
 
 test('project import validates only one raster at a time', async ({ page }) => {
   await open(page); await reset(page); await settled(page);
+  const { messages, confirmations } = acceptReplacement(page);
   const incoming = await page.evaluate(() => cornhole.projectRecord());
   const preview = await picture(page, 16, 16, 'image/png', 'g.fillStyle="#ff0000"; g.fillRect(0,0,w,h);');
   const master = await picture(page, 32, 32, 'image/jpeg', 'g.fillStyle="#0000ff"; g.fillRect(0,0,w,h);');
@@ -171,11 +182,13 @@ test('project import validates only one raster at a time', async ({ page }) => {
     await page.evaluate(() => window.pendingDecodes.shift()());
   }
   await page.waitForFunction(() => cornhole.design.a.elements[0]?.id === 'sequential-photo');
+  expect(confirmations).toHaveLength(1); expect(messages).toEqual([]);
   await settled(page);
 });
 
 test('separate imported boards display, reload and print with distinct preview and master images', async ({ page }) => {
   const errors = await open(page); await reset(page); await settled(page);
+  const { messages, confirmations } = acceptReplacement(page);
   const incoming = await page.evaluate(() => cornhole.projectRecord());
   const red = await picture(page, 32, 32, 'image/png', 'g.fillStyle="#ff0000"; g.fillRect(0,0,w,h);');
   const blue = await picture(page, 64, 64, 'image/jpeg', 'g.fillStyle="#0000ff"; g.fillRect(0,0,w,h);');
@@ -189,6 +202,7 @@ test('separate imported boards display, reload and print with distinct preview a
   incoming.design.b.elements = [{ type: 'image', id: 'photo-b', src: blueUrl, orig: greenUrl, px: [128, 128], width: 8, x: 12, y: 30 }];
   await page.setInputFiles('#importfile', { name: 'two-boards.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(incoming)) });
   await page.waitForFunction(() => cornhole.design.a.elements[0]?.id === 'photo-a');
+  expect(confirmations).toHaveLength(1); expect(messages).toEqual([]);
   await settled(page);
 
   for (const reload of [false, true]) {
@@ -205,5 +219,30 @@ test('separate imported boards display, reload and print with distinct preview a
     expect(printed[1]).toEqual([0, 255, 0, 255]);
     expect(await page.evaluate(() => [cornhole.design.a.elements[0].orig, cornhole.design.b.elements[0].orig])).toEqual([blueUrl, greenUrl]);
   }
+  expect(errors).toEqual([]);
+});
+
+test('cancelling replacement after image validation preserves the live and saved project', async ({ page }) => {
+  const errors = await open(page); await reset(page); await settled(page);
+  const before = await page.evaluate(() => cornhole.projectRecord());
+  const saved = await page.evaluate(async () => (await import('/lib/store.mjs')).loadProject());
+  const preview = await picture(page, 16, 16, 'image/png', 'g.fillStyle="#ff0000"; g.fillRect(0,0,w,h);');
+  const master = await picture(page, 32, 32, 'image/jpeg', 'g.fillStyle="#0000ff"; g.fillRect(0,0,w,h);');
+  const incoming = structuredClone(before);
+  incoming.design.a.elements = [{ type: 'image', id: 'cancelled-photo', src: 'data:image/png;base64,' + preview.buffer.toString('base64'), orig: 'data:image/jpeg;base64,' + master.buffer.toString('base64'), width: 8, x: 12, y: 30 }];
+  await page.evaluate(() => {
+    const decode = HTMLImageElement.prototype.decode; window.validatedImages = 0;
+    HTMLImageElement.prototype.decode = async function () { await decode.call(this); window.validatedImages++; };
+  });
+  const dialogs = [];
+  page.on('dialog', async dialog => { dialogs.push({ type: dialog.type(), message: dialog.message() }); await dialog.dismiss(); });
+  await page.setInputFiles('#importfile', { name: 'cancelled-project.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(incoming)) });
+  await expect.poll(() => dialogs.length).toBe(1);
+  expect(dialogs[0]).toEqual({ type: 'confirm', message: 'Replace your current design with the imported project?' });
+  expect(await page.evaluate(() => window.validatedImages)).toBe(2);
+  expect(await page.evaluate(() => cornhole.design)).toEqual(before.design);
+  expect(await page.evaluate(async () => (await import('/lib/store.mjs')).loadProject())).toEqual(saved);
+  await reloaded(page);
+  expect(await page.evaluate(() => cornhole.design)).toEqual(before.design);
   expect(errors).toEqual([]);
 });

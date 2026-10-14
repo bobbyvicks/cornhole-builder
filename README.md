@@ -32,16 +32,26 @@ A site where people design their own cornhole boards and order them.
   (IndexedDB, with localStorage as the fallback) after every change, the
   page says "Saving", "Saved on this device" or exactly what went wrong,
   and a save that does not fit fails loudly instead of dropping a picture.
+  Save errors are announced once, without speaking every saved keystroke.
+  The editor stays usable while recovery runs; edits made before it finishes
+  are preserved. Damaged records cannot hide an intact saved copy, and an
+  unreadable draft is left untouched until the customer makes a new edit.
   Export writes the whole project as editable JSON; Import takes it back.
   Imported pictures and print masters must decode before the current draft
-  is replaced; changes made while a file opens are preserved.
+  is replaced; changes made while a file opens are preserved. Replacing a
+  customized design asks first, and cancellation keeps the saved draft too.
   A design that has been worked on is never replaced by a template without
   asking, reload or no reload. Keys that edit the artwork (arrows, plus,
-  minus, Delete) work only while a board has the focus.
-- **Pictures.** Each upload is kept twice: a 1600 px preview the board is
-  drawn with, and a print master as big as the file came (to 4000 px on
-  the long side) that the print file and the order use. The page says when
-  a picture is printed bigger than its pixels allow.
+  minus, Delete) work only while its active board has the focus; browser
+  shortcuts are left alone. Undo history shares image data across snapshots
+  to keep repeated edits small.
+- **Pictures.** Each upload has a preview of up to 1600 px for the board,
+  and a print master as big as the file came (to 4000 px on the long side,
+  within the file-size budget) when it contains more detail. A vector
+  logo is drawn large for both. The page says when a picture is printed
+  bigger than its pixels allow. An order carries only the board being
+  ordered; one too big for the server leaves the masters out, then shrinks
+  the previews, and says the full-size files are still to come.
 - **Review.** Before the address: both boards as they will print, every
   choice, the price breakdown in USD before tax with what is and is not
   included, a check on words left over from a template, and the
@@ -163,5 +173,7 @@ status is separate from this source integration.
 - Shipping outside the contiguous US, and real carrier rates.
 - A shareable link for a design (images make the URL too long; it needs a
   saved-designs table).
+- Two tabs on the builder at once overwrite each other's saved project;
+  the newer save wins, with no warning.
 - The prices are placeholders, and `lib/site.mjs` is blank until the
   business fills it in.

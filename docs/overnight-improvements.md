@@ -275,6 +275,64 @@ the clock and repository state before each run.
   keyboard/native-sharing checks remain unresolved; no production release
   or real purchase was made.
 
+## Eighth increment - integrate Claude's second audit
+
+- Claude pushed `06f7b0e` to main after the seventh increment was pushed.
+  Merged it into `codex/overnight-ux`, resolving the four overlapping files
+  by preserving both sets of behavior. Do not merge the PR into main or
+  release production as part of this integration.
+- Retain the validated draft recovery and early-edit safeguards while adding
+  debounced input saving, a quiet save-status line, database reconnection and
+  one retry after an unexpectedly closed connection. A slow startup read
+  leaves editing available and offers an export after six seconds. Its late
+  result cannot replace newer edits. Stored copies remain untouched until
+  the read finishes or an unreadable-draft recovery receives a deliberate edit.
+- Use keyboard-accessible buttons for import and picture selection. Validate
+  a selected project's images before asking to replace a customized design;
+  cancellation preserves both live and saved data. Keep layer names current,
+  empty text empty, browser shortcut keys available and mobile scroll padding
+  matched to the sticky preview. Preserve the short-screen scrolling layout.
+- Keep memory-efficient object history rather than Claude's image-token
+  registry: print, share, project export and frozen order snapshots continue
+  carrying complete image sources. Adapt the overlapping history regression
+  to measure actual retained browser heap instead of string lengths.
+- Bring in full-size SVG rasterization and opaque WebP preview compression
+  while retaining exact originals and the existing 3 MB print-master limit.
+  Inspect source alpha in bounded tiles: a sampled thumbnail can miss a faint
+  transparent pixel and incorrectly turn a logo into opaque JPEG.
+- Outgoing orders omit the unused second board and empty text; the editable
+  project keeps both. Review and submission shrink copied previews only after
+  omitting oversized masters, report the required full-size-file handoff and
+  repeat revision, upload and form checks after preparation. Retain quantity
+  retyping, named bag colours, changed-review guidance and the unavailable-order
+  export. All 480 pricing combinations retain their previous totals.
+- The incoming ten-attempt limit could not prepare a valid eight-picture
+  design. Bound reductions per picture instead, with an overall limit and
+  an exit if encoding makes no progress. A real uploaded transparent PNG
+  duplicated to four pictures on each board now sends 3,603,418 characters
+  instead of 13,772,386; all live and saved image sources remain unchanged.
+  Both the full-board case and an unchanged encoder result failed before the
+  fix and pass afterward. Review also found genuine patterned PNGs can grow
+  on their first resample before later shrinking. Preserve that progress,
+  stopping early only for an identical encoded result; the bounded loop
+  reduces the patterned case from 6,585,547 to 3,576,406 characters. Seven
+  focused tests and sixteen independent order checks pass.
+- Independent review reproduced a cancelled touch gesture being rolled back
+  on screen but remaining saved if recovery completed during the drag. Save
+  the rollback without adding history, preserving original geometry and
+  automatic fitting. A native Chromium touch test failed without that save
+  and passed with it, including the next reload.
+- Final full run: **68 node tests, 253 Chromium browser tests and TypeScript
+  checks passed**. Syntax and staged whitespace checks passed. Independent
+  review closed all identified merge issues. Import/image checks (42), focused
+  merge checks (38), gesture/input checks (9) and targeted order checks also
+  passed during integration. A final fetch confirmed main remained `06f7b0e`.
+  Real orders, customer messages and production releases were not made.
+- A public-site recheck around 4:22 a.m. Toronto still found none of the new
+  template search, print metadata, input debounce or request preparation
+  functions. The Vercel permission limitation remains; do not assume this
+  branch is live merely because its source is pushed.
+
 ## Next overnight priorities
 
 1. Check the existing overnight PR and remote main for Claude changes before editing.

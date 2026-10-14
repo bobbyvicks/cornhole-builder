@@ -10,7 +10,7 @@ let instance = 0;
    asynchronous and clone records, while the real store module decides
    where to save, how to recover failures, and which draft to restore. */
 async function storage(t, { current = null, fallback = null, legacy = null } = {}) {
-  const state = { current, readError: null, writeError: null, localReadError: null, localWriteError: null, localRemoveError: null };
+  const state = { current, readError: null, writeError: null, localReadError: null, localWriteError: null, localRemoveError: null, openCount: 0, transactionErrors: [] };
   const local = new Map();
   if (fallback) local.set(CURRENT, JSON.stringify(fallback));
   if (legacy) local.set(LEGACY, JSON.stringify(legacy));
@@ -18,6 +18,7 @@ async function storage(t, { current = null, fallback = null, legacy = null } = {
     close() {},
     transaction(store, mode) {
       assert.equal(store, 'project');
+      if (state.transactionErrors.length) throw state.transactionErrors.shift();
       if (mode === 'readonly' && state.readError) throw state.readError;
       if (mode === 'readwrite' && state.writeError) throw state.writeError;
       const transaction = {
@@ -35,7 +36,7 @@ async function storage(t, { current = null, fallback = null, legacy = null } = {
     },
   };
   const globals = {
-    indexedDB: { open() { const request = { result: db }; queueMicrotask(() => request.onsuccess?.()); return request; } },
+    indexedDB: { open() { state.openCount++; const request = { result: db }; queueMicrotask(() => request.onsuccess?.()); return request; } },
     localStorage: {
       getItem(key) { if (state.localReadError) throw state.localReadError; return local.get(key) ?? null; },
       setItem(key, value) { if (state.localWriteError) throw state.localWriteError; local.set(key, value); },
@@ -47,7 +48,7 @@ async function storage(t, { current = null, fallback = null, legacy = null } = {
     Object.defineProperty(globalThis, name, { configurable: true, value });
     t.after(() => { if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name]; });
   }
-  return { state, local, ...(await import('../lib/store.mjs?test=' + instance++)) };
+  return { state, local, db, ...(await import('../lib/store.mjs?test=' + instance++)) };
 }
 
 test('a newer fallback save is restored even while the older IndexedDB copy remains readable', async (t) => {
@@ -170,4 +171,35 @@ test('unreadable drafts are reported without changing any stored bytes', async (
 test('an empty device remains distinct from an unreadable saved project', async (t) => {
   const store = await storage(t);
   assert.equal(await store.loadProject({ validate: validateBoards }), null);
+});
+
+test('a browser-closed database connection is reopened for the next save', async (t) => {
+  const store = await storage(t, { current: project('BEFORE') });
+  await store.loadProject();
+  assert.equal(store.state.openCount, 1);
+  store.db.onclose?.();
+  assert.equal(await store.saveProject(project('AFTER', LATER)), 'indexeddb');
+  assert.equal(store.state.openCount, 2);
+  assert.equal(store.local.has(CURRENT), false);
+  assert.equal((await store.loadProject()).design.a.elements[0].text, 'AFTER');
+});
+
+test('a silently closed database retries once before using a fallback', async (t) => {
+  const store = await storage(t, { current: project('BEFORE') });
+  await store.loadProject();
+  store.state.transactionErrors.push(new DOMException('The connection closed', 'InvalidStateError'));
+  assert.equal(await store.saveProject(project('AFTER', LATER)), 'indexeddb');
+  assert.equal(store.state.openCount, 2);
+  assert.equal(store.local.has(CURRENT), false);
+  assert.equal((await store.loadProject()).design.a.elements[0].text, 'AFTER');
+});
+
+test('a retry that also fails uses the fallback without repeatedly reopening the database', async (t) => {
+  const store = await storage(t, { current: project('BEFORE') });
+  await store.loadProject();
+  store.state.transactionErrors.push(...Array.from({ length: 2 }, () => new DOMException('Still closed', 'InvalidStateError')));
+  assert.equal(await store.saveProject(project('AFTER', LATER)), 'localstorage');
+  assert.equal(store.state.openCount, 2);
+  assert.equal(store.state.transactionErrors.length, 0);
+  assert.equal((await store.loadProject()).design.a.elements[0].text, 'AFTER');
 });

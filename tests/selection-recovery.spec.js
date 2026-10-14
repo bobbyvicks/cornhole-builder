@@ -35,21 +35,21 @@ test('text layer selection and removal names follow typing, property edits, and 
   await words.fill('MY CLUB');
   await expect(words).toBeFocused();
   await expect(page.locator('#texts .item')).toHaveAccessibleName('Select "MY CLUB"');
-  await expect(page.locator('#texts .itemdel')).toHaveAccessibleName('Remove MY CLUB');
+  await expect(page.locator('#texts .itemdel')).toHaveAccessibleName('Remove "MY CLUB"');
   await words.blur();
   await page.locator('#ttext').fill('GAME NIGHT');
   await page.locator('#ttext').blur();
-  await expect(page.locator('#texts .itemdel')).toHaveAccessibleName('Remove GAME NIGHT');
+  await expect(page.locator('#texts .itemdel')).toHaveAccessibleName('Remove "GAME NIGHT"');
   await page.locator('#undo').click();
   await expect(page.locator('#texts .item')).toHaveAccessibleName('Select "MY CLUB"');
-  await expect(page.locator('#texts .itemdel')).toHaveAccessibleName('Remove MY CLUB');
+  await expect(page.locator('#texts .itemdel')).toHaveAccessibleName('Remove "MY CLUB"');
 });
 
 test('resizing art updates the layer removal name', async ({ page }) => {
   await open(page); await reset(page);
   await page.evaluate(() => { cornhole.addClip('heart'); cornhole.showTab('art'); });
   await setInput(page, 'iwidth', 12);
-  await expect(page.locator('#images .item')).toHaveAccessibleName('Heart, 12"');
+  await expect(page.locator('#images .item')).toHaveAccessibleName('Select Heart, 12"');
   await expect(page.locator('#images .itemdel')).toHaveAccessibleName('Remove Heart, 12"');
 });
 
@@ -81,7 +81,7 @@ for (const control of ['#images .itemdel', '#idel']) {
     await page.evaluate(() => { cornhole.addClip('heart'); cornhole.showTab('art'); });
     await page.locator(control).focus();
     await page.keyboard.press('Enter');
-    await expect(page.locator('#addimage')).toBeFocused();
+    await expect(page.locator('#addimagebtn')).toBeFocused();
     await expect(page.locator('#images .itemrow')).toHaveCount(0);
   });
 }

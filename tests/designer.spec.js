@@ -844,6 +844,7 @@ test.describe('the audit: saving, keyboard, guidance, pricing, review and print 
     await page.waitForFunction(() => cornhole.activeBoard().elements.some((e) => e.type === 'image'));
     await page.waitForFunction(() => cornhole.saveState === 'error');
     expect(await page.textContent('.stagebar .savestatus')).toContain('Not saved');
+    expect(await page.textContent('#savealert'), 'the one live region speaks for trouble').toContain('Not saved');
     expect(await page.isHidden('#exportlink'), 'the way out is offered').toBe(false);
     expect(await page.evaluate(() => cornhole.activeBoard().elements.filter((e) => e.type === 'image').length), 'nothing was dropped').toBe(1);
     const dl = page.waitForEvent('download');
@@ -866,6 +867,7 @@ test.describe('the audit: saving, keyboard, guidance, pricing, review and print 
     /* Edit the file by hand, then bring it back over a different design. */
     json.design.a.elements[0].text = 'EDITED BY HAND';
     await page.evaluate(() => { cornhole.applyTemplate('wedding'); cornhole.setOrder({ finish: 'satin', quantity: 1 }); });
+    page.once('dialog', dialog => dialog.accept());
     await page.setInputFiles('#importfile', { name: 'p.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(json)) });
     await page.waitForFunction(() => cornhole.design.a.elements[0] && cornhole.design.a.elements[0].text === 'EDITED BY HAND');
     expect(await page.evaluate(() => cornhole.design.a.base.color)).toBe('#c8102e');
@@ -1099,5 +1101,297 @@ test.describe('the audit: saving, keyboard, guidance, pricing, review and print 
     expect(a).not.toBeNull(); expect(b).not.toBeNull();
     expect(Math.abs(a.y - b.y)).toBeLessThan(2);
     expect(await page.isHidden('#mobilebar')).toBe(false);
+  });
+});
+
+test.describe('the second audit round: saving as you type, focus that never falls off the page, honest pictures and orders', () => {
+  const RED = 'g.fillStyle = "#ff0000"; g.fillRect(0, 0, w, h);';
+  const SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200"><rect width="300" height="200" fill="#ff0000"/></svg>';
+
+  test('words typed into the field are on the device before the field is left', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => { cornhole.select('t1'); cornhole.showTab('text'); });
+    await settled(page);
+    await page.focus('#ttext');
+    await page.keyboard.press('End');
+    await page.keyboard.type(' WORLD');
+    expect(await page.evaluate(() => cornhole.saveState), 'says so while it is on its way').toBe('saving');
+    await settled(page);
+    expect(await page.evaluate(() => document.activeElement.id), 'the field was never left').toBe('ttext');
+    await reloaded(page);
+    expect(await page.evaluate(() => cornhole.design.a.elements[0].text)).toBe('HELLO WORLD');
+  });
+
+  test('the save status is one quiet line, not a live region that chatters', async ({ page }) => {
+    await open(page); await reset(page);
+    expect(await page.locator('.savestatus[role=status]').count()).toBe(0);
+    expect(await page.locator('#savealert').count()).toBe(1);
+    await page.evaluate(() => { cornhole.select('t1'); cornhole.showTab('text'); });
+    await page.focus('#ttext'); await page.keyboard.type('!');
+    await settled(page);
+    expect(await page.textContent('#savealert'), 'nothing to announce when all is well').toBe('');
+  });
+
+  test('the quantity can be cleared and retyped without jumping to 10', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => cornhole.showTab('order'));
+    await page.click('#qty');
+    await page.keyboard.press('Control+a'); await page.keyboard.press('Backspace');
+    await page.keyboard.type('3');
+    expect(await page.inputValue('#qty')).toBe('3');
+    expect(await page.evaluate(() => cornhole.order.quantity)).toBe(3);
+    await page.keyboard.press('Tab');
+    expect(await page.inputValue('#qty')).toBe('3');
+    expect(await page.textContent('#headtotal')).toBe('$' + ((3 * 24900 + 5900 + 2 * 2500) / 100).toFixed(2));
+  });
+
+  test('keys with Ctrl, Cmd or Alt held are the browser\'s, even on the focused board', async ({ page }) => {
+    await open(page); await reset(page);
+    const p = await clientPoint(page, 'a', 12, 30);
+    await page.mouse.click(p.x, p.y);
+    expect(await page.evaluate(() => cornhole.selected)).toBe('t1');
+    await page.keyboard.press('Control+='); await page.keyboard.press('Control+-'); await page.keyboard.press('Alt+ArrowRight');
+    const el = await page.evaluate(() => cornhole.activeBoard().elements[0]);
+    expect(el.size).toBe(4); expect(el.x).toBe(12);
+    await page.keyboard.press('=');
+    expect(await page.evaluate(() => cornhole.activeBoard().elements[0].size)).toBe(4.2);
+  });
+
+  test('Remove in the props and the last x in a list hand the focus to the list or the add button, never to nowhere', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => { cornhole.showTab('text'); document.getElementById('addtext').click(); });
+    await page.evaluate(() => cornhole.select('t1'));
+    await page.focus('#tdel'); await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => cornhole.activeBoard().elements.filter((e) => e.type === 'text').length)).toBe(1);
+    expect(await page.evaluate(() => document.activeElement.classList.contains('item')), 'on the remaining layer, ready to edit').toBe(true);
+    await page.focus('#texts .itemdel');
+    await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => document.activeElement.id), 'the list is empty: the add button').toBe('addtext');
+    await page.evaluate(() => { cornhole.addClip('heart'); cornhole.showTab('art'); });
+    await page.focus('#images .itemdel'); await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => cornhole.activeBoard().elements.length)).toBe(0);
+    expect(await page.evaluate(() => document.activeElement.id)).toBe('addimagebtn');
+  });
+
+  test('Import project and Add a picture are real buttons in the Tab order; the file inputs are not', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => cornhole.showTab('templates'));
+    await page.focus('#exportbtn'); await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => document.activeElement.id)).toBe('importbtn');
+    expect(await page.evaluate(() => document.activeElement.tagName)).toBe('BUTTON');
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => document.activeElement.id)).not.toBe('importfile');
+    expect(await page.getAttribute('#addimage', 'tabindex')).toBe('-1');
+    expect(await page.evaluate(() => document.getElementById('addimagebtn').tagName)).toBe('BUTTON');
+  });
+
+  test('importing a file asks before it replaces a customised design', async ({ page }) => {
+    await open(page); await reset(page);
+    let asked = 0;
+    page.on('dialog', (d) => { asked++; d.dismiss(); });
+    const json = await page.evaluate(() => ({ app: 'cornhole-builder', ...cornhole.projectRecord() }));
+    json.design.a.elements[0].text = 'FROM THE FILE';
+    await page.evaluate(() => { cornhole.activeBoard().elements[0].text = 'MY OWN WORK'; cornhole.commit(); });
+    await page.setInputFiles('#importfile', { name: 'p.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(json)) });
+    await page.waitForTimeout(200);
+    expect(asked).toBe(1);
+    expect(await page.evaluate(() => cornhole.design.a.elements[0].text), 'declined: nothing replaced').toBe('MY OWN WORK');
+  });
+
+  test('moving between the order steps carries the keyboard focus along; Back to editing lands on the tab', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => cornhole.showTab('order'));
+    await page.focus('#toreview'); await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => document.activeElement.textContent)).toBe('Review your order');
+    await page.focus('#tocheckout'); await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => document.activeElement.textContent)).toBe('Your details');
+    await page.focus('#backtoorder'); await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => document.activeElement.textContent)).toBe('Review your order');
+    await page.focus('#backtoedit'); await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => document.activeElement.id)).toBe('tabbtn-board');
+  });
+
+  test('clearing the words leaves nothing behind, and the row\'s buttons are named after the words as they change', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => { cornhole.select('t1'); cornhole.showTab('text'); });
+    await page.fill('#ttext', '');
+    expect(await page.evaluate(() => cornhole.activeBoard().elements[0].text)).toBe('');
+    await page.keyboard.type('SMITHS');
+    expect(await page.evaluate(() => cornhole.activeBoard().elements[0].text)).toBe('SMITHS');
+    expect(await page.getAttribute('#texts .itemdel', 'aria-label')).toBe('Remove "SMITHS"');
+    expect(await page.getAttribute('#texts .item', 'aria-label')).toBe('Select "SMITHS"');
+    const q = page.locator('#texts input.quick');
+    await q.fill('JONES');
+    expect(await page.getAttribute('#texts .itemdel', 'aria-label')).toBe('Remove "JONES"');
+    /* An empty text is not sent with an order. */
+    await page.fill('#ttext', '');
+    const payload = await page.evaluate(() => cornhole.orderPayload());
+    expect(payload.design.a.elements.filter((e) => e.type === 'text')).toEqual([]);
+  });
+
+  test('with two different boards, the board that takes the focus is the one the keys edit, and wears its own ring', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => { cornhole.setMode('b'); cornhole.select(cornhole.activeBoard().elements[0].id); });
+    expect(await page.evaluate(() => cornhole.active)).toBe('b');
+    await page.focus('#canvasA');
+    expect(await page.evaluate(() => cornhole.active), 'the focused board is the active one').toBe('a');
+    await page.keyboard.press('ArrowRight');
+    expect(await page.evaluate(() => cornhole.design.b.elements[0].x), 'Board B was left alone').toBe(12);
+    expect(await page.evaluate(() => getComputedStyle(document.getElementById('canvasA')).outlineStyle)).toBe('solid');
+    await page.focus('#canvasB');
+    expect(await page.evaluate(() => getComputedStyle(document.getElementById('canvasA')).outlineStyle), 'the ring is on the board with the focus').not.toBe('solid');
+  });
+
+  test('an order with small logos says its pictures are included, and sends only the board being ordered', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.setInputFiles('#addimage', await picture(page, 400, 400, 'image/png', RED));
+    await page.waitForFunction(() => cornhole.activeBoard().elements.some((e) => e.type === 'image'));
+    let payload = await page.evaluate(() => cornhole.orderPayload());
+    expect(payload.options.assets).toBe('included');
+    /* Board B keeps a leftover copy, pictures and all, that the order does not carry. */
+    await page.evaluate(() => { cornhole.setMode('b'); cornhole.setMode('same'); });
+    expect(await page.evaluate(() => cornhole.design.b.elements.length)).toBe(2);
+    payload = await page.evaluate(() => cornhole.orderPayload());
+    expect(payload.design.b.elements).toEqual([]);
+    expect(payload.design.a.elements.filter((e) => e.type === 'image').length).toBe(1);
+  });
+
+  test('a vector logo is drawn large for the preview and larger for print, and a WebP photo is previewed as JPEG with the file as its master', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => { cornhole.activeBoard().elements = []; });
+    await page.setInputFiles('#addimage', { name: 'logo.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(SVG) });
+    await page.waitForFunction(() => cornhole.activeBoard().elements.some((e) => e.type === 'image'));
+    let el = await page.evaluate(() => cornhole.activeBoard().elements[0]);
+    expect(el.px).toEqual([4000, 2667]);
+    expect(el.orig).toMatch(/^data:image\/png/);
+    const w = await page.evaluate((src) => new Promise((r) => { const i = new Image(); i.onload = () => r(i.naturalWidth); i.src = src; }), el.src);
+    expect(w, 'the preview is drawn at full preview size, not at the SVG\'s nominal 300 px').toBe(1600);
+    expect(await page.isHidden('#ireswarn')).toBe(true);
+    await page.evaluate(() => { cornhole.activeBoard().elements = []; });
+    await page.setInputFiles('#addimage', await picture(page, 2000, 1000, 'image/webp', RED));
+    await page.waitForFunction(() => cornhole.activeBoard().elements.some((e) => e.type === 'image'));
+    el = await page.evaluate(() => cornhole.activeBoard().elements[0]);
+    expect(el.src).toMatch(/^data:image\/jpeg/);
+    expect(el.orig).toMatch(/^data:image\/webp/);
+    expect(el.px).toEqual([2000, 1000]);
+  });
+
+  test('photo edits share their image data in undo history and restore exact images', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.setInputFiles('#addimage', await picture(page, 1600, 1200, 'image/jpeg', RED));
+    await page.waitForFunction(() => cornhole.activeBoard().elements.some((e) => e.type === 'image'));
+    await settled(page);
+    const cdp = await page.context().newCDPSession(page);
+    const heap = async () => { await cdp.send('HeapProfiler.collectGarbage'); return (await cdp.send('Runtime.getHeapUsage')).usedSize; };
+    const before = await heap();
+    await page.evaluate(() => { for (let i = 0; i < 30; i++) { cornhole.activeBoard().elements[0].x += 0.1; cornhole.commit(); } });
+    await settled(page);
+    expect((await heap()) - before).toBeLessThan(5_000_000);
+    await page.evaluate(() => { cornhole.undo(); cornhole.undo(); });
+    const img = await page.evaluate(() => cornhole.activeBoard().elements.find((e) => e.type === 'image'));
+    expect(img.src, 'undo brings the picture back whole').toMatch(/^data:image\/jpeg;base64,/);
+    expect(img.orig).toMatch(/^data:image\/jpeg;base64,/);
+    expect(await page.evaluate(() => cornhole.projectRecord().design.a.elements.find((e) => e.type === 'image').src)).toMatch(/^data:image\/jpeg;base64,/);
+  });
+
+  test('a gesture the browser cancels puts the element back and records nothing', async ({ page }) => {
+    await open(page); await reset(page);
+    const p = await clientPoint(page, 'a', 12, 30);
+    await page.mouse.click(p.x, p.y);
+    expect(await page.evaluate(() => cornhole.selected)).toBe('t1');
+    const before = await page.evaluate(() => cornhole.historyLength);
+    await page.mouse.move(p.x, p.y); await page.mouse.down(); await page.mouse.move(p.x + 60, p.y + 60, { steps: 4 });
+    expect(await page.evaluate(() => cornhole.activeBoard().elements[0].x)).toBeGreaterThan(12);
+    await page.evaluate(() => document.getElementById('canvasA').dispatchEvent(new PointerEvent('pointercancel', { pointerId: 1, bubbles: true })));
+    await page.mouse.up();
+    const el = await page.evaluate(() => cornhole.activeBoard().elements[0]);
+    expect(el.x).toBe(12); expect(el.y).toBe(30);
+    expect(await page.evaluate(() => cornhole.historyLength), 'nothing recorded').toBe(before);
+  });
+
+  test('a phone on its side does not pin the board, and an upright one tells the browser what its top is covered by', async ({ page }) => {
+    await page.setViewportSize({ width: 740, height: 400 });
+    await open(page); await reset(page);
+    expect(['static', 'relative']).toContain(await page.evaluate(() => getComputedStyle(document.querySelector('.stage')).position));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForTimeout(150);
+    expect(await page.evaluate(() => getComputedStyle(document.querySelector('.stage')).position)).toBe('sticky');
+    const pad = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop));
+    const covered = await page.evaluate(() => 60 + document.querySelector('.stage').offsetHeight);
+    expect(pad, 'the header plus the stuck stage').toBeGreaterThanOrEqual(covered);
+    expect(await page.isHidden('#modehint')).toBe(true);
+  });
+
+  test('the rush line says about, from the one constant', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => cornhole.showTab('order'));
+    await expect(page.locator('#rushlabel')).toContainText('about 5 days');
+    await page.check('#rush');
+    await expect(page.locator('#quote')).toContainText('dispatches in about 5 business days');
+    await expect(page.locator('#quote')).not.toContainText('ships in');
+  });
+
+  test('a review is of one design: changed since, it is drawn again and says so, and the say-so for sample words is for those words only', async ({ page }) => {
+    await open(page);
+    await page.evaluate(() => { cornhole.showTab('order'); cornhole.showOrderStep(2); });
+    await page.check('#keepsamples');
+    expect(await page.isDisabled('#tocheckout')).toBe(false);
+    await page.click('#tocheckout');
+    expect(await page.isHidden('#orderstep3')).toBe(false);
+    await page.evaluate(() => cornhole.showTab('text'));
+    await page.click('#addtext');
+    await page.evaluate(() => cornhole.showTab('order'));
+    expect(await page.isHidden('#orderstep2'), 'back to the review').toBe(false);
+    expect(await page.isHidden('#orderstep3')).toBe(true);
+    expect(await page.isHidden('#reviewchanged')).toBe(false);
+    await expect(page.locator('#sampletext')).toContainText('NEW TEXT');
+    expect(await page.isChecked('#keepsamples'), 'different words, a fresh say-so').toBe(false);
+    expect(await page.isDisabled('#tocheckout')).toBe(true);
+  });
+
+  test('the state has to be chosen, and the bag colours are named in the review', async ({ page }) => {
+    await open(page); await reset(page);
+    await chip(page, 'bags', 'regulation');
+    await page.evaluate(() => cornhole.showTab('order'));
+    await page.click('#toreview');
+    await expect(page.locator('#reviewlist')).toContainText('4 red and 4 navy');
+    expect(await page.locator('#reviewlist .swatchdot').count()).toBe(2);
+    expect(await page.evaluate(() => cornhole.colourName('#c8102f'))).toBe('near red');
+    await page.click('#tocheckout');
+    await page.fill('#name', 'Pat Example'); await page.fill('#email', 'pat@example.com'); await page.fill('#line1', '1 Main St');
+    await page.fill('#city', 'Austin'); await page.fill('#postal', '78701');
+    expect(await page.inputValue('#state')).toBe('');
+    expect(await page.evaluate(() => document.getElementById('orderform').checkValidity()), 'no state, no order').toBe(false);
+    await page.selectOption('#state', 'TX');
+    expect(await page.evaluate(() => document.getElementById('orderform').checkValidity())).toBe(true);
+  });
+
+  test('the fresh page restores the saved project without writing its initial design over it', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => { cornhole.activeBoard().elements[0].text = 'KEPT'; cornhole.commit(); });
+    await settled(page);
+    /* A slow device: the templates are on screen before the restore lands. */
+    await page.addInitScript(() => {
+      const openDb = indexedDB.open.bind(indexedDB);
+      indexedDB.open = function (...a) {
+        const req = openDb(...a);
+        const fire = (type) => { const h = req['on' + type]; if (h) setTimeout(() => h.call(req, new Event(type)), 1200); };
+        let s = null, e = null;
+        Object.defineProperty(req, 'onsuccess', { set: (f) => { s = f; }, get: () => s });
+        Object.defineProperty(req, 'onerror', { set: (f) => { e = f; }, get: () => e });
+        req.addEventListener('success', () => setTimeout(() => s && s(new Event('success')), 1200));
+        req.addEventListener('error', () => setTimeout(() => e && e(new Event('error')), 1200));
+        void fire;
+        return req;
+      };
+    });
+    await page.reload();
+    await page.waitForSelector('#templates .tpl');
+    // The page stays interactive; separate startup-recovery tests prove that
+    // edits made here take precedence over the late saved project.
+    expect(await page.evaluate(() => document.body.classList.contains('loading'))).toBe(false);
+    await page.waitForFunction(() => window.cornhole && window.cornhole.loaded);
+    expect(await page.evaluate(() => cornhole.design.a.elements[0].text), 'the saved project, not the click').toBe('KEPT');
+    expect(await page.evaluate(() => document.body.classList.contains('loading'))).toBe(false);
   });
 });

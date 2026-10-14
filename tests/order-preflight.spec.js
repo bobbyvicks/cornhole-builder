@@ -145,7 +145,7 @@ test('changing personalized words from the details step requires a fresh design 
   await page.locator('#texts .item').first().click();
   await page.fill('#ttext', 'THE JOHNSONS');
   await page.getByRole('tab', { name: 'Order', exact: true }).click();
-  await page.click('#checkout');
+  await expect(page.locator('#reviewchanged')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Review your order', exact: true })).toBeVisible();
   await expect(page.locator('#tocheckout')).toBeEnabled();
   expect(posted, 'the previous review no longer represents the design being ordered').toEqual([]);
