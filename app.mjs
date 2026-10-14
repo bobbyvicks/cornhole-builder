@@ -1,6 +1,8 @@
 import { PRICING, quote, money } from './lib/price.mjs';
 import { CLIPS, CLIP_CATS, heart, prng } from './lib/clips.mjs';
 import { makeTemplates } from './lib/templates.mjs';
+import { loadProject, saveProject } from './lib/store.mjs';
+import { SITE } from './lib/site.mjs';
 
 /* ====================================================================
    THE BOARD, IN INCHES. Everything about a design is stored in inches on
@@ -10,6 +12,7 @@ import { makeTemplates } from './lib/templates.mjs';
 const BOARD = Object.freeze({ w: 24, h: 48, hole: { d: 6, cy: 9 }, radius: 0.6 });
 const PRINT_PPI = 100;
 const DESIGN_VERSION = 2;
+const PROJECT_VERSION = 3;
 
 const PAINTS = ['#1f3a93', '#1e5bc6', '#4fa3e3', '#0f8b8d', '#1f7a3a', '#7ac943', '#f2b705', '#ffe44d', '#f26b1d', '#c8102e',
                 '#6b1d2b', '#e75480', '#5b2a86', '#8d8d8d', '#36393b', '#111111', '#f5f5f0', '#ffffff', '#0b1b3a', '#2e7d32'];
@@ -40,14 +43,25 @@ const PATTERNS = {
   rings: 'Rings around the hole', sunburst: 'Sunburst from the hole', cross: 'Cross',
 };
 const OCCASIONS = { wedding: 'A wedding', anniversary: 'An anniversary', birthday: 'A birthday', family: 'The family', business: 'A business', team: 'A team or school', holiday: 'A holiday', other: 'Just because' };
+const TEMPLATE_GROUPS = [['wedding', 'Weddings'], ['anniversary', 'Anniversaries'], ['birthday', 'Birthdays'], ['family', 'Family and friends'], ['team', 'Teams and schools'], ['business', 'Business'], ['holiday', 'Holidays'], ['other', 'Everything else']];
 const US_STATES = 'AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY'.split(' ');
-const MAX_IMAGES = 4, MAX_TEXTS = 10, MAX_CLIPS = 12, MAX_IMAGE_BYTES = 1_500_000;
+/* The states the checkout ships to: the price list says which are not. */
+const SHIP_STATES = US_STATES.filter((s) => !PRICING.shipping.excluded.includes(s));
+const MAX_IMAGES = 4, MAX_TEXTS = 10, MAX_CLIPS = 12;
+/* A picture is kept twice: a preview the board is drawn with, and a print
+   master as big as the file came (up to ORIG_SIDE on its long side) that
+   the print file and the order use. An order that would not fit the
+   server's body limit leaves the masters out and says so. */
+const PREVIEW_SIDE = 1600, PREVIEW_BYTES = 1_500_000, ORIG_SIDE = 4000, ORIG_BYTES = 3_000_000, PAYLOAD_BYTES = 3_800_000;
+const SHARP_DPI = 100, SOFT_DPI = 60;
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const uid = () => 'e' + Math.random().toString(36).slice(2, 8);
 const rad = (d) => d * Math.PI / 180;
 const r1 = (v) => Math.round(v * 10) / 10;
+const isHex = (c) => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c);
+const today = () => new Date().toISOString().slice(0, 10);
 
 
 /* ====================================================================
@@ -82,11 +96,16 @@ function migrate(d) {
 }
 
 const TEMPLATES = makeTemplates({ T, C, freshBoard });
+/* The words a template arrives with. A design that still carries one at
+   the checkout is almost always a mistake, so the review asks. */
+const SAMPLE_WORDS = new Set(['your team', 'new text', 'your name', 'your words']);
+for (const t of TEMPLATES) for (const e of t.board().elements) if (e.type === 'text') SAMPLE_WORDS.add(e.text.trim().toLowerCase());
 
 let design = freshDesign();
 let active = 'a';           // which board the panel edits
 let selected = null;        // element id, on the active board
 let history = [], future = [];
+let lastEditTab = 'text';
 const order = { product: 'set', quantity: 1, finish: 'satin', bags: 'none', bagColors: ['#c8102e', '#1f3a93'], rush: false, carryCase: false, occasion: 'other', needBy: '', giftNote: '' };
 
 const activeBoard = () => design[active];
@@ -95,6 +114,23 @@ const findEl = (id) => activeBoard().elements.find((e) => e.id === id) || null;
 const selectedEl = () => (selected ? findEl(selected) : null);
 const countOf = (b, type) => b.elements.filter((e) => e.type === type).length;
 const limitOf = (type) => ({ text: MAX_TEXTS, image: MAX_IMAGES, clip: MAX_CLIPS })[type];
+const boardKeys = () => (order.product === 'set' && !design.same ? ['a', 'b'] : ['a']);
+
+/* A design nobody has touched: the page's own default, a blank board, or
+   a template exactly as it came. Anything else is someone's work, and a
+   template click asks before replacing it - after a reload too. */
+const stripIds = (b) => JSON.stringify({ ...b, elements: b.elements.map(({ id, ...e }) => e) });
+const sameBoard = (a, b) => stripIds(a) === stripIds(b);
+function isPristine() {
+  if (!design.same) return false;
+  if (sameBoard(design.a, freshDesign().a) || sameBoard(design.a, freshBoard())) return true;
+  return TEMPLATES.some((t) => sameBoard(design.a, t.board()));
+}
+function sampleWordsIn() {
+  const out = new Set();
+  for (const k of boardKeys()) for (const e of design[k].elements) if (e.type === 'text' && SAMPLE_WORDS.has(e.text.trim().toLowerCase())) out.add(e.text.trim());
+  return [...out];
+}
 
 /* ====================================================================
    RENDERING. ctx is scaled so one unit is one inch.
@@ -102,6 +138,7 @@ const limitOf = (type) => ({ text: MAX_TEXTS, image: MAX_IMAGES, clip: MAX_CLIPS
 const boxes = new Map();  // element id -> { w, h, oy } in inches, from the last render, for hit testing
 const imgCache = new Map();
 let curPpi = 20;
+let printing = false;     // the print file draws from the pictures' masters
 
 function imageFor(src) {
   let img = imgCache.get(src);
@@ -112,6 +149,13 @@ function imageFor(src) {
     imgCache.set(src, img);
   }
   return img.complete && img.naturalWidth ? img : null;
+}
+const imageLoaded = (src) => new Promise((res) => { const img = imageFor(src); if (img) { res(img); return; } const i = imgCache.get(src); i.addEventListener('load', () => res(i), { once: true }); i.addEventListener('error', () => res(null), { once: true }); });
+/* The print file needs every master decoded before it draws. */
+async function preloadImages(keys = boardKeys()) {
+  const srcs = new Set();
+  for (const k of keys) for (const e of boardFor(k).elements) if (e.type === 'image') srcs.add(e.orig || e.src);
+  await Promise.all([...srcs].map(imageLoaded));
 }
 /* "Remove white background": a logo on a white JPEG becomes a cut-out.
    Anything near white goes transparent, fading in over the last few
@@ -291,9 +335,10 @@ function drawText(ctx, el) {
 }
 
 function drawImage(ctx, el) {
-  const img = el.knockout ? knockedOut(el.src) : imageFor(el.src);
-  const iw = img ? (img.naturalWidth || img.width) : 1, ih = img ? (img.naturalHeight || img.height) : 1;
-  let w = el.width, h = img ? w * ih / iw : w;
+  const source = printing ? (el.orig || el.src) : el.src;
+  const img = el.knockout ? knockedOut(source) : imageFor(source);
+  const iw = img ? (img.naturalWidth || img.width) : (el.px ? el.px[0] : 1), ih = img ? (img.naturalHeight || img.height) : (el.px ? el.px[1] : 1);
+  let w = el.width, h = w * ih / iw;
   if (el.circleCrop) { const d = Math.min(w, h); boxes.set(el.id, { w: d, h: d, oy: 0 }); }
   else boxes.set(el.id, { w, h, oy: 0 });
   ctx.save();
@@ -352,7 +397,7 @@ const DRAWERS = { text: drawText, image: drawImage, clip: drawClip };
 /* Draw one board onto a context whose (0,0) is the board's top-left, at
    `ppi` pixels per inch. */
 function renderBoard(ctx, b, ppi, { print = false } = {}) {
-  curPpi = ppi;
+  curPpi = ppi; printing = print;
   ctx.save();
   ctx.scale(ppi, ppi);
   boardPath(ctx);
@@ -368,6 +413,7 @@ function renderBoard(ctx, b, ppi, { print = false } = {}) {
     boardPath(ctx); ctx.stroke();
   }
   ctx.restore();
+  printing = false;
 }
 
 /* Handle geometry, in inches, set at each paint from the preview's size on
@@ -444,10 +490,14 @@ function paint() {
       }
     }
     c.classList.toggle('active', !design.same && key === active && order.product === 'set');
+    /* With something selected the board takes the touch so it can be
+       dragged; with nothing selected a finger on it scrolls the page. */
+    c.classList.toggle('grabbable', Boolean(el && editingHere));
   }
 }
 
-/* The print file: 100 pixels per inch, no bevel, hole marked by a hairline. */
+/* The print file: 100 pixels per inch, no bevel, hole marked by a hairline,
+   pictures drawn from their masters. Call preloadImages first. */
 function printCanvas(key) {
   const c = document.createElement('canvas');
   c.width = BOARD.w * PRINT_PPI; c.height = BOARD.h * PRINT_PPI;
@@ -462,12 +512,12 @@ function previewDataUrl(key, ppi = 10) {
 }
 
 /* ====================================================================
-   HISTORY AND SAVING
+   HISTORY, SAVING AND THE PROJECT FILE
    ==================================================================== */
 const snapshot = () => JSON.stringify(design);
 function commit() {
   const s = snapshot();
-  if (history[history.length - 1] === s) return;
+  if (history[history.length - 1] === s) { save(); return; }
   history.push(s); if (history.length > 60) history.shift();
   future = [];
   save();
@@ -478,27 +528,61 @@ function undo() { if (history.length < 2) return; future.push(history.pop()); re
 function redo() { if (!future.length) return; const s = future.pop(); history.push(s); restore(s); }
 function syncHistoryButtons() { $('undo').disabled = history.length < 2; $('redo').disabled = !future.length; }
 
-const SAVE_KEY = 'cornhole.design.v1';
-function save() {
-  try { localStorage.setItem(SAVE_KEY, snapshot()); }
-  catch (_) {
-    /* Over quota - the images are what is big. Keep the rest, so a reload
-       loses the pictures and not the whole evening's work. */
-    try {
-      const lean = JSON.parse(snapshot());
-      for (const k of ['a', 'b']) lean[k].elements = lean[k].elements.filter((e) => e.type !== 'image');
-      localStorage.setItem(SAVE_KEY, JSON.stringify(lean));
-    } catch (_2) {}
-  }
+/* What is saved: the boards and the order choices together, so a refresh
+   brings back the finish, the extras, the quantity and the date as well as
+   the design. Saving says what it is doing; a save that fails says so and
+   offers the export, and never drops a picture to make itself fit. */
+const SAVE_TEXT = {
+  new: 'Not saved yet',
+  saving: 'Saving…',
+  saved: 'Saved on this device',
+  error: 'Not saved: this browser cannot store the project (storage full or blocked). Export it to keep it.',
+};
+let saveState = 'new', saveBusy = false, saveAgain = false, storageReady = false, loaded = false;
+function setSaveState(s) {
+  saveState = s;
+  for (const el of document.querySelectorAll('.savestatus')) { el.textContent = SAVE_TEXT[s]; el.dataset.state = s; }
+  $('exportlink').hidden = s !== 'error';
 }
-function load() {
-  try {
-    const s = localStorage.getItem(SAVE_KEY);
-    if (!s) return false;
-    const d = JSON.parse(s);
-    if (d && d.a && d.b) { design = migrate(d); return true; }
-  } catch (_) {}
-  return false;
+function projectRecord() { return { version: PROJECT_VERSION, savedAt: new Date().toISOString(), design: JSON.parse(snapshot()), order: { ...order, bagColors: [...order.bagColors] } }; }
+function save() { if (!storageReady) return; setSaveState('saving'); flush(); }
+async function flush() {
+  if (saveBusy) { saveAgain = true; return; }
+  saveBusy = true;
+  try { await saveProject(projectRecord()); if (!saveAgain) setSaveState('saved'); }
+  catch (e) { console.warn('The project could not be saved on this device.', e); setSaveState('error'); }
+  saveBusy = false;
+  if (saveAgain) { saveAgain = false; flush(); }
+}
+window.addEventListener('beforeunload', (e) => { if (saveState === 'error') { e.preventDefault(); e.returnValue = ''; } });
+
+/* Order choices from storage or a file, taken only where they are valid. */
+function applyOrder(o) {
+  if (!o || typeof o !== 'object') return;
+  if (PRICING.products[o.product]) order.product = o.product;
+  const q = Number(o.quantity); if (Number.isInteger(q) && q >= 1 && q <= PRICING.maxQuantity) order.quantity = q;
+  if (PRICING.finishes[o.finish]) order.finish = o.finish;
+  if (PRICING.bags[o.bags]) order.bags = o.bags;
+  if (Array.isArray(o.bagColors) && o.bagColors.length === 2 && o.bagColors.every(isHex)) order.bagColors = [...o.bagColors];
+  order.rush = o.rush === true; order.carryCase = o.carryCase === true;
+  if (OCCASIONS[o.occasion]) order.occasion = o.occasion;
+  order.needBy = typeof o.needBy === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.needBy) && o.needBy >= today() ? o.needBy : '';
+  order.giftNote = typeof o.giftNote === 'string' ? o.giftNote.slice(0, 300) : '';
+}
+/* The project file: plain JSON, with the pictures' masters, that the
+   Import button takes back. */
+function exportProject() {
+  const blob = new Blob([JSON.stringify({ app: 'cornhole-builder', ...projectRecord() }, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'cornhole-project-' + today() + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+}
+function importProject(obj) {
+  if (!obj || typeof obj !== 'object' || !obj.design || !obj.design.a || !obj.design.b) throw new Error('that file is not a cornhole project');
+  design = migrate(obj.design);
+  if (obj.order) applyOrder(obj.order);
+  selected = null; active = 'a';
+  syncAll(); commit(); showTab('board');
 }
 
 /* ====================================================================
@@ -543,6 +627,9 @@ for (const c of [$('canvasA'), $('canvasB')]) {
   c.addEventListener('pointerdown', (ev) => {
     const key = c.dataset.board;
     if (!design.same && order.product === 'set' && key !== active) setActive(key);
+    /* The board takes the focus, so the arrow keys and Delete that follow
+       are meant for it - and not when a slider or a tab had the focus. */
+    c.focus({ preventScroll: true });
     const p = toInches(c, ev);
     const sel = selectedEl();
     const handle = sel && (design.same ? key === 'a' : key === active) ? handleAt(sel, p.x, p.y) : null;
@@ -590,10 +677,15 @@ for (const c of [$('canvasA'), $('canvasB')]) {
   c.addEventListener('pointerup', end);
   c.addEventListener('pointercancel', end);
 }
+/* Keyboard. Undo and redo work anywhere but inside a field. The keys that
+   edit the artwork - arrows, plus, minus, Delete - work only while a board
+   has the focus, so a Delete meant for a tab, a slider or a list never
+   takes a word off the board. */
 document.addEventListener('keydown', (ev) => {
-  const t = ev.target;
-  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
-  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z') { ev.preventDefault(); ev.shiftKey ? redo() : undo(); return; }
+  const t = ev.target, tag = t && t.tagName;
+  const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable);
+  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z') { if (typing) return; ev.preventDefault(); ev.shiftKey ? redo() : undo(); return; }
+  if (tag !== 'CANVAS') return;
   const el = selectedEl(); if (!el) return;
   const step = ev.shiftKey ? 1 : 0.1;
   const nudge = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[ev.key];
@@ -620,11 +712,25 @@ function setRange(id, v, label) { $(id).value = v; $(id + 'val').textContent = l
 
 function setActive(key) { active = key; selected = null; syncAll(); }
 function select(id) { selected = id; render(); syncLists(); syncProps(); }
+
+/* The tabs: a click or the arrow keys move between them, the selected one
+   is the only one in the Tab order, and the Order tab hides the phone's
+   Review bar since it is what the bar leads to. */
+const TAB_ORDER = ['templates', 'board', 'text', 'art', 'order'];
+const tabButtons = [...document.querySelectorAll('.tabs [role=tab]')];
 function showTab(name) {
-  for (const b of document.querySelectorAll('.tabs [role=tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === name));
+  for (const b of tabButtons) { const on = b.dataset.tab === name; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; }
   for (const p of document.querySelectorAll('.pane')) p.dataset.open = String(p.id === 'tab-' + name);
+  if (name !== 'order') lastEditTab = name;
+  document.body.classList.toggle('ordering', name === 'order');
 }
 document.querySelector('.tabs').addEventListener('click', (ev) => { const b = ev.target.closest('[role=tab]'); if (b) showTab(b.dataset.tab); });
+document.querySelector('.tabs').addEventListener('keydown', (ev) => {
+  const i = TAB_ORDER.indexOf((ev.target.dataset || {}).tab); if (i < 0) return;
+  const j = ev.key === 'ArrowRight' ? (i + 1) % TAB_ORDER.length : ev.key === 'ArrowLeft' ? (i + TAB_ORDER.length - 1) % TAB_ORDER.length : ev.key === 'Home' ? 0 : ev.key === 'End' ? TAB_ORDER.length - 1 : -1;
+  if (j < 0) return;
+  ev.preventDefault(); showTab(TAB_ORDER[j]); tabButtons[j].focus();
+});
 /* While a field in the panel has focus on a phone, the keyboard takes half
    the screen: the boards shrink (see the stylesheet) so the field and the
    board both stay in view. */
@@ -632,31 +738,66 @@ const panel = document.querySelector('aside.panel');
 const TYPING = 'input:not([type=checkbox]):not([type=color]):not([type=range]):not([type=file]), textarea, select';
 panel.addEventListener('focusin', (ev) => { if (ev.target.matches(TYPING)) document.body.classList.add('typing'); });
 panel.addEventListener('focusout', () => setTimeout(() => { const a = document.activeElement; if (!a || !panel.contains(a) || !a.matches(TYPING)) document.body.classList.remove('typing'); }, 50));
+/* Bring the controls up under the (sticky) board on a phone. */
+function scrollToPanel() {
+  const st = document.querySelector('.stage');
+  const sticky = window.innerWidth <= 940 ? st.offsetHeight + 8 : 0;
+  const top = panel.getBoundingClientRect().top + window.scrollY - 60 - sticky;
+  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+}
 
-// -- templates
+// -- templates, grouped by occasion, with a blank start
 function applyTemplate(id) {
   const t = TEMPLATES.find((x) => x.id === id); if (!t) return;
   design = { version: DESIGN_VERSION, same: true, a: t.board(), b: freshBoard() };
   selected = null; active = 'a';
   order.occasion = t.occasion;
-  syncAll(); commit(); showTab('text');
+  syncAll(); commit(); promptForWords();
 }
-for (const t of TEMPLATES) {
-  const b = document.createElement('button'); b.className = 'tpl'; b.type = 'button'; b.dataset.id = t.id;
-  const c = document.createElement('canvas'); c.width = 64 * 2; c.height = 128 * 2;
-  renderBoard(c.getContext('2d'), t.board(), 128 * 2 / BOARD.h);
-  const s = document.createElement('span'); s.textContent = t.label;
-  b.append(c, s);
-  b.addEventListener('click', () => {
-    const untouched = history.length < 2;
-    if (untouched || confirm('Replace your current design with the ' + t.label + ' template?')) applyTemplate(t.id);
-  });
-  $('templates').appendChild(b);
+function applyBlank() {
+  design = { version: DESIGN_VERSION, same: true, a: freshBoard(), b: freshBoard() };
+  selected = null; active = 'a';
+  syncAll(); commit(); promptForWords();
+}
+/* Straight to the words: the first text is selected and ready to type
+   over, with a line saying so. */
+function promptForWords() {
+  const first = design.a.elements.find((e) => e.type === 'text');
+  showTab('text');
+  const hint = $('texthint');
+  if (first) {
+    select(first.id);
+    hint.textContent = 'Replace the sample words with your own: the names, the date, the team. Each line below is one piece of text on the board.';
+    hint.hidden = false;
+    const i = $('ttext'); i.focus({ preventScroll: true }); i.select();
+  } else {
+    hint.textContent = 'A blank board. Add your first words with the button below, then colours and art from the other tabs.';
+    hint.hidden = false;
+  }
+}
+const askThenApply = (label, fn) => { if (isPristine() || confirm('Replace your current design with ' + label + '?')) fn(); };
+$('startblank').addEventListener('click', () => askThenApply('a blank board', applyBlank));
+{
+  const host = $('templates');
+  for (const [key, label] of TEMPLATE_GROUPS) {
+    const ts = TEMPLATES.filter((t) => t.occasion === key); if (!ts.length) continue;
+    const h = document.createElement('h3'); h.className = 'tplgroup'; h.textContent = label; host.appendChild(h);
+    const grid = document.createElement('div'); grid.className = 'templates'; host.appendChild(grid);
+    for (const t of ts) {
+      const b = document.createElement('button'); b.className = 'tpl'; b.type = 'button'; b.dataset.id = t.id; b.setAttribute('aria-label', t.label + ' template');
+      const c = document.createElement('canvas'); c.width = 64 * 2; c.height = 128 * 2;
+      renderBoard(c.getContext('2d'), t.board(), 128 * 2 / BOARD.h);
+      const s = document.createElement('span'); s.textContent = t.label;
+      b.append(c, s);
+      b.addEventListener('click', () => askThenApply('the ' + t.label + ' template', () => applyTemplate(t.id)));
+      grid.appendChild(b);
+    }
+  }
 }
 
 // -- board tab
 function swatch(parent, v, title, extra) {
-  const b = document.createElement('button'); b.type = 'button'; b.className = 'sw' + (extra ? ' ' + extra : ''); b.dataset.v = v; b.title = title; parent.appendChild(b); return b;
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'sw' + (extra ? ' ' + extra : ''); b.dataset.v = v; b.title = title; b.setAttribute('aria-label', title); parent.appendChild(b); return b;
 }
 for (const hex of PAINTS) swatch($('paints'), hex, hex).style.background = hex;
 for (const hex of PAINTS_SOFT) swatch($('paints2'), hex, hex).style.background = hex;
@@ -708,7 +849,7 @@ const lum = (hex) => { const [r, g, b] = rgb(hex).map((v) => { v /= 255; return 
 const contrast = (a, b) => { const la = lum(a), lb = lum(b); return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05); };
 function oppositeColours(src) {
   const b = withFreshIds(src);
-  const low = (c) => (c || '').toLowerCase(), isHex = (c) => /^#[0-9a-f]{6}$/.test(low(c));
+  const low = (c) => (c || '').toLowerCase();
   const c1 = b.base.kind !== 'wood' ? low(b.base.color) : (b.pattern.kind !== 'none' ? low(b.pattern.color) : '');
   const second = b.elements.find((e) => e.type !== 'image' && low(e.color) !== c1);
   const c2 = second ? low(second.color) : (b.pattern.kind !== 'none' && low(b.pattern.color) !== c1 ? low(b.pattern.color) : '');
@@ -731,8 +872,8 @@ function syncBoard() {
   $('woodopts').hidden = b.base.kind !== 'wood';
   for (const s of document.querySelectorAll('#paints .sw, #paints2 .sw')) s.setAttribute('aria-pressed', String(b.base.kind !== 'wood' && s.dataset.v === b.base.color));
   for (const s of $('stains').querySelectorAll('.sw')) s.setAttribute('aria-pressed', String(b.base.kind === 'wood' && s.dataset.v === b.base.stain));
-  if (/^#[0-9a-f]{6}$/i.test(b.base.color)) $('paintcustom').value = b.base.color;
-  if (/^#[0-9a-f]{6}$/i.test(b.base.color2 || '')) $('paint2').value = b.base.color2;
+  if (isHex(b.base.color)) $('paintcustom').value = b.base.color;
+  if (isHex(b.base.color2 || '')) $('paint2').value = b.base.color2;
   $('paintval').textContent = b.base.color;
   $('gradangle').value = b.base.angle; $('gradangleval').textContent = b.base.angle + '°';
   $('pattern').value = b.pattern.kind;
@@ -748,7 +889,7 @@ function syncBoard() {
   $('swapcolours').textContent = 'Board ' + other.toUpperCase() + ' in the opposite colours';
   $('boardshint').textContent = !twoBoards ? 'A single board.'
     : design.same ? 'One design on both boards. For two different boards, pick Board A or Board B above the preview.'
-    : 'Editing Board ' + active.toUpperCase() + '. Tap the other board in the preview to switch. Same on both goes back to one design.';
+    : 'Editing Board ' + active.toUpperCase() + '. Tap the other board in the preview to switch. Both boards match goes back to one design.';
   $('boardB').classList.toggle('hidden', !twoBoards);
   $('boardB').classList.toggle('same', design.same);
   for (const k of ['a', 'b']) {
@@ -774,7 +915,7 @@ function addElement(el, tab) {
 $('addtext').addEventListener('click', () => {
   const b = activeBoard();
   const el = addElement(T('NEW TEXT', { size: 3, y: 36, color: b.base.kind === 'wood' ? '#36393b' : '#f5f5f0' }), 'text');
-  if (el) { $('ttext').focus(); $('ttext').select(); }
+  if (el) { $('texthint').hidden = true; $('ttext').focus(); $('ttext').select(); }
 });
 const field = (id, key, map = (v) => v, label = null) => {
   $(id).addEventListener('input', () => { const el = selectedEl(); if (!el) return; el[key] = map($(id).value); if (label) $(id + 'val').textContent = label(el[key]); render(); syncLists(); });
@@ -785,6 +926,7 @@ const toggle = (id, key) => {
 };
 const inch = (v) => v + '"', deg = (v) => v + '°';
 field('ttext', 'text', (v) => v || ' ');
+$('ttext').addEventListener('input', () => { $('texthint').hidden = true; });
 field('tfont', 'font');
 field('tsize', 'size', Number, inch);
 field('tcolor', 'color');
@@ -808,32 +950,59 @@ $('addimage').addEventListener('change', async () => {
   if (!f) return;
   if (countOf(activeBoard(), 'image') >= MAX_IMAGES) { alert('Up to ' + MAX_IMAGES + ' pictures per board.'); return; }
   try {
-    const src = await shrinkImage(f);
-    addElement(withDefaults({ type: 'image', src, width: 10, x: 12, y: 30 }), 'art');
+    const pic = await readImage(f);
+    addElement(withDefaults({ type: 'image', ...pic, width: 10, x: 12, y: 30 }), 'art');
   } catch (e) { alert('Could not read that image: ' + (e && e.message ? e.message : e)); }
 });
-/* Shrunk before it is kept: a phone photo is 12 MB and the whole order has
-   to travel in one request. 1600 px on the long side prints at 100 ppi
-   across a 16" logo, which is as big as a logo on a 24" board gets. */
-async function shrinkImage(file) {
+/* A picture, twice. The preview (1600 px on the long side at most) is what
+   the board is drawn with and what travels in every request; the master is
+   the file itself when it is a raster that fits, else the same picture
+   re-encoded as large as will fit, for the print file and the order. The
+   master's pixel size is kept so the page can say when a picture is being
+   printed bigger than it can take. */
+async function readImage(file) {
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('not an image')); i.src = url; });
-    const isPhoto = /jpe?g/i.test(file.type);
-    let side = 1600, out;
-    for (let tries = 0; tries < 5; tries++) {
-      const k = Math.min(1, side / Math.max(img.naturalWidth, img.naturalHeight));
-      const c = document.createElement('canvas');
-      c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      out = isPhoto ? c.toDataURL('image/jpeg', 0.88) : c.toDataURL('image/png');
-      if (out.length <= MAX_IMAGE_BYTES * 1.37) return out;
-      side = Math.round(side * 0.7);
-    }
-    return out;
+    const W = img.naturalWidth, H = img.naturalHeight;
+    const isPhoto = /jpe?g/i.test(file.type), isRaster = /^image\/(png|jpeg|webp)$/i.test(file.type);
+    const encode = (side, bytes, quality) => {
+      let s = side, out = null;
+      for (let tries = 0; tries < 6; tries++) {
+        const k = Math.min(1, s / Math.max(W, H));
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(W * k)); c.height = Math.max(1, Math.round(H * k));
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        out = { url: isPhoto ? c.toDataURL('image/jpeg', quality) : c.toDataURL('image/png'), px: [c.width, c.height] };
+        if (out.url.length <= bytes * 1.37) return out;
+        s = Math.round(s * 0.75);
+      }
+      return out;
+    };
+    const preview = encode(PREVIEW_SIDE, PREVIEW_BYTES, 0.88);
+    let master = null;
+    if (isRaster && file.size <= ORIG_BYTES && Math.max(W, H) <= ORIG_SIDE) {
+      /* The file itself, untouched - unless it is a lossless file no bigger
+         than the preview, which is then the preview already. */
+      if (isPhoto || Math.max(W, H) > PREVIEW_SIDE) master = { url: await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(file); }), px: [W, H] };
+    } else if (Math.max(W, H) > PREVIEW_SIDE || !isRaster) master = encode(ORIG_SIDE, ORIG_BYTES, 0.92);
+    if (master && master.url === preview.url) master = null;
+    return master ? { src: preview.url, orig: master.url, px: master.px } : { src: preview.url, px: preview.px };
   } finally { URL.revokeObjectURL(url); }
 }
+/* Dots per inch a picture prints at, at the width it has on the board. */
+const printDpi = (el) => (el.px ? el.px[0] / el.width : null);
+function resolutionNote(el, where) {
+  const dpi = printDpi(el); if (dpi === null || dpi >= SHARP_DPI) return '';
+  return 'The picture' + (where ? ' on ' + where : '') + ' is ' + el.px[0] + ' x ' + el.px[1] + ' pixels: at ' + el.width + '" wide it prints at about ' + Math.round(dpi) + ' dots per inch, which will look ' + (dpi < SOFT_DPI ? 'blurry' : 'soft') + '. ' + SHARP_DPI + ' or more prints sharp: use a bigger file, or make it no wider than ' + (Math.floor(el.px[0] / SHARP_DPI * 4) / 4) + '".';
+}
+function lowResImages(keys) {
+  const out = [];
+  for (const k of keys) for (const e of boardFor(k).elements) if (e.type === 'image') { const n = resolutionNote(e, keys.length > 1 ? 'board ' + k.toUpperCase() : ''); if (n) out.push(n); }
+  return out;
+}
 field('iwidth', 'width', Number, inch);
+$('iwidth').addEventListener('input', syncProps);
 field('irot', 'rotation', Number, deg);
 field('iopacity', 'opacity', Number, (v) => Math.round(v * 100) + '%');
 field('ix', 'x', Number, inch);
@@ -859,7 +1028,7 @@ function fillClips() {
   const box = $('clips'); box.textContent = '';
   for (const [name, def] of Object.entries(CLIPS)) {
     if (def.cat !== clipCat) continue;
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'clip'; b.dataset.name = name; b.title = def.label;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'clip'; b.dataset.name = name; b.title = def.label; b.setAttribute('aria-label', 'Add ' + def.label);
     b.appendChild(clipThumb(name)); box.appendChild(b);
   }
 }
@@ -900,34 +1069,78 @@ function moveLayer(dir) {
   render(); syncLists(); commit();
 }
 
-function itemButton(el, pressed, onClick) {
+/* A row in the Text or Art list. Text rows carry the words in a field, so
+   a name or a date is changed right there; every row carries its own
+   remove button, so nothing has to be selected first. */
+function itemRow(el, pressed, onClick) {
+  const row = document.createElement('div'); row.className = 'itemrow';
   const b = document.createElement('button'); b.className = 'item'; b.type = 'button'; b.dataset.id = el.id; b.setAttribute('aria-pressed', String(pressed));
   const t = document.createElement('span'); t.className = 'thumb';
   if (el.type === 'image') t.style.backgroundImage = 'url("' + el.src + '")';
   else if (el.type === 'clip') { t.style.background = 'transparent'; const c = clipThumb(el.name, el.color); c.style.width = c.style.height = '28px'; t.appendChild(c); }
   else { t.style.background = el.color; t.style.boxShadow = 'inset 0 0 0 1px rgba(0,0,0,.15)'; }
-  const n = document.createElement('span'); n.className = 'name';
-  n.textContent = el.type === 'image' ? 'Picture, ' + el.width + '" wide' : el.type === 'clip' ? (CLIPS[el.name] || {}).label + ', ' + el.width + '"' : el.text;
-  if (el.type === 'text') n.style.fontFamily = '"' + el.font + '", Impact, sans-serif';
-  b.append(t, n); b.addEventListener('click', onClick);
-  /* Each row carries its own remove button, so nothing has to be selected
-     first to be taken off the board. */
-  const row = document.createElement('div'); row.className = 'itemrow';
+  b.appendChild(t);
+  let name = el.text;
+  if (el.type === 'text') {
+    b.classList.add('pick'); b.title = 'Select, to change the font, size and colour'; b.setAttribute('aria-label', 'Select "' + el.text + '"');
+    const q = document.createElement('input'); q.type = 'text'; q.className = 'quick'; q.value = el.text; q.maxLength = 60; q.dataset.id = el.id;
+    q.setAttribute('aria-label', 'Words'); q.style.fontFamily = '"' + el.font + '", Impact, sans-serif';
+    q.addEventListener('focus', () => { if (selected !== el.id) select(el.id); });
+    q.addEventListener('input', () => { const e = findEl(el.id); if (!e) return; e.text = q.value || ' '; $('texthint').hidden = true; render(); if (selected === e.id && document.activeElement !== $('ttext')) $('ttext').value = e.text; });
+    q.addEventListener('change', commit);
+    row.append(b, q);
+  } else {
+    const n = document.createElement('span'); n.className = 'name';
+    name = el.type === 'image' ? 'Picture, ' + el.width + '" wide' : (CLIPS[el.name] || {}).label + ', ' + el.width + '"';
+    n.textContent = name; b.appendChild(n);
+    row.appendChild(b);
+  }
+  b.addEventListener('click', onClick);
   const x = document.createElement('button'); x.type = 'button'; x.className = 'itemdel'; x.dataset.id = el.id;
-  x.title = 'Remove'; x.setAttribute('aria-label', 'Remove ' + n.textContent); x.textContent = '×';
+  x.title = 'Remove'; x.setAttribute('aria-label', 'Remove ' + name); x.textContent = '×';
   x.addEventListener('click', () => removeElement(el.id));
-  row.append(b, x);
+  row.appendChild(x);
   return row;
+}
+/* The lists are rebuilt from the design; the focus goes back to the row it
+   was on, with the caret where it was, so typing in a row is not cut off
+   by the rebuild it causes. */
+function updateRow(row, el, pressed) {
+  const b = row.querySelector('.item'); b.setAttribute('aria-pressed', String(pressed));
+  const t = row.querySelector('.thumb');
+  if (el.type === 'text') {
+    t.style.background = el.color; b.setAttribute('aria-label', 'Select "' + el.text + '"');
+    const q = row.querySelector('.quick'); q.style.fontFamily = '"' + el.font + '", Impact, sans-serif';
+    if (document.activeElement !== q && q.value !== el.text) q.value = el.text;
+  } else if (el.type === 'clip') {
+    t.textContent = ''; const c = clipThumb(el.name, el.color); c.style.width = c.style.height = '28px'; t.appendChild(c);
+    row.querySelector('.name').textContent = (CLIPS[el.name] || {}).label + ', ' + el.width + '"';
+  } else row.querySelector('.name').textContent = 'Picture, ' + el.width + '" wide';
 }
 function syncLists() {
   const b = activeBoard();
-  for (const [listId, types, emptyText] of [['texts', ['text'], 'No text yet.'], ['images', ['image', 'clip'], 'No pictures or clip art yet.']]) {
-    const list = $(listId); list.textContent = '';
+  const ae = document.activeElement;
+  const cls = ae && ae.dataset && ae.dataset.id ? ['quick', 'item', 'itemdel'].find((c) => ae.classList.contains(c)) : null;
+  const keep = cls ? { id: ae.dataset.id, cls, s: ae.selectionStart, e: ae.selectionEnd, list: ae.closest('.items') } : null;
+  let lostFocus = false;
+  for (const [listId, types, emptyText] of [['texts', ['text'], 'No words yet.'], ['images', ['image', 'clip'], 'No pictures or clip art yet.']]) {
+    const list = $(listId);
     const els = b.elements.filter((e) => types.includes(e.type));
+    const rows = [...list.querySelectorAll('.itemrow')];
+    if (rows.length === els.length && els.length && rows.every((r, i) => r.querySelector('.item').dataset.id === els[i].id)) {
+      els.forEach((el, i) => updateRow(rows[i], el, el.id === selected));
+      continue;
+    }
+    if (keep && keep.list === list) lostFocus = true;
+    list.textContent = '';
     if (!els.length) { const p = document.createElement('div'); p.className = 'empty'; p.textContent = emptyText; list.appendChild(p); }
-    for (const el of els) list.appendChild(itemButton(el, el.id === selected, () => select(el.id)));
+    for (const el of els) list.appendChild(itemRow(el, el.id === selected, () => select(el.id)));
   }
   $('addtext').disabled = countOf(b, 'text') >= MAX_TEXTS;
+  if (keep && lostFocus) {
+    const again = document.querySelector('.' + keep.cls + '[data-id="' + keep.id + '"]') || (keep.list && keep.list.querySelector('.itemdel')) || (keep.list && keep.list.id === 'texts' ? $('addtext') : null);
+    if (again) { again.focus({ preventScroll: true }); if (keep.cls === 'quick' && keep.s != null && again.setSelectionRange) try { again.setSelectionRange(keep.s, keep.e); } catch (_) {} }
+  }
 }
 function syncProps() {
   const el = selectedEl();
@@ -954,16 +1167,18 @@ function syncProps() {
     setRange('irot', el.rotation, deg(el.rotation));
     setRange('iopacity', el.opacity, Math.round(el.opacity * 100) + '%');
     setRange('ix', el.x, inch(el.x)); setRange('iy', el.y, inch(el.y));
+    const note = el.type === 'image' ? resolutionNote(el, '') : '';
+    $('ireswarn').textContent = note; $('ireswarn').hidden = !note;
     if (el.type === 'image') { $('iflip').checked = !!el.flipH; $('icircle').checked = !!el.circleCrop; $('iknockout').checked = !!el.knockout; }
     else { $('ccolor').value = el.color; $('coutline').value = el.outline; setRange('coutlinew', el.outlineWidth, inch(el.outlineWidth)); $('cflip').checked = !!el.flipH; }
   }
 }
 
-// -- order tab
+// -- order tab: options and price, then the review, then the details
 function fillChips(id, table) {
   const box = $(id); box.textContent = '';
   for (const [k, v] of Object.entries(table)) {
-    const b = document.createElement('button'); b.className = 'chip'; b.type = 'button'; b.dataset.v = k;
+    const b = document.createElement('button'); b.className = 'chip'; b.type = 'button'; b.dataset.v = k; b.title = v.label;
     const price = id === 'product' ? money(v.cents) : (v.cents ? '+' + money(v.cents) : '');
     b.textContent = (v.short || v.label) + ' ';
     if (price) { const s = document.createElement('small'); s.textContent = price; b.appendChild(s); }
@@ -973,55 +1188,127 @@ function fillChips(id, table) {
 fillChips('product', PRICING.products); fillChips('finish', PRICING.finishes); fillChips('bags', PRICING.bags);
 $('rushlabel').textContent = (PRICING.rush.short || PRICING.rush.label) + ' (+' + money(PRICING.rush.cents) + ')';
 $('caselabel').textContent = (PRICING.carryCase.short || PRICING.carryCase.label) + ' (+' + money(PRICING.carryCase.cents) + ')';
-$('leadtime').textContent = 'Built to order. Standard orders ship in about ' + PRICING.leadTimeDays + ' business days.';
 $('finishhint').textContent = 'The guest-book finish is a smooth matte clear coat that takes paint pens: guests sign the boards at the reception, and the signatures are sealed under a second coat of your choice afterwards (we include the kit).';
-for (const s of US_STATES) { const o = document.createElement('option'); o.value = s; o.textContent = s; $('state').appendChild(o); }
+const SHIP_NOTE = 'We ship by freight to ' + PRICING.shipping.region + ' only (' + money(PRICING.shipping.first) + ' for the first set or board, ' + money(PRICING.shipping.additional) + ' for each one after). Alaska, Hawaii and addresses outside the US are not covered by this checkout.';
+$('shipnote2').textContent = 'United States addresses in ' + PRICING.shipping.region + ' only. Payment is taken on a secure Stripe page; sales tax, where it applies, is added there.';
+/* Dispatch is ours to state; arrival is not, because freight transit depends
+   on the address. The two are kept apart everywhere the page speaks of time. */
+const dispatchNote = () => 'Dispatch: about ' + PRICING.leadTimeDays + ' business days after your order (about ' + PRICING.rushDays + ' with a rush build). Delivery: freight transit is on top and depends on your address; we confirm an estimate with your order. Dates are estimates, not guarantees.';
+$('leadtime').textContent = 'Dispatch in about ' + PRICING.leadTimeDays + ' business days (' + PRICING.rushDays + ' with a rush build); delivery time is on top and not guaranteed.';
+$('howdispatch').textContent = 'Built to order and dispatched in about ' + PRICING.leadTimeDays + ' business days (about ' + PRICING.rushDays + ' with the rush option), then shipped by freight to your door anywhere in ' + PRICING.shipping.region + '. Transit time depends on your address and is confirmed with your order.';
+for (const s of SHIP_STATES) { const o = document.createElement('option'); o.value = s; o.textContent = s; $('state').appendChild(o); }
 for (const [k, label] of Object.entries(OCCASIONS)) { const o = document.createElement('option'); o.value = k; o.textContent = label; $('occasion').appendChild(o); }
-$('needby').min = new Date().toISOString().slice(0, 10);
+$('needby').min = today();
 chips('product', (v) => { order.product = v; if (v === 'single') { design.same = true; setActive('a'); } syncAll(); });
 chips('finish', (v) => { order.finish = v; syncOrder(); });
 chips('bags', (v) => { order.bags = v; syncOrder(); });
 $('qty').addEventListener('input', () => { order.quantity = clamp(Math.round(Number($('qty').value) || 1), 1, PRICING.maxQuantity); syncOrder(); });
 $('rush').addEventListener('change', () => { order.rush = $('rush').checked; syncOrder(); });
 $('carrycase').addEventListener('change', () => { order.carryCase = $('carrycase').checked; syncOrder(); });
-$('bag1').addEventListener('input', () => { order.bagColors[0] = $('bag1').value; });
-$('bag2').addEventListener('input', () => { order.bagColors[1] = $('bag2').value; });
+$('bag1').addEventListener('input', () => { order.bagColors[0] = $('bag1').value; save(); });
+$('bag2').addEventListener('input', () => { order.bagColors[1] = $('bag2').value; save(); });
 $('occasion').addEventListener('change', () => { order.occasion = $('occasion').value; syncOrder(); });
 $('needby').addEventListener('change', () => { order.needBy = $('needby').value; syncOrder(); });
-$('giftnote').addEventListener('input', () => { order.giftNote = $('giftnote').value; });
-/* The tab is two screens, each about the height of the other tabs: the
-   order and its price first, the address after Continue. */
-function showOrderStep(n) { $('orderstep1').hidden = n !== 1; $('orderstep2').hidden = n !== 2; }
-$('tocheckout').addEventListener('click', () => showOrderStep(2));
-$('backtoorder').addEventListener('click', () => showOrderStep(1));
+$('giftnote').addEventListener('input', () => { order.giftNote = $('giftnote').value; save(); });
+/* Three screens, each about the height of the other tabs: the order and
+   its price; the review, with both boards as they will print; the address. */
+function showOrderStep(n) {
+  $('orderstep1').hidden = n !== 1; $('orderstep2').hidden = n !== 2; $('orderstep3').hidden = n !== 3;
+  if (n === 2) renderReview();
+  if (n === 3) syncOrder();
+}
+$('toreview').addEventListener('click', () => showOrderStep(2));
+$('backtooptions').addEventListener('click', () => showOrderStep(1));
+$('backtoedit').addEventListener('click', () => { showTab(lastEditTab); showOrderStep(1); });
+$('tocheckout').addEventListener('click', () => showOrderStep(3));
+$('backtoorder').addEventListener('click', () => showOrderStep(2));
+$('keepsamples').addEventListener('change', () => { $('tocheckout').disabled = !$('keepsamples').checked; });
+$('reviewbtn').addEventListener('click', () => { showTab('order'); showOrderStep(2); scrollToPanel(); });
 
+/* Weekdays between today and a date; weekends are not build days. */
+function businessDaysUntil(iso) {
+  const end = Date.parse(iso + 'T12:00:00'); if (Number.isNaN(end)) return null;
+  const d = new Date(); d.setHours(12, 0, 0, 0);
+  if ((end - d.getTime()) / 86_400_000 > 400) return 400;
+  let n = 0;
+  while (d.getTime() < end) { d.setDate(d.getDate() + 1); const w = d.getDay(); if (w !== 0 && w !== 6) n++; }
+  return n;
+}
+function needByHint() {
+  if (!order.needBy) return '';
+  const n = businessDaysUntil(order.needBy); if (n === null) return '';
+  const lead = PRICING.leadTimeDays, rush = PRICING.rushDays;
+  if (n < rush) return 'That is only ' + n + ' business day' + (n === 1 ? '' : 's') + ' away. Even a Rush build (dispatch in about ' + rush + ' business days) cannot be ready by then, and delivery takes time on top. Get in touch before ordering.';
+  if (n < lead) return order.rush
+    ? 'That is ' + n + ' business days away. A Rush build dispatches in about ' + rush + ' business days; freight delivery is on top, so this is tight. We cannot promise an arrival date.'
+    : 'That is ' + n + ' business days away. Standard orders dispatch in about ' + lead + ' business days, so tick Rush build (about ' + rush + ') - and remember delivery takes time on top.';
+  return 'Plenty of time: standard orders dispatch in about ' + lead + ' business days, then freight delivery.';
+}
+function fillQuote(table, q) {
+  table.textContent = '';
+  for (const l of q.lines) { const tr = table.insertRow(); tr.insertCell().textContent = (l.qty > 1 ? l.qty + ' x ' : '') + l.label; tr.insertCell().textContent = money(l.cents); }
+  const tr = table.insertRow(); tr.className = 'total'; tr.insertCell().textContent = 'Estimated total (USD, before tax)'; tr.insertCell().textContent = money(q.total);
+}
+function priceNote(q) {
+  const boards = PRICING.products[order.product].boards * order.quantity;
+  return 'Includes ' + boards + ' regulation board' + (boards === 1 ? '' : 's') + ' with folding legs, your design printed and sealed under the ' + PRICING.finishes[order.finish].label.toLowerCase() + ', and freight to ' + PRICING.shipping.region + ' (not Alaska, Hawaii or overseas). '
+    + (order.bags === 'regulation' ? 'Bags are included. ' : 'Bags are not included: add them above. ')
+    + 'US dollars, before sales tax, which is added at checkout.';
+}
 function syncOrder() {
   setChip('product', order.product); setChip('finish', order.finish); setChip('bags', order.bags);
   $('qty').value = order.quantity; $('rush').checked = order.rush; $('carrycase').checked = order.carryCase;
   $('bagcolors').hidden = order.bags !== 'regulation';
+  $('bag1').value = order.bagColors[0]; $('bag2').value = order.bagColors[1];
   $('occasion').value = order.occasion; $('needby').value = order.needBy; $('giftnote').value = order.giftNote;
-  /* A date inside the standard lead time is a nudge toward the rush
-     option, said plainly rather than discovered after paying. */
-  let hint = '';
-  if (order.needBy) {
-    const days = Math.round((Date.parse(order.needBy) - Date.now()) / 86_400_000);
-    const lead = order.rush ? 7 : Math.round(PRICING.leadTimeDays * 1.4) + 7;
-    hint = days < lead ? 'That is ' + days + ' days away. Standard orders take about ' + Math.round(PRICING.leadTimeDays * 1.4) + ' days plus shipping' + (order.rush ? ', and even rush is tight - email us first.' : ', so tick Rush build to make it.') : 'Plenty of time - we will plan the build around it.';
-  }
+  const hint = needByHint();
   $('needbyhint').textContent = hint; $('needbyhint').hidden = !hint;
   $('finishhint').hidden = order.finish !== 'guestbook';
   const q = quote(order);
-  const t = $('quote'); t.textContent = '';
-  for (const l of q.lines) {
-    const tr = t.insertRow(); tr.insertCell().textContent = (l.qty > 1 ? l.qty + ' x ' : '') + l.label; tr.insertCell().textContent = money(l.cents);
-  }
-  const tr = t.insertRow(); tr.className = 'total'; tr.insertCell().textContent = 'Total'; tr.insertCell().textContent = money(q.total);
+  fillQuote($('quote'), q);
+  $('pricenote').textContent = priceNote(q);
   $('headtotal').textContent = money(q.total);
-  $('ordersummary').textContent = q.lines.slice(0, -1).map((l) => (l.qty > 1 ? l.qty + ' x ' : '') + l.label).join(', ') + ', shipped to your door: ' + money(q.total) + '.';
+  $('mobiletotal').textContent = money(q.total);
+  $('ordersummary').textContent = q.lines.slice(0, -1).map((l) => (l.qty > 1 ? l.qty + ' x ' : '') + l.label).join(', ') + ', shipped to your door: ' + money(q.total) + ' before tax.';
+  $('shipnote').textContent = 'Freight to ' + PRICING.shipping.region + ': ' + money(PRICING.shipping.first) + ' for the first set or board, ' + money(PRICING.shipping.additional) + ' for each one after.';
+  save();
   return q;
+}
+function renderReview() {
+  const q = quote(order), keys = boardKeys();
+  const rb = $('reviewboards'); rb.textContent = '';
+  for (const k of keys) {
+    const f = document.createElement('figure'), img = new Image(), cap = document.createElement('figcaption');
+    img.src = previewDataUrl(k, 8); img.alt = 'Board ' + k.toUpperCase() + ' as it will print';
+    cap.textContent = keys.length > 1 ? 'Board ' + k.toUpperCase() : order.product === 'set' ? 'Both boards' : 'Your board';
+    f.append(img, cap); rb.appendChild(f);
+  }
+  const list = $('reviewlist'); list.textContent = '';
+  const li = (a, b) => { const l = document.createElement('li'), s1 = document.createElement('span'), s2 = document.createElement('span'); s1.textContent = a; s2.textContent = b; l.append(s1, s2); list.appendChild(l); };
+  li('Product', order.quantity + ' x ' + PRICING.products[order.product].label);
+  li('Design', order.product === 'single' ? 'One board' : design.same ? 'The same on both boards' : 'Two different boards');
+  li('Finish', PRICING.finishes[order.finish].label);
+  li('Bags', order.bags === 'regulation' ? PRICING.bags.regulation.label + ', in ' + order.bagColors.join(' and ') : 'Not included');
+  li('Extras', [order.carryCase && PRICING.carryCase.label.toLowerCase(), order.rush && 'rush build'].filter(Boolean).join(', ') || 'None');
+  li('Dispatch', 'about ' + (order.rush ? PRICING.rushDays : PRICING.leadTimeDays) + ' business days, then freight');
+  li('Occasion', OCCASIONS[order.occasion]);
+  if (order.needBy) li('Needed by', order.needBy);
+  if (order.giftNote.trim()) li('Gift note', order.giftNote.trim());
+  fillQuote($('reviewquote'), q);
+  $('reviewnote').textContent = priceNote(q) + ' Freight transit is on top of dispatch and depends on your address; we confirm an estimate with your order. Dates are estimates, not guarantees.';
+  const samples = sampleWordsIn();
+  $('samplewarn').hidden = !samples.length;
+  $('sampletext').textContent = samples.length ? 'These look like the sample words a template came with: ' + samples.map((s) => '“' + s + '”').join(', ') + '. They would be printed exactly like that. Go back to editing to change them, or confirm that you want them.' : '';
+  if (!samples.length) $('keepsamples').checked = false;
+  $('tocheckout').disabled = samples.length > 0 && !$('keepsamples').checked;
+  const low = lowResImages(keys);
+  $('reswarn').hidden = !low.length; $('reswarn').textContent = low.join(' ');
 }
 
 function status(kind, text) { const s = $('orderstatus'); s.dataset.kind = kind; s.textContent = text; }
+/* What is posted. The pictures' masters go along when the whole order fits
+   the server's limit; otherwise they stay out and options.assets says the
+   full-size files are still to come. */
 function orderPayload() {
   const f = $('orderform');
   const v = (id) => f.elements[id].value.trim();
@@ -1031,14 +1318,23 @@ function orderPayload() {
     carryCase: order.carryCase, occasion: order.occasion, giftNote: order.giftNote.trim() };
   if (order.bags === 'regulation') opts.bagColors = [...order.bagColors];
   if (order.needBy) opts.needBy = order.needBy;
-  return {
+  const designOut = JSON.parse(snapshot());
+  const pictures = [];
+  for (const k of ['a', 'b']) for (const e of designOut[k].elements) if (e.type === 'image') pictures.push(e);
+  const payload = {
     options: opts,
-    design: JSON.parse(snapshot()),
+    design: designOut,
     previews,
     customer: { name: v('name'), email: v('email'), phone: v('phone') },
     shipping: { line1: v('line1'), line2: v('line2'), city: v('city'), state: v('state'), postal: v('postal'), country: v('country') },
     notes: v('notes'),
   };
+  if (pictures.length) {
+    let included = pictures.some((e) => e.orig);
+    if (included && JSON.stringify(payload).length > PAYLOAD_BYTES) { for (const e of pictures) delete e.orig; included = false; }
+    opts.assets = included ? 'included' : 'pending';
+  }
+  return payload;
 }
 $('orderform').addEventListener('submit', async (ev) => {
   ev.preventDefault();
@@ -1049,10 +1345,12 @@ $('orderform').addEventListener('submit', async (ev) => {
   }
   const btn = $('checkout'); btn.disabled = true; status('info', 'Sending your design…');
   try {
-    const r = await fetch('api/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(orderPayload()) });
+    const payload = orderPayload();
+    const r = await fetch('api/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const j = await r.json().catch(() => ({}));
+    const files = payload.options.assets === 'pending' ? ' Your pictures were too large to send with the order, so we will email you for the full-size files.' : '';
     if (r.status === 503 && j.error === 'not_configured') {
-      status('warn', 'Ordering is not switched on for this site yet. Download the print file above and email it to us, and we will quote it by hand.');
+      status('warn', 'Ordering is not switched on for this site yet. Download the print file above and send it to us, and we will quote it by hand.');
     } else if (!r.ok) {
       status('bad', j.message || ('Something went wrong (' + r.status + '). Nothing was charged.'));
     } else if (j.url) {
@@ -1060,7 +1358,7 @@ $('orderform').addEventListener('submit', async (ev) => {
       window.location.assign(j.url);
       return;
     } else {
-      status('ok', 'Order ' + j.code + ' received. We will email you an invoice for ' + money(j.total) + ' and start once it is paid.');
+      status('ok', 'Order ' + j.code + ' received. We will email you an invoice for ' + money(j.total) + ' and start once it is paid.' + files);
     }
   } catch (e) {
     status('bad', 'Could not reach the server. Check your connection and try again - nothing was charged.');
@@ -1090,12 +1388,13 @@ async function showOutcome() {
   box.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 
-// -- stage bar
+// -- stage bar, project buttons
 $('undo').addEventListener('click', undo);
 $('redo').addEventListener('click', redo);
 $('reset').addEventListener('click', () => { if (!confirm('Start over with a blank board? This clears your design.')) return; design = freshDesign(); selected = null; active = 'a'; syncAll(); commit(); });
 $('download').addEventListener('click', async () => {
-  const keys = order.product === 'set' && !design.same ? ['a', 'b'] : ['a'];
+  const keys = boardKeys();
+  await preloadImages(keys);
   for (const k of keys) {
     const blob = await new Promise((res) => printCanvas(k).toBlob(res, 'image/png'));
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'cornhole-board-' + k.toUpperCase() + '-24x48in-100ppi.png';
@@ -1103,22 +1402,59 @@ $('download').addEventListener('click', async () => {
     setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
   }
 });
+$('exportbtn').addEventListener('click', exportProject);
+$('exportlink').addEventListener('click', exportProject);
+$('importfile').addEventListener('change', async () => {
+  const f = $('importfile').files[0]; $('importfile').value = '';
+  if (!f) return;
+  try { importProject(JSON.parse(await f.text())); }
+  catch (e) { alert('Could not import that file: ' + (e && e.message ? e.message : e) + '.'); }
+});
+
+/* The business behind the site, from lib/site.mjs. A detail that is not
+   filled in is said to be on its way, never made up. */
+function renderSite() {
+  const name = SITE.name || 'Cornhole Board Builder';
+  $('brand').textContent = name; document.title = name;
+  const contact = [SITE.email && 'Email ' + SITE.email, SITE.phone && 'Phone ' + SITE.phone, SITE.address, SITE.hours].filter(Boolean);
+  $('contactcard').textContent = contact.length ? contact.join('. ') + '.' : 'Contact details are being set up. Until then, the notes box on the order form reaches us with your order.';
+  $('deliverycard').textContent = SITE.delivery || (SHIP_NOTE + ' ' + dispatchNote());
+  $('customcard').textContent = SITE.customOrders || 'Need something the builder cannot do? Say so in the notes box on the order form.';
+  $('approvalcard').textContent = SITE.approval || 'The preview is the file we print from: what you see on the board is what we print, with the hole cut where it is shown. Check every word before you pay.';
+  const photos = $('photos'); photos.textContent = ''; photos.hidden = !SITE.photos.length;
+  for (const p of SITE.photos) { const img = new Image(); img.src = p.src; img.alt = p.alt || ''; img.loading = 'lazy'; photos.appendChild(img); }
+  $('footer').textContent = name + '. Boards are regulation ACA/ACL size.' + (contact.length ? ' ' + contact.join('. ') + '.' : '');
+}
 
 function syncAll() { syncBoard(); syncLists(); syncProps(); syncOrder(); syncHistoryButtons(); render(); }
 
 /* ====================================================================
-   BOOT
+   BOOT. The page draws at once, then the saved project (if any) is read
+   from the device and put in place; nothing is written back until that has
+   finished, so a restored project is never overwritten by the fresh page.
    ==================================================================== */
-const hadSave = load();
 history = [snapshot()];
 syncAll();
 showOutcome();
-if (hadSave) showTab('board');
+renderSite();
+(async () => {
+  let p = null;
+  try { p = await loadProject(); } catch (_) { p = null; }
+  if (p && history.length < 2) {
+    design = migrate(p.design);
+    if (p.order) applyOrder(p.order);
+    selected = null; active = 'a';
+    history = [snapshot()]; future = [];
+    syncAll(); showTab('board');
+    storageReady = true; setSaveState('saved');
+  } else { storageReady = true; setSaveState('new'); }
+  loaded = true;
+})();
 window.addEventListener('resize', render);
 /* Web fonts arrive after the first paint; a text set in one is measured
    and drawn in the fallback until then. Repaint when each one lands, and
    redraw the template thumbnails too. */
-const refontThumbs = () => { for (const b of document.querySelectorAll('#templates .tpl')) { const t = TEMPLATES.find((x) => x.id === b.dataset.id), c = b.querySelector('canvas'); c.getContext('2d').clearRect(0, 0, c.width, c.height); renderBoard(c.getContext('2d'), t.board(), c.height / BOARD.h); } render(); };
+const refontThumbs = () => { for (const b of document.querySelectorAll('#templates .tpl')) { const t = TEMPLATES.find((x) => x.id === b.dataset.id), c = b.querySelector('canvas'); if (!t || !c) continue; c.getContext('2d').clearRect(0, 0, c.width, c.height); renderBoard(c.getContext('2d'), t.board(), c.height / BOARD.h); } render(); };
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(refontThumbs);
 if (document.fonts) document.fonts.addEventListener('loadingdone', refontThumbs);
 
@@ -1132,8 +1468,11 @@ window.cornhole = {
   get selected() { return selected; },
   get active() { return active; },
   get boxes() { return boxes; },
+  get loaded() { return loaded; },
+  get saveState() { return saveState; },
   setDesign(d) { design = migrate(JSON.parse(JSON.stringify(d))); selected = null; syncAll(); commit(); },
   setOrder(o) { Object.assign(order, o); syncAll(); },
-  select, commit, undo, redo, render, paint, showTab, printCanvas, previewDataUrl, orderPayload,
-  activeBoard, addClip, applyTemplate, migrate, showOrderStep, handlePoints, setMode,
+  select, commit, undo, redo, render, paint, showTab, printCanvas, previewDataUrl, orderPayload, preloadImages,
+  activeBoard, addClip, applyTemplate, applyBlank, migrate, showOrderStep, renderReview, handlePoints, setMode,
+  isPristine, sampleWordsIn, exportProject, importProject, projectRecord,
 };

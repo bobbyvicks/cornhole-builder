@@ -35,6 +35,11 @@ const STRIPE_DEADLINE_MS = 15_000;
    before they are sent), stated here so the two agree on purpose. */
 const MAX_BODY_BYTES = 4 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 1_500_000;
+/* A picture's print master: up to 4000 px on the long side, kept apart
+   from the 1600 px preview the board is drawn with. The page leaves the
+   masters out, and says so in options.assets, when the whole order would
+   not fit the body limit. */
+const MAX_ORIG_BYTES = 3_000_000;
 const MAX_IMAGES_PER_BOARD = 4;
 const MAX_TEXTS_PER_BOARD = 10;
 
@@ -60,6 +65,8 @@ const inches = (lo: number, hi: number) => z.number().finite().min(lo).max(hi);
 const degrees = z.number().finite().min(-180).max(180);
 const dataUrl = z.string().regex(/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/, "image must be a PNG, JPEG or WebP data URL")
   .refine((s) => s.length <= MAX_IMAGE_BYTES * 1.4, "image is too large");
+const masterUrl = z.string().regex(/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/, "image must be a PNG, JPEG or WebP data URL")
+  .refine((s) => s.length <= MAX_ORIG_BYTES * 1.4, "print master is too large");
 
 /* Shared by everything that sits on the board. */
 const placed = {
@@ -84,6 +91,8 @@ const imageEl = z.object({
   type: z.literal("image"),
   ...placed,
   src: dataUrl,
+  orig: masterUrl.optional(),
+  px: z.tuple([z.number().int().positive(), z.number().int().positive()]).optional(),
   width: inches(0.5, 30),
   opacity: z.number().finite().min(0).max(1),
   flipH: z.boolean(),
@@ -143,6 +152,9 @@ const orderIn = z.object({
     needBy: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "a date as YYYY-MM-DD").optional()
       .refine((d) => !d || (!Number.isNaN(Date.parse(d)) && d >= new Date().toISOString().slice(0, 10)), "a date from today on"),
     giftNote: z.string().trim().max(300).optional().default(""),
+    /* Whether the pictures' print masters travelled with the order, or are
+       still to be collected from the customer. */
+    assets: z.enum(["included", "pending"]).optional(),
   }),
   design,
   previews: z.array(dataUrl).min(1).max(2),
@@ -155,7 +167,8 @@ const orderIn = z.object({
     line1: z.string().trim().min(1).max(120),
     line2: z.string().trim().max(120).optional().default(""),
     city: z.string().trim().min(1).max(80),
-    state: z.string().trim().toUpperCase().regex(US_STATE, "a two-letter US state"),
+    state: z.string().trim().toUpperCase().regex(US_STATE, "a two-letter US state")
+      .refine((s) => !(PRICING.shipping.excluded as readonly string[]).includes(s), "we ship to " + PRICING.shipping.region + " only"),
     postal: z.string().trim().regex(/^\d{5}(-\d{4})?$/, "a 5-digit ZIP"),
     country: z.literal("US"),
   }),

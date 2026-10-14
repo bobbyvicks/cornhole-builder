@@ -23,6 +23,9 @@
   h1, h2, h3 { margin: 0; line-height: 1.15; }
   a { color: var(--accent); }
   .wrap { max-width: 1280px; margin: 0 auto; padding: 0 16px; }
+  /* Keyboard focus is always visible; a mouse click does not paint it. */
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .board canvas:focus-visible { outline-offset: 4px; }
 
   header.top { background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
   header.top .wrap { display: flex; align-items: center; justify-content: space-between; min-height: 60px; gap: 16px; }
@@ -49,16 +52,23 @@
   .stagehead { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
   .boards { display: flex; gap: 24px; justify-content: center; align-items: flex-start; flex-wrap: wrap; padding: 12px 0 4px; }
   .board { display: flex; flex-direction: column; align-items: center; gap: 8px; width: min(100%, 260px); flex: 1 1 200px; max-width: 300px; }
-  .board canvas { width: 100%; aspect-ratio: 1 / 2; display: block; border-radius: 6px; box-shadow: 0 14px 28px rgba(30, 20, 5, .25), 0 2px 4px rgba(0,0,0,.2); cursor: grab; touch-action: none; background: #ccc; }
+  /* A finger on the board scrolls the page until something is selected;
+     then the board takes the touch, so the selected thing can be dragged
+     without the page moving under it. */
+  .board canvas { width: 100%; aspect-ratio: 1 / 2; display: block; border-radius: 6px; box-shadow: 0 14px 28px rgba(30, 20, 5, .25), 0 2px 4px rgba(0,0,0,.2); cursor: grab; touch-action: pan-y pinch-zoom; background: #ccc; }
+  .board canvas.grabbable { touch-action: none; }
   .board canvas.dragging { cursor: grabbing; }
   .board canvas.active { outline: 3px solid var(--accent); outline-offset: 4px; }
   .board .label { font-size: 13px; color: var(--muted); font-weight: 600; }
   .board.hidden { display: none; }
   .board.inactive canvas { opacity: .7; }
   .stagebar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 8px; }
-  .stagebar .group { display: flex; gap: 8px; flex-wrap: wrap; }
+  .stagebar .group { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   #download .short { display: none; }
   .hint { font-size: 12.5px; color: var(--muted); }
+  .savestatus { font-size: 12.5px; color: var(--muted); }
+  .savestatus[data-state="saved"] { color: var(--ok); }
+  .savestatus[data-state="error"] { color: var(--bad); font-weight: 600; }
 
   .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 12px; cursor: pointer; font-weight: 600; }
   .btn:hover { border-color: #c9c1b4; background: #faf8f4; }
@@ -72,6 +82,7 @@
   .tabs { display: flex; border-bottom: 1px solid var(--line); background: #faf8f4; }
   .tabs button { flex: 1; border: 0; background: transparent; padding: 12px 4px; font-weight: 700; color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; font-size: 14px; }
   .tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); background: var(--panel); }
+  .tabs button:focus-visible { outline-offset: -3px; }
   .pane { padding: 16px; display: none; }
   .pane[data-open="true"] { display: block; }
   .pane h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 18px 0 8px; }
@@ -85,13 +96,19 @@
   input[type=color] { width: 36px; height: 32px; border: 1px solid var(--line); border-radius: 8px; padding: 2px; background: #fff; cursor: pointer; }
   .toggles { display: flex; gap: 12px; flex-wrap: wrap; font-size: 13.5px; }
   .toggles label { font-weight: 600; }
+  details.more { border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; margin: 10px 0 4px; }
+  details.more summary { cursor: pointer; font-weight: 600; font-size: 13.5px; padding: 9px 0; color: var(--accent); }
+  details.more[open] summary { border-bottom: 1px dashed var(--line); margin-bottom: 4px; }
+  .warn { background: #fff2e3; color: #7a3d05; border-radius: 8px; padding: 10px 12px; font-size: 13.5px; margin: 8px 0; }
+  .warn p { margin: 0 0 6px; }
+  .warn label { font-weight: 600; }
 
   .chips { display: flex; gap: 6px; flex-wrap: wrap; }
   .chip { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 6px 12px; cursor: pointer; font-weight: 600; font-size: 13.5px; }
   .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .chip small { font-weight: 500; opacity: .8; }
 
-  .swatches { display: grid; grid-template-columns: repeat(10, 1fr); gap: 5px; }
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(32px, 1fr)); gap: 5px; }
   .swlabel { font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
   .sw { aspect-ratio: 1; border-radius: 7px; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
   .sw[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--accent); }
@@ -105,19 +122,25 @@
   .item .name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .itemrow { display: flex; gap: 6px; align-items: stretch; }
   .itemrow .item { flex: 1; min-width: 0; }
+  .itemrow .item.pick { flex: none; }
+  .itemrow input.quick { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: #fff; font-size: 15px; }
   .itemdel { flex: none; width: 36px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--bad); font-size: 20px; line-height: 1; cursor: pointer; padding: 0; }
   .itemdel:hover { border-color: var(--bad); background: #fbeae9; }
   .props { border-top: 1px dashed var(--line); padding-top: 8px; margin-top: 8px; }
   .empty { color: var(--muted); font-size: 13.5px; padding: 6px 0; }
 
+  .project { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: #faf8f4; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 14px; }
+  .project .savestatus { flex: 1; min-width: 140px; }
+  .tplgroup { margin: 14px 0 6px; }
   .templates { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .tpl { border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 8px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; }
   .tpl:hover { border-color: var(--accent); }
-  .tpl canvas { width: 64px; height: 128px; border-radius: 4px; box-shadow: 0 3px 8px rgba(0,0,0,.2); }
+  .tpl canvas, .tpl .blankthumb { width: 64px; height: 128px; border-radius: 4px; box-shadow: 0 3px 8px rgba(0,0,0,.2); }
+  .tpl .blankthumb { background: var(--accent); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 28px; font-weight: 300; }
   .tpl span { font-size: 12.5px; font-weight: 600; text-align: center; }
 
   .clipcats { margin-bottom: 8px; }
-  .clips { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; }
   .clip { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 4px; cursor: pointer; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; }
   .clip:hover { border-color: var(--accent); background: #faf8f4; }
   .clip canvas { width: 100%; height: 100%; }
@@ -145,26 +168,42 @@
   #tab-order .toggles label { white-space: nowrap; }
   #tab-order table.quote { margin: 4px 0 6px; }
   #tab-order table.quote td { padding: 4px 0; }
+  .reviewboards { display: flex; gap: 12px; justify-content: center; margin: 6px 0 10px; }
+  .reviewboards figure { margin: 0; text-align: center; font-size: 12.5px; color: var(--muted); }
+  .reviewboards img { width: 76px; height: 152px; border-radius: 4px; box-shadow: 0 4px 10px rgba(0,0,0,.25); display: block; margin: 0 auto 4px; }
+  .reviewlist { list-style: none; padding: 0; margin: 0 0 8px; font-size: 14px; }
+  .reviewlist li { padding: 3px 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 10px; }
+  .reviewlist li span:first-child { color: var(--muted); }
   .status { margin-top: 10px; padding: 10px 12px; border-radius: 8px; font-size: 14px; display: none; }
   .status[data-kind="info"] { display: block; background: #eef2ff; color: #1c2f6e; }
   .status[data-kind="ok"] { display: block; background: #e8f5ec; color: #145a2a; }
   .status[data-kind="bad"] { display: block; background: #fbeae9; color: #8a1c15; }
   .status[data-kind="warn"] { display: block; background: #fff2e3; color: #7a3d05; }
 
-  .how { padding: 10px 0 50px; }
-  .how h2 { font-size: 24px; margin-bottom: 14px; }
+  #mobilebar { display: none; }
+
+  .how { padding: 10px 0 20px; }
+  .how h2, .trust h2 { font-size: 24px; margin-bottom: 14px; }
   .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
   .step { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
   .step b { display: block; margin-bottom: 4px; }
   .step p { margin: 0; color: var(--muted); font-size: 14px; }
+  .trust { padding: 10px 0 50px; }
+  .photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .photos img { width: 100%; border-radius: var(--radius); display: block; }
   footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; padding: 18px 0 30px; }
+  .sr { position: absolute; left: -9999px; }
 
-  /* Phones and small tablets. The boards shrink and pin under the header,
+  /* Phones and small tablets. The board shrinks and pins under the header,
      so what is being edited stays in view while the controls scroll under
-     it; Board B hides while it is a copy of A; the handles are sized in
-     screen pixels by the script; and while a field has focus the boards
-     shrink again to leave room for the keyboard. */
+     it; on a phone only the board being edited shows, with the switch
+     above it; the handles are sized in screen pixels by the script; while
+     a field has focus the board shrinks again to leave room for the
+     keyboard; and a bar at the foot carries the total and Review order
+     without covering anything, because the page gets that much padding. */
   @media (max-width: 940px) {
+    body { padding-bottom: 72px; }
+    body.ordering { padding-bottom: 0; }
     .builder { gap: 10px; padding: 6px 0 40px; }
     .stage { position: sticky; top: 60px; z-index: 4; padding: 8px 10px 6px; }
     .stagehead { margin-bottom: 2px; }
@@ -175,6 +214,7 @@
     .board.same { display: none; }
     .board .label { font-size: 11.5px; }
     .stagebar { padding-top: 6px; margin-top: 4px; gap: 6px; }
+    .stagebar .savestatus { display: none; }
     #stagehint { display: none; }
     #download .long { display: none; }
     #download .short { display: inline; }
@@ -182,25 +222,31 @@
     .chip { padding: 8px 12px; }
     .btn { padding: 9px 12px; }
     .btn.small { padding: 7px 10px; }
+    .sw { min-height: 36px; }
     .hero { padding: 12px 0 2px; }
     .hero p { display: none; }
+    #mobilebar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--panel); border-top: 1px solid var(--line); padding: 10px 16px; align-items: center; justify-content: space-between; gap: 10px; box-shadow: 0 -6px 16px rgba(0,0,0,.08); }
+    #mobilebar .total { font-size: 13px; color: var(--muted); }
+    #mobilebar .total b { display: block; font-size: 17px; color: var(--ink); }
+    body.ordering #mobilebar { display: none; }
   }
   @media (max-width: 600px) {
     nav.site a { display: none; }
     form.order { grid-template-columns: 1fr; }
+    .board.inactive { display: none; }
+    .templates { grid-template-columns: repeat(3, 1fr); }
   }
-  .sr { position: absolute; left: -9999px; }
 </style>
 </head>
 <body>
 
 <header class="top">
   <div class="wrap">
-    <a class="brand" href="./">Backyard<span>Boards</span></a>
+    <a class="brand" id="brand" href="./">Cornhole Board Builder</a>
     <nav class="site">
       <a href="#builder">Design</a>
       <a href="#how">How it works</a>
-      <span class="totalchip" id="headtotal">$0.00</span>
+      <span class="totalchip" id="headtotal" title="Estimated total in US dollars, before sales tax">$0.00</span>
     </nav>
   </div>
 </header>
@@ -220,7 +266,7 @@
     <section class="stage" aria-label="Board preview">
       <div class="stagehead">
         <div class="chips" id="boardmode" role="group" aria-label="Which board to edit">
-          <button class="chip" data-v="same" aria-pressed="true">Same on both</button>
+          <button class="chip" data-v="same" aria-pressed="true">Both boards match</button>
           <button class="chip" data-v="a" aria-pressed="false">Board A</button>
           <button class="chip" data-v="b" aria-pressed="false">Board B</button>
         </div>
@@ -228,11 +274,11 @@
       </div>
       <div class="boards">
         <div class="board" id="boardA">
-          <canvas id="canvasA" data-board="a" width="480" height="960" aria-label="Board A preview"></canvas>
+          <canvas id="canvasA" data-board="a" width="480" height="960" tabindex="0" aria-label="Board A. Click or tap something on it to select it; arrow keys move the selection, plus and minus resize it, Delete removes it."></canvas>
           <div class="label">Board A</div>
         </div>
         <div class="board" id="boardB">
-          <canvas id="canvasB" data-board="b" width="480" height="960" aria-label="Board B preview"></canvas>
+          <canvas id="canvasB" data-board="b" width="480" height="960" tabindex="0" aria-label="Board B. Click or tap something on it to select it; arrow keys move the selection, plus and minus resize it, Delete removes it."></canvas>
           <div class="label">Board B</div>
         </div>
       </div>
@@ -241,30 +287,41 @@
           <button class="btn small" id="undo" title="Undo (Ctrl+Z)">Undo</button>
           <button class="btn small" id="redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
           <button class="btn small" id="reset">Start over</button>
+          <span class="savestatus" data-state="new" role="status">Not saved yet</span>
+          <button class="btn small" id="exportlink" hidden>Export project</button>
         </div>
         <div class="group">
-          <button class="btn small" id="download" title="A 2400 x 4800 PNG at 100 pixels per inch"><span class="long">Download print file</span><span class="short">Print file</span></button>
+          <button class="btn small" id="download" title="A 2400 x 4800 PNG at 100 pixels per inch, drawn from the full-size originals of your pictures"><span class="long">Download print file</span><span class="short">Print file</span></button>
         </div>
       </div>
-      <p class="hint" id="stagehint">Drag anything on the board. Pull the corner square to resize, the round handle to rotate, and the red &times; to remove. Arrow keys nudge, + and - resize, Delete removes.</p>
+      <p class="hint" id="stagehint">Drag anything on the board. Pull the corner square to resize, the round handle to rotate, and the red &times; to remove. With the board focused, arrow keys nudge, + and - resize, Delete removes.</p>
     </section>
 
     <aside class="panel" aria-label="Design options">
-      <div class="tabs" role="tablist">
-        <button role="tab" data-tab="templates" aria-selected="true">Start</button>
-        <button role="tab" data-tab="board" aria-selected="false">Board</button>
-        <button role="tab" data-tab="text" aria-selected="false">Text</button>
-        <button role="tab" data-tab="art" aria-selected="false">Art</button>
-        <button role="tab" data-tab="order" aria-selected="false">Order</button>
+      <div class="tabs" role="tablist" aria-label="Design steps">
+        <button role="tab" id="tabbtn-templates" data-tab="templates" aria-selected="true" aria-controls="tab-templates" tabindex="0">Start</button>
+        <button role="tab" id="tabbtn-board" data-tab="board" aria-selected="false" aria-controls="tab-board" tabindex="-1">Board</button>
+        <button role="tab" id="tabbtn-text" data-tab="text" aria-selected="false" aria-controls="tab-text" tabindex="-1">Text</button>
+        <button role="tab" id="tabbtn-art" data-tab="art" aria-selected="false" aria-controls="tab-art" tabindex="-1">Art</button>
+        <button role="tab" id="tabbtn-order" data-tab="order" aria-selected="false" aria-controls="tab-order" tabindex="-1">Order</button>
       </div>
 
-      <div class="pane" id="tab-templates" data-open="true">
-        <h3>Start from a template</h3>
-        <div class="templates" id="templates"></div>
-        <p class="hint" style="margin-top:10px">Every word, colour and picture on a template can be changed. Or skip this and build from the Board tab.</p>
+      <div class="pane" id="tab-templates" data-open="true" role="tabpanel" aria-labelledby="tabbtn-templates">
+        <div class="project" id="project">
+          <span class="savestatus" data-state="new" role="status">Not saved yet</span>
+          <button class="btn small" id="exportbtn" title="A JSON file with your boards and your order choices, to keep or to bring back later">Export project</button>
+          <label class="btn small" for="importfile">Import project</label>
+          <input type="file" id="importfile" class="sr" accept="application/json,.json">
+        </div>
+        <h3>Start</h3>
+        <div class="templates">
+          <button class="tpl" id="startblank" type="button"><span class="blankthumb" aria-hidden="true">+</span><span>Start blank</span></button>
+        </div>
+        <div id="templates"></div>
+        <p class="hint" style="margin-top:10px">Every word, colour and picture on a template can be changed.</p>
       </div>
 
-      <div class="pane" id="tab-board" data-open="false">
+      <div class="pane" id="tab-board" data-open="false" role="tabpanel" aria-labelledby="tabbtn-board">
         <h3>Boards</h3>
         <p class="hint" id="boardshint"></p>
         <div class="row" id="boardactions" hidden>
@@ -273,16 +330,16 @@
         </div>
 
         <h3>Base</h3>
-        <div class="chips" id="basekind">
+        <div class="chips" id="basekind" role="group" aria-label="Base">
           <button class="chip" data-v="paint" aria-pressed="true">Painted</button>
           <button class="chip" data-v="gradient" aria-pressed="false">Two-colour fade</button>
           <button class="chip" data-v="wood" aria-pressed="false">Stained wood</button>
         </div>
         <div id="paintopts" style="margin-top:10px">
-          <div class="swlabel">Classic</div>
-          <div class="swatches" id="paints"></div>
-          <div class="swlabel">Wedding and soft</div>
-          <div class="swatches" id="paints2"></div>
+          <div class="swlabel" id="paintslabel">Classic</div>
+          <div class="swatches" id="paints" role="group" aria-labelledby="paintslabel"></div>
+          <div class="swlabel" id="paints2label">Wedding and soft</div>
+          <div class="swatches" id="paints2" role="group" aria-labelledby="paints2label"></div>
           <div class="row"><label for="paintcustom">Custom</label><input type="color" id="paintcustom" value="#1f3a93"><span class="val" id="paintval">#1f3a93</span></div>
           <div class="row" id="gradopts" hidden>
             <label for="paint2">Fades to</label><input type="color" id="paint2" value="#4fa3e3">
@@ -290,7 +347,7 @@
           </div>
         </div>
         <div id="woodopts" hidden style="margin-top:10px">
-          <div class="swatches stains" id="stains"></div>
+          <div class="swatches stains" id="stains" role="group" aria-label="Stain"></div>
         </div>
 
         <h3>Pattern</h3>
@@ -301,40 +358,43 @@
         </div>
       </div>
 
-      <div class="pane" id="tab-text" data-open="false">
-        <h3>Text on <span class="activename">your board</span></h3>
+      <div class="pane" id="tab-text" data-open="false" role="tabpanel" aria-labelledby="tabbtn-text">
+        <h3>Words on <span class="activename">your board</span></h3>
+        <p class="hint" id="texthint" hidden></p>
         <div class="items" id="texts"></div>
         <button class="btn" id="addtext">+ Add text</button>
         <div class="props" id="textprops" hidden>
           <div class="row"><label for="ttext">Text</label><input type="text" id="ttext" maxlength="60"></div>
           <div class="row"><label for="tfont">Font</label><select id="tfont"></select></div>
           <div class="row"><label for="tsize">Size</label><input type="range" id="tsize" min="0.5" max="16" step="0.25"><span class="val" id="tsizeval"></span></div>
-          <div class="row"><label for="tcolor">Colour</label><input type="color" id="tcolor"><label for="toutline" class="auto">Outline</label><input type="color" id="toutline"><input type="range" id="toutlinew" min="0" max="0.5" step="0.025" style="min-width:70px"><span class="val" id="toutlinewval"></span></div>
-          <div class="row"><label for="tarc">Curve</label><input type="range" id="tarc" min="-180" max="180" step="5"><span class="val" id="tarcval"></span></div>
-          <div class="row"><label for="tspacing">Spacing</label><input type="range" id="tspacing" min="-0.2" max="1.5" step="0.05"><span class="val" id="tspacingval"></span></div>
-          <div class="row"><label for="trot">Rotate</label><input type="range" id="trot" min="-180" max="180" step="1"><span class="val" id="trotval"></span></div>
-          <div class="row"><label for="tx">Across</label><input type="range" id="tx" min="0" max="24" step="0.1"><span class="val" id="txval"></span></div>
-          <div class="row"><label for="ty">Down</label><input type="range" id="ty" min="0" max="48" step="0.1"><span class="val" id="tyval"></span></div>
-          <div class="row toggles"><label><input type="checkbox" id="tshadow"> Drop shadow</label></div>
+          <div class="row"><label for="tcolor">Colour</label><input type="color" id="tcolor"><label for="toutline" class="auto">Outline</label><input type="color" id="toutline"><input type="range" id="toutlinew" min="0" max="0.5" step="0.025" style="min-width:70px" aria-label="Outline width"><span class="val" id="toutlinewval"></span></div>
           <div class="row">
-            <button class="btn small" id="tforward" title="Bring forward">Forward</button>
-            <button class="btn small" id="tback" title="Send back">Back</button>
             <button class="btn small" id="tdup">Duplicate</button>
-            <button class="btn small" id="tcopy" title="Put a copy of this on the other board">To other board</button>
             <button class="btn small danger" id="tdel">Remove</button>
           </div>
+          <details class="more" id="textmore">
+            <summary>More: curve, spacing, rotate, position, shadow, layers</summary>
+            <div class="row"><label for="tarc">Curve</label><input type="range" id="tarc" min="-180" max="180" step="5"><span class="val" id="tarcval"></span></div>
+            <div class="row"><label for="tspacing">Spacing</label><input type="range" id="tspacing" min="-0.2" max="1.5" step="0.05"><span class="val" id="tspacingval"></span></div>
+            <div class="row"><label for="trot">Rotate</label><input type="range" id="trot" min="-180" max="180" step="1"><span class="val" id="trotval"></span></div>
+            <div class="row"><label for="tx">Across</label><input type="range" id="tx" min="0" max="24" step="0.1"><span class="val" id="txval"></span></div>
+            <div class="row"><label for="ty">Down</label><input type="range" id="ty" min="0" max="48" step="0.1"><span class="val" id="tyval"></span></div>
+            <div class="row toggles"><label><input type="checkbox" id="tshadow"> Drop shadow</label></div>
+            <div class="row">
+              <button class="btn small" id="tforward" title="Bring forward">Forward</button>
+              <button class="btn small" id="tback" title="Send back">Back</button>
+              <button class="btn small" id="tcopy" title="Put a copy of this on the other board">To other board</button>
+            </div>
+          </details>
         </div>
       </div>
 
-      <div class="pane" id="tab-art" data-open="false">
+      <div class="pane" id="tab-art" data-open="false" role="tabpanel" aria-labelledby="tabbtn-art">
         <h3>On <span class="activename">your board</span></h3>
         <div class="items" id="images"></div>
         <div class="props" id="imageprops" hidden>
           <div class="row"><label for="iwidth">Width</label><input type="range" id="iwidth" min="1" max="24" step="0.25"><span class="val" id="iwidthval"></span></div>
-          <div class="row"><label for="irot">Rotate</label><input type="range" id="irot" min="-180" max="180" step="1"><span class="val" id="irotval"></span></div>
-          <div class="row"><label for="iopacity">Opacity</label><input type="range" id="iopacity" min="0.1" max="1" step="0.05"><span class="val" id="iopacityval"></span></div>
-          <div class="row"><label for="ix">Across</label><input type="range" id="ix" min="0" max="24" step="0.1"><span class="val" id="ixval"></span></div>
-          <div class="row"><label for="iy">Down</label><input type="range" id="iy" min="0" max="48" step="0.1"><span class="val" id="iyval"></span></div>
+          <p class="warn" id="ireswarn" hidden></p>
           <div class="row toggles" id="imageonly">
             <label><input type="checkbox" id="iflip"> Flip</label>
             <label><input type="checkbox" id="icircle"> Circle crop</label>
@@ -342,42 +402,51 @@
           </div>
           <div class="row" id="cliponly">
             <label for="ccolor">Colour</label><input type="color" id="ccolor">
-            <label for="coutline" class="auto">Outline</label><input type="color" id="coutline"><input type="range" id="coutlinew" min="0" max="0.5" step="0.025" style="min-width:70px"><span class="val" id="coutlinewval"></span>
+            <label for="coutline" class="auto">Outline</label><input type="color" id="coutline"><input type="range" id="coutlinew" min="0" max="0.5" step="0.025" style="min-width:70px" aria-label="Outline width"><span class="val" id="coutlinewval"></span>
             <label class="auto"><input type="checkbox" id="cflip"> Flip</label>
           </div>
           <div class="row">
-            <button class="btn small" id="iforward" title="Bring forward">Forward</button>
-            <button class="btn small" id="iback" title="Send back">Back</button>
             <button class="btn small" id="idup">Duplicate</button>
-            <button class="btn small" id="icopy">To other board</button>
             <button class="btn small danger" id="idel">Remove</button>
           </div>
+          <details class="more" id="artmore">
+            <summary>More: rotate, opacity, position, layers</summary>
+            <div class="row"><label for="irot">Rotate</label><input type="range" id="irot" min="-180" max="180" step="1"><span class="val" id="irotval"></span></div>
+            <div class="row"><label for="iopacity">Opacity</label><input type="range" id="iopacity" min="0.1" max="1" step="0.05"><span class="val" id="iopacityval"></span></div>
+            <div class="row"><label for="ix">Across</label><input type="range" id="ix" min="0" max="24" step="0.1"><span class="val" id="ixval"></span></div>
+            <div class="row"><label for="iy">Down</label><input type="range" id="iy" min="0" max="48" step="0.1"><span class="val" id="iyval"></span></div>
+            <div class="row">
+              <button class="btn small" id="iforward" title="Bring forward">Forward</button>
+              <button class="btn small" id="iback" title="Send back">Back</button>
+              <button class="btn small" id="icopy">To other board</button>
+            </div>
+          </details>
         </div>
 
         <h3>Your pictures</h3>
         <label class="btn" for="addimage" style="display:inline-block">+ Add a picture or logo</label>
         <input type="file" id="addimage" class="sr" accept="image/png,image/jpeg,image/webp,image/svg+xml">
-        <p class="hint">PNG with transparency looks best; for a logo on white, tick "Remove white background" after adding it. We print what you upload at the size you set, so send the biggest file you have. Up to 4 per board.</p>
+        <p class="hint">PNG with transparency looks best; for a logo on white, tick "Remove white background" after adding it. We keep the full-size original for printing and tell you if it is too small for the size you choose. Up to 4 per board.</p>
 
         <h3>Clip art</h3>
-        <div class="chips clipcats" id="clipcats"></div>
+        <div class="chips clipcats" id="clipcats" role="group" aria-label="Clip art group"></div>
         <div class="clips" id="clips"></div>
         <p class="hint" style="margin-top:8px">Clip art is drawn as vectors, so it prints razor-sharp at any size, in any colour.</p>
       </div>
 
-      <div class="pane" id="tab-order" data-open="false">
+      <div class="pane" id="tab-order" data-open="false" role="tabpanel" aria-labelledby="tabbtn-order">
         <div id="orderstep1">
           <h3>What you're ordering</h3>
           <div class="row">
-            <div class="chips" id="product"></div>
+            <div class="chips" id="product" role="group" aria-label="Product"></div>
             <span class="qty"><label for="qty">Qty</label><input type="number" id="qty" min="1" max="10" value="1"></span>
           </div>
           <h3>Finish and extras</h3>
-          <div class="chips" id="finish"></div>
+          <div class="chips" id="finish" role="group" aria-label="Finish"></div>
           <p class="hint" id="finishhint" hidden></p>
           <div class="row">
-            <div class="chips" id="bags"></div>
-            <span id="bagcolors" hidden><input type="color" id="bag1" value="#c8102e"> <input type="color" id="bag2" value="#1f3a93"> <span class="hint">4 of each</span></span>
+            <div class="chips" id="bags" role="group" aria-label="Bags"></div>
+            <span id="bagcolors" hidden><input type="color" id="bag1" value="#c8102e" aria-label="First bag colour"> <input type="color" id="bag2" value="#1f3a93" aria-label="Second bag colour"> <span class="hint">4 of each</span></span>
           </div>
           <div class="row toggles">
             <label><input type="checkbox" id="carrycase"> <span id="caselabel"></span></label>
@@ -386,19 +455,39 @@
           <h3>The occasion</h3>
           <div class="row">
             <label for="occasion">It's for</label><select id="occasion"></select>
-            <label for="needby" class="auto">by</label><input type="date" id="needby" title="The date you need it by (optional)">
+            <label for="needby" class="auto">by</label><input type="date" id="needby" aria-label="Needed by date (optional)">
           </div>
           <p class="hint" id="needbyhint" hidden></p>
-          <div class="row"><label for="giftnote">Gift note</label><input type="text" id="giftnote" maxlength="300" placeholder="Printed on a card in the box (optional)"></div>
-          <h3>Price</h3>
-          <table class="quote" id="quote"></table>
+          <h3>Estimated price</h3>
+          <table class="quote" id="quote" aria-label="Price breakdown"></table>
+          <p class="hint" id="pricenote"></p>
           <p class="hint" id="leadtime"></p>
-          <button class="btn primary" type="button" id="tocheckout" style="width:100%;padding:12px">Continue to your details</button>
+          <button class="btn primary" type="button" id="toreview" style="width:100%;padding:12px">Review your order</button>
         </div>
         <div id="orderstep2" hidden>
           <div class="stephead">
+            <h3>Review your order</h3>
+            <button class="btn small" type="button" id="backtooptions">&larr; Options</button>
+          </div>
+          <div class="reviewboards" id="reviewboards"></div>
+          <ul class="reviewlist" id="reviewlist"></ul>
+          <table class="quote" id="reviewquote" aria-label="Price breakdown"></table>
+          <p class="hint" id="reviewnote"></p>
+          <p class="hint" id="shipnote"></p>
+          <div class="warn" id="samplewarn" hidden>
+            <p id="sampletext"></p>
+            <label><input type="checkbox" id="keepsamples"> Print these words exactly as they are</label>
+          </div>
+          <div class="warn" id="reswarn" hidden></div>
+          <div class="row">
+            <button class="btn" type="button" id="backtoedit">&larr; Back to editing</button>
+            <button class="btn primary" type="button" id="tocheckout" style="flex:1">Continue to your details</button>
+          </div>
+        </div>
+        <div id="orderstep3" hidden>
+          <div class="stephead">
             <h3>Your details</h3>
-            <button class="btn small" type="button" id="backtoorder">&larr; Back to the order</button>
+            <button class="btn small" type="button" id="backtoorder">&larr; Review</button>
           </div>
           <p class="summary" id="ordersummary"></p>
           <form class="order" id="orderform" novalidate>
@@ -410,12 +499,13 @@
             <div><label for="state">State</label><select id="state" name="state" autocomplete="address-level1" required></select></div>
             <div><label for="postal">ZIP</label><input id="postal" name="postal" autocomplete="postal-code" required inputmode="numeric" pattern="\d{5}(-\d{4})?"></div>
             <div><label for="phone">Phone (for the carrier)</label><input id="phone" name="phone" type="tel" autocomplete="tel" maxlength="40"></div>
-            <div><label for="country">Country</label><select id="country" name="country"><option value="US">United States</option></select></div>
+            <div><label for="giftnote">Gift note on a card (optional)</label><input type="text" id="giftnote" name="giftnote" maxlength="300"></div>
+            <input type="hidden" id="country" name="country" value="US">
             <div class="full"><label for="notes">Anything we should know? (optional)</label><textarea id="notes" name="notes" maxlength="2000"></textarea></div>
             <div class="full"><button class="btn primary" type="submit" id="checkout" style="width:100%;padding:12px">Continue to payment</button></div>
           </form>
           <div class="status" id="orderstatus" role="status"></div>
-          <p class="hint">Payment is taken on a secure Stripe page. We ship to the contiguous United States. Sales tax, where it applies, is added at checkout.</p>
+          <p class="hint" id="shipnote2"></p>
         </div>
       </div>
     </aside>
@@ -426,12 +516,28 @@
     <div class="steps">
       <div class="step"><b>1. Design it</b><p>Pick a template or a blank board. Colours, fades and wood stains, patterns, 35 fonts, curved text, clip art and your own pictures. What you see is what we print.</p></div>
       <div class="step"><b>2. We build it</b><p>Regulation 24" x 48" boards, 3/4" Baltic birch tops on a solid frame, folding legs, 6" hole 9" from the top. Your design is printed and sealed under a clear coat - or a matte guest-book finish your wedding guests can sign.</p></div>
-      <div class="step"><b>3. It ships</b><p>Built to order in about three weeks (five business days with the rush option) and shipped freight to your door. Tell us the date you need it by and we plan around it.</p></div>
+      <div class="step"><b>3. It ships</b><p id="howdispatch"></p></div>
+    </div>
+  </section>
+
+  <section class="trust" id="trust">
+    <h2>Good to know</h2>
+    <div class="photos" id="photos" hidden></div>
+    <div class="steps">
+      <div class="step"><b>Contact</b><p id="contactcard"></p></div>
+      <div class="step"><b>Delivery</b><p id="deliverycard"></p></div>
+      <div class="step"><b>Custom orders</b><p id="customcard"></p></div>
+      <div class="step"><b>Design approval</b><p id="approvalcard"></p></div>
     </div>
   </section>
 </main>
 
-<footer><div class="wrap">BackyardBoards is a placeholder name. Boards are regulation ACA/ACL size. Questions: hello@example.com</div></footer>
+<div id="mobilebar">
+  <span class="total">Estimated total, before tax <b id="mobiletotal">$0.00</b></span>
+  <button class="btn primary" id="reviewbtn" type="button">Review order</button>
+</div>
+
+<footer><div class="wrap" id="footer"></div></footer>
 
 <script type="module" src="app.mjs"></script>
 </body>

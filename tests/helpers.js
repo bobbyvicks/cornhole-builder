@@ -14,10 +14,29 @@ export async function open(page, { query = '' } = {}) {
   await page.route('**/fonts.googleapis.com/**', (r) => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
   await page.route('**/fonts.gstatic.com/**', (r) => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
   await page.goto('/index.html' + query);
-  await page.waitForFunction(() => window.cornhole && window.cornhole.design);
+  await page.waitForFunction(() => window.cornhole && window.cornhole.loaded);
   await page.evaluate(() => { try { localStorage.clear(); } catch (_) {} });
   await page.waitForTimeout(100);
   return errors;
+}
+
+/** The page after a reload: the saved project read back in. */
+export async function reloaded(page) {
+  await page.reload();
+  await page.waitForFunction(() => window.cornhole && window.cornhole.loaded);
+}
+/** Wait until the last change is on the device. */
+export const settled = (page) => page.waitForFunction(() => cornhole.saveState === 'saved');
+
+/** A PNG or JPEG made in the page: `paint` draws on a w x h canvas. */
+export async function picture(page, w, h, type, paint) {
+  const bytes = await page.evaluate(async ([w, h, type, paint]) => {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d'); new Function('g', 'w', 'h', paint)(g, w, h);
+    const b = await new Promise((r) => c.toBlob(r, type, 0.9));
+    return Array.from(new Uint8Array(await b.arrayBuffer()));
+  }, [w, h, type, paint]);
+  return { name: type === 'image/jpeg' ? 'photo.jpg' : 'logo.png', mimeType: type, buffer: Buffer.from(bytes) };
 }
 
 /** A fresh, known design: painted navy, no pattern, one text in a system font. */

@@ -225,3 +225,30 @@ test('one address is held to ten orders a minute', async () => {
   for (let i = 0; i < 11; i++) { last = fakeRes(); await handler(req(goodOrder(), { ip: '203.0.113.9' }), last); }
   assert.equal(last.code, 429);
 });
+
+test('shipping to Alaska or Hawaii is refused: the checkout covers the contiguous US only', async () => {
+  const handler = await load({ SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'k', STRIPE_SECRET_KEY: 'sk_test' });
+  stub();
+  const o = goodOrder(); o.shipping.state = 'AK';
+  const res = fakeRes(); await handler(req(o), res);
+  assert.equal(res.code, 400);
+  assert.match(res.body.message, /contiguous United States only/);
+});
+
+test('a picture may carry its print master and pixel size, and the order records whether the masters came', async () => {
+  const handler = await load({ SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'k', STRIPE_SECRET_KEY: 'sk_test' });
+  const calls = stub();
+  const o = goodOrder();
+  o.design.a.elements[1].orig = PNG; o.design.a.elements[1].px = [1, 1]; o.options.assets = 'pending';
+  const res = fakeRes(); await handler(req(o), res);
+  assert.equal(res.code, 200, JSON.stringify(res.body));
+  const stored = JSON.parse(calls.find((c) => c.url.includes('/rest/v1/cornhole_orders') && c.method === 'POST').body);
+  assert.equal(stored.options.assets, 'pending');
+  assert.equal(stored.design.a.elements[1].orig, PNG);
+  assert.deepEqual(stored.design.a.elements[1].px, [1, 1]);
+  /* A master past the limit is past the body limit too, and refused there. */
+  const big = goodOrder(); big.design.a.elements[1].orig = 'data:image/png;base64,' + 'A'.repeat(3_000_000 * 1.4 + 100);
+  const r2 = fakeRes(); await handler(req(big), r2);
+  assert.equal(r2.code, 413);
+  assert.equal(r2.body.error, 'too_large');
+});

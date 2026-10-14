@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { open, reset, pixelAt, count, bounds, setInput, chip, clientPoint, handlePoint, WHITE, NAVY, RED, CREAM } from './helpers.js';
+import { readFileSync } from 'node:fs';
+import { open, reset, reloaded, settled, picture, pixelAt, count, bounds, setInput, chip, clientPoint, handlePoint, WHITE, NAVY, RED, CREAM } from './helpers.js';
 
 test.describe('the designer', () => {
   test('loads clean and paints the default board: navy base, a hole, and white text', async ({ page }) => {
@@ -150,7 +151,7 @@ test.describe('the designer', () => {
     expect(await pixelAt(page, 'a', 2, 40)).toEqual([...NAVY, 255]);
     await page.click('#redo');
     expect(await pixelAt(page, 'a', 2, 40)).toEqual([...RED, 255]);
-    await page.evaluate(() => { cornhole.select('t1'); document.activeElement && document.activeElement.blur(); });
+    await page.evaluate(() => { cornhole.select('t1'); document.getElementById('canvasA').focus(); });
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('Shift+ArrowDown');
     const el = await page.evaluate(() => cornhole.activeBoard().elements[0]);
@@ -215,8 +216,8 @@ test.describe('the designer', () => {
     await open(page); await reset(page);
     await page.click('#paints .sw[data-v="#c8102e"]');
     await page.selectOption('#pattern', 'checker');
-    await page.reload();
-    await page.waitForFunction(() => window.cornhole && window.cornhole.design);
+    await settled(page);
+    await reloaded(page);
     expect(await page.evaluate(() => cornhole.design.a.base.color)).toBe('#c8102e');
     expect(await page.evaluate(() => cornhole.design.a.pattern.kind)).toBe('checker');
   });
@@ -261,6 +262,7 @@ test.describe('the quote and the order', () => {
 
   async function fillForm(page) {
     await page.evaluate(() => cornhole.showTab('order'));
+    await page.click('#toreview');
     await page.click('#tocheckout');
     await page.fill('#name', 'Pat Example');
     await page.fill('#email', 'pat@example.com');
@@ -313,6 +315,7 @@ test.describe('the quote and the order', () => {
   test('the form refuses to send until it is filled in', async ({ page }) => {
     await open(page); await reset(page);
     await page.evaluate(() => cornhole.showTab('order'));
+    await page.click('#toreview');
     await page.click('#tocheckout');
     let hits = 0;
     await page.route('**/api/order', async (route) => { hits++; await route.fulfill({ status: 200, body: '{}' }); });
@@ -466,7 +469,7 @@ test.describe('templates, clip art and the richer tools', () => {
     const after = await bounds(page, 'a', WHITE);
     expect(after.x1 - after.x0).toBeGreaterThan(before.x1 - before.x0 + 1.5);
     const navyBefore = await count(page, 'a', NAVY);
-    await page.evaluate(() => cornhole.select('t1'));
+    await page.evaluate(() => { cornhole.select('t1'); document.getElementById('textmore').open = true; });
     await page.check('#tshadow');
     await page.evaluate(() => cornhole.select(null));
     expect(await count(page, 'a', NAVY), 'the shadow darkened some navy').toBeLessThan(navyBefore - 200);
@@ -552,12 +555,12 @@ test.describe('templates, clip art and the richer tools', () => {
     const els = await page.evaluate(() => cornhole.activeBoard().elements.map((e) => ({ type: e.type, x: e.x })));
     expect(els.length).toBe(3);
     expect(els[2].x).toBe(13);
-    await page.evaluate(() => cornhole.select(cornhole.activeBoard().elements[1].id));
+    await page.evaluate(() => { cornhole.select(cornhole.activeBoard().elements[1].id); document.getElementById('artmore').open = true; });
     await page.click('#iback');
     expect(await page.evaluate(() => cornhole.activeBoard().elements[0].type)).toBe('clip');
     await page.click('#iforward');
     expect(await page.evaluate(() => cornhole.activeBoard().elements[0].type)).toBe('text');
-    await page.evaluate(() => { document.activeElement && document.activeElement.blur(); });
+    await page.evaluate(() => { document.getElementById('canvasA').focus(); });
     const w0 = await page.evaluate(() => cornhole.activeBoard().elements.find((e) => e.id === cornhole.selected).width);
     await page.keyboard.press('+');
     await page.keyboard.press('+');
@@ -608,8 +611,7 @@ test.describe('templates, clip art and the richer tools', () => {
                      { type: 'image', id: 'old2', src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', width: 8, x: 12, y: 20, rotation: 0, opacity: 1 }] },
         b: { base: { kind: 'paint', color: '#1f3a93', stain: 'walnut' }, pattern: { kind: 'none', color: '#f5f5f0', size: 3 }, elements: [] } }));
     });
-    await page.reload();
-    await page.waitForFunction(() => window.cornhole && window.cornhole.design);
+    await reloaded(page);
     const d = await page.evaluate(() => cornhole.design);
     expect(d.version).toBe(2);
     expect(d.a.base.color).toBe('#c8102e');
@@ -628,11 +630,12 @@ test.describe('templates, clip art and the richer tools', () => {
     await page.check('#carrycase');
     await page.selectOption('#occasion', 'wedding');
     await setInput(page, 'needby', '2999-06-14');
-    await page.fill('#giftnote', 'Congratulations, both of you');
     const expected = 24900 + 2000 + 3500 + 5900;
     expect(await page.textContent('#headtotal')).toBe('$' + (expected / 100).toFixed(2));
     await expect(page.locator('#needbyhint')).toContainText('Plenty of time');
+    await page.click('#toreview');
     await page.click('#tocheckout');
+    await page.fill('#giftnote', 'Congratulations, both of you');
     await page.fill('#name', 'Pat Example'); await page.fill('#email', 'pat@example.com'); await page.fill('#line1', '1 Main St');
     await page.fill('#city', 'Austin'); await page.selectOption('#state', 'TX'); await page.fill('#postal', '78701');
     let posted = null;
@@ -645,7 +648,7 @@ test.describe('templates, clip art and the richer tools', () => {
     expect(posted.options).toEqual({ product: 'set', quantity: 1, finish: 'guestbook', bags: 'none', rush: false, carryCase: true, occasion: 'wedding', needBy: '2999-06-14', giftNote: 'Congratulations, both of you' });
     expect(posted.design.version).toBe(2);
     /* A date too soon nudges toward rush. */
-    await page.click('#backtoorder');
+    await page.click('#backtoorder'); await page.click('#backtooptions');
     const soon = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
     await setInput(page, 'needby', soon);
     await expect(page.locator('#needbyhint')).toContainText('Rush');
@@ -722,21 +725,26 @@ test.describe('removing, two boards, the order steps and the phone layout', () =
     expect(await page.isHidden('#boardactions')).toBe(true);
   });
 
-  test('the order tab fits one screen: the order and its price first, the address after Continue', async ({ page }) => {
+  test('the order tab is three screens the height of the other tabs: options and price, review, then the address', async ({ page }) => {
     await open(page); await reset(page);
     const heightOf = async (tab) => { await page.evaluate((t) => cornhole.showTab(t), tab); return (await page.locator('#tab-' + tab).boundingBox()).height; };
     const board = await heightOf('board');
     const order1 = await heightOf('order');
     expect(await page.isHidden('#orderstep1')).toBe(false);
     expect(await page.isHidden('#orderstep2')).toBe(true);
-    expect(order1, 'the first step is about the height of the Board tab').toBeLessThan(board + 120);
-    await page.click('#tocheckout');
+    expect(order1, 'the first step is about the height of the Board tab').toBeLessThan(board + 150);
+    await page.click('#toreview');
     expect(await page.isHidden('#orderstep1')).toBe(true);
     expect(await page.isHidden('#orderstep2')).toBe(false);
+    await expect(page.locator('#reviewlist')).toContainText('Set of 2 boards');
+    expect((await page.locator('#tab-order').boundingBox()).height, 'the review too').toBeLessThan(board + 260);
+    await page.click('#tocheckout');
+    expect(await page.isHidden('#orderstep3')).toBe(false);
     await expect(page.locator('#ordersummary')).toContainText('Set of 2 boards');
-    const order2 = (await page.locator('#tab-order').boundingBox()).height;
-    expect(order2, 'and so is the second').toBeLessThan(board + 150);
+    expect((await page.locator('#tab-order').boundingBox()).height, 'and the address').toBeLessThan(board + 150);
     await page.click('#backtoorder');
+    expect(await page.isHidden('#orderstep2')).toBe(false);
+    await page.click('#backtooptions');
     expect(await page.isHidden('#orderstep1')).toBe(false);
   });
 
@@ -761,11 +769,335 @@ test.describe('removing, two boards, the order steps and the phone layout', () =
     await page.mouse.click(p.x, p.y);
     expect(await page.evaluate(() => cornhole.selected)).toBe('t1');
     expect(await page.getAttribute('#tab-text', 'data-open')).toBe('true');
-    /* Two different boards sit side by side, both on screen. */
+    /* Two different boards: on a phone only the one being edited shows. */
     await page.click('#boardmode .chip[data-v="b"]');
     expect(await page.isHidden('#boardB')).toBe(false);
-    const [ca, cb] = await Promise.all([page.locator('#canvasA').boundingBox(), page.locator('#canvasB').boundingBox()]);
-    expect(Math.abs(ca.y - cb.y), 'side by side').toBeLessThan(2);
-    expect(cb.x + cb.width).toBeLessThanOrEqual(390);
+    expect(await page.isHidden('#boardA'), 'one compact preview').toBe(true);
+    await page.click('#boardmode .chip[data-v="a"]');
+    expect(await page.isHidden('#boardA')).toBe(false);
+    expect(await page.isHidden('#boardB')).toBe(true);
+  });
+});
+
+test.describe('the audit: saving, keyboard, guidance, pricing, review and print quality', () => {
+  const RED_JPEG = 'g.fillStyle = "#ff0000"; g.fillRect(0, 0, w, h);';
+
+  test('a customised design asks before a template replaces it, and still asks after a reload', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => { cornhole.activeBoard().elements[0].text = 'THE MILLERS'; cornhole.commit(); });
+    await settled(page);
+    await reloaded(page);
+    expect(await page.evaluate(() => cornhole.design.a.elements[0].text), 'the work came back').toBe('THE MILLERS');
+    expect(await page.evaluate(() => cornhole.isPristine())).toBe(false);
+    let asked = 0;
+    page.on('dialog', (d) => { asked++; d.dismiss(); });
+    await page.evaluate(() => cornhole.showTab('templates'));
+    await page.click('#templates .tpl[data-id="team"]');
+    await page.waitForTimeout(150);
+    expect(asked, 'it asked').toBe(1);
+    expect(await page.evaluate(() => cornhole.design.a.elements[0].text), 'and no was no').toBe('THE MILLERS');
+    /* A design nobody touched is replaced without a question. */
+    await page.evaluate(() => cornhole.applyTemplate('wedding'));
+    await page.evaluate(() => cornhole.showTab('templates'));
+    await page.click('#templates .tpl[data-id="team"]');
+    await page.waitForTimeout(150);
+    expect(asked).toBe(1);
+    expect(await page.evaluate(() => cornhole.design.a.elements.some((e) => e.text === 'YOUR TEAM'))).toBe(true);
+  });
+
+  test('the boards, a picture with its master, and every order choice survive a reload', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.click('#paints .sw[data-v="#c8102e"]');
+    await page.setInputFiles('#addimage', await picture(page, 2000, 1000, 'image/jpeg', RED_JPEG));
+    await page.waitForFunction(() => cornhole.activeBoard().elements.some((e) => e.type === 'image'));
+    await page.evaluate(() => cornhole.showTab('order'));
+    await chip(page, 'finish', 'gloss');
+    await chip(page, 'bags', 'regulation');
+    await setInput(page, 'bag1', '#00ff00');
+    await page.check('#carrycase'); await page.check('#rush');
+    await setInput(page, 'qty', 2);
+    await page.selectOption('#occasion', 'family');
+    await setInput(page, 'needby', '2999-06-14');
+    await page.click('#toreview'); await page.click('#tocheckout');
+    await page.fill('#giftnote', 'Happy birthday, Dad');
+    await settled(page);
+    await reloaded(page);
+    const d = await page.evaluate(() => cornhole.design);
+    expect(d.a.base.color).toBe('#c8102e');
+    const img = d.a.elements.find((e) => e.type === 'image');
+    expect(img.px).toEqual([2000, 1000]);
+    expect(img.orig, 'the master travelled with it').toMatch(/^data:image\/jpeg;base64,/);
+    const sizes = await page.evaluate((el) => Promise.all([el.src, el.orig].map((s) => new Promise((r) => { const i = new Image(); i.onload = () => r(i.naturalWidth); i.src = s; }))), img);
+    expect(sizes, 'preview at 1600, master at 2000').toEqual([1600, 2000]);
+    expect(await page.evaluate(() => ({ ...cornhole.order }))).toEqual({ product: 'set', quantity: 2, finish: 'gloss', bags: 'regulation', bagColors: ['#00ff00', '#1f3a93'], rush: true, carryCase: true, occasion: 'family', needBy: '2999-06-14', giftNote: 'Happy birthday, Dad' });
+    expect(await page.textContent('#headtotal')).toBe('$' + ((2 * (24900 + 4000 + 4500 + 3500) + 5000 + 5900 + 2500) / 100).toFixed(2));
+    expect(await page.textContent('.stagebar .savestatus')).toContain('Saved on this device');
+  });
+
+  test('when the browser cannot store the project it says so, offers the export, and keeps the pictures', async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(window, 'indexedDB', { get: () => undefined });
+      Storage.prototype.setItem = function () { throw new Error('QuotaExceededError'); };
+    });
+    await open(page); await reset(page);
+    await page.setInputFiles('#addimage', await picture(page, 400, 400, 'image/png', RED_JPEG));
+    await page.waitForFunction(() => cornhole.activeBoard().elements.some((e) => e.type === 'image'));
+    await page.waitForFunction(() => cornhole.saveState === 'error');
+    expect(await page.textContent('.stagebar .savestatus')).toContain('Not saved');
+    expect(await page.isHidden('#exportlink'), 'the way out is offered').toBe(false);
+    expect(await page.evaluate(() => cornhole.activeBoard().elements.filter((e) => e.type === 'image').length), 'nothing was dropped').toBe(1);
+    const dl = page.waitForEvent('download');
+    await page.click('#exportlink');
+    expect((await dl).suggestedFilename()).toMatch(/^cornhole-project-.*\.json$/);
+  });
+
+  test('an exported project file is editable JSON, and importing it brings everything back', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.click('#paints .sw[data-v="#c8102e"]');
+    await page.evaluate(() => { cornhole.activeBoard().elements[0].text = 'EXPORTED'; cornhole.commit(); cornhole.setOrder({ finish: 'gloss', quantity: 3 }); });
+    const dl = page.waitForEvent('download');
+    await page.evaluate(() => cornhole.showTab('templates'));
+    await page.click('#exportbtn');
+    const file = await (await dl).path();
+    const json = JSON.parse(readFileSync(file, 'utf8'));
+    expect(json.app).toBe('cornhole-builder');
+    expect(json.design.a.elements[0].text).toBe('EXPORTED');
+    expect(json.order.finish).toBe('gloss');
+    /* Edit the file by hand, then bring it back over a different design. */
+    json.design.a.elements[0].text = 'EDITED BY HAND';
+    await page.evaluate(() => { cornhole.applyTemplate('wedding'); cornhole.setOrder({ finish: 'satin', quantity: 1 }); });
+    await page.setInputFiles('#importfile', { name: 'p.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(json)) });
+    await page.waitForFunction(() => cornhole.design.a.elements[0] && cornhole.design.a.elements[0].text === 'EDITED BY HAND');
+    expect(await page.evaluate(() => cornhole.design.a.base.color)).toBe('#c8102e');
+    expect(await page.evaluate(() => cornhole.order.finish)).toBe('gloss');
+    expect(await page.evaluate(() => cornhole.order.quantity)).toBe(3);
+    expect(await pixelAt(page, 'a', 2, 40)).toEqual([...RED, 255]);
+  });
+
+  test('Delete and the arrows leave the artwork alone while a tab, a slider or a field has the focus; the board takes them', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => { cornhole.select('t1'); cornhole.showTab('board'); });
+    await page.focus('#tabbtn-board');
+    await page.keyboard.press('Delete');
+    await page.keyboard.press('ArrowRight');
+    expect(await page.evaluate(() => cornhole.activeBoard().elements.length), 'a Delete on the tab bar removes nothing').toBe(1);
+    expect(await page.evaluate(() => cornhole.activeBoard().elements[0].x)).toBe(12);
+    await page.focus('#patsize');
+    await page.keyboard.press('Delete'); await page.keyboard.press('ArrowUp');
+    expect(await page.evaluate(() => cornhole.activeBoard().elements.length)).toBe(1);
+    expect(await page.evaluate(() => cornhole.activeBoard().elements[0].y)).toBe(30);
+    await page.evaluate(() => cornhole.showTab('text'));
+    await page.focus('#ttext');
+    await page.keyboard.press('Delete');
+    expect(await page.evaluate(() => cornhole.activeBoard().elements.length)).toBe(1);
+    /* The board itself: a click gives it the focus, then the keys work. */
+    const p = await clientPoint(page, 'a', 12, 30);
+    await page.mouse.click(p.x, p.y);
+    expect(await page.evaluate(() => document.activeElement && document.activeElement.id)).toBe('canvasA');
+    await page.keyboard.press('ArrowRight');
+    expect(await page.evaluate(() => cornhole.activeBoard().elements[0].x)).toBeCloseTo(12.1, 5);
+    await page.keyboard.press('Delete');
+    expect(await page.evaluate(() => cornhole.activeBoard().elements.length)).toBe(0);
+  });
+
+  test('the tabs are one tab stop and move with the arrow keys; sliders and colours are labelled', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.focus('#tabbtn-board');
+    await page.keyboard.press('ArrowRight');
+    expect(await page.getAttribute('#tab-text', 'data-open')).toBe('true');
+    expect(await page.evaluate(() => document.activeElement.id)).toBe('tabbtn-text');
+    await page.keyboard.press('End');
+    expect(await page.getAttribute('#tab-order', 'data-open')).toBe('true');
+    await page.keyboard.press('ArrowRight');
+    expect(await page.getAttribute('#tab-templates', 'data-open')).toBe('true');
+    expect(await page.locator('.tabs [role=tab][tabindex="0"]').count(), 'one tab in the Tab order').toBe(1);
+    const unlabelled = await page.evaluate(() => {
+      const out = [];
+      for (const i of document.querySelectorAll('input[type=range], input[type=color]')) {
+        const ok = i.getAttribute('aria-label') || (i.id && document.querySelector('label[for="' + i.id + '"]')) || i.closest('label');
+        if (!ok) out.push(i.id || i.outerHTML.slice(0, 60));
+      }
+      return out;
+    });
+    expect(unlabelled).toEqual([]);
+  });
+
+  test('templates are grouped by occasion with a blank start, and a template hands over its first words', async ({ page }) => {
+    await open(page); await reset(page);
+    expect(await page.locator('#templates .tplgroup').count()).toBeGreaterThanOrEqual(6);
+    await expect(page.locator('#templates .tplgroup').first()).toHaveText('Weddings');
+    page.on('dialog', (d) => d.accept());
+    await page.evaluate(() => cornhole.showTab('templates'));
+    await page.click('#templates .tpl[data-id="team"]');
+    await page.waitForTimeout(150);
+    expect(await page.getAttribute('#tab-text', 'data-open'), 'straight to the words').toBe('true');
+    const first = await page.evaluate(() => cornhole.design.a.elements.find((e) => e.type === 'text').id);
+    expect(await page.evaluate(() => cornhole.selected)).toBe(first);
+    expect(await page.evaluate(() => document.activeElement.id)).toBe('ttext');
+    expect(await page.evaluate(() => document.activeElement.selectionEnd)).toBe('YOUR TEAM'.length);
+    await expect(page.locator('#texthint')).toContainText('sample words');
+    await page.keyboard.type('THE MILLERS');
+    expect(await page.evaluate(() => cornhole.design.a.elements.find((e) => e.type === 'text').text)).toBe('THE MILLERS');
+    expect(await page.isHidden('#texthint')).toBe(true);
+    await page.evaluate(() => cornhole.showTab('templates'));
+    await page.click('#startblank');
+    await page.waitForTimeout(150);
+    expect(await page.evaluate(() => cornhole.design.a.elements.length), 'blank means blank').toBe(0);
+    expect(await pixelAt(page, 'a', 12, 30)).toEqual([...NAVY, 255]);
+  });
+
+  test('the words are changed straight from the list, and the focus stays in the row while typing', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => { cornhole.addClip('heart'); cornhole.select(null); cornhole.showTab('text'); });
+    const q = page.locator('#texts input.quick');
+    expect(await q.count()).toBe(1);
+    await q.fill('');
+    await q.type('SMITH FAMILY');
+    expect(await page.evaluate(() => cornhole.design.a.elements[0].text)).toBe('SMITH FAMILY');
+    expect(await page.evaluate(() => document.activeElement.classList.contains('quick')), 'the field kept the focus').toBe(true);
+    expect(await page.evaluate(() => cornhole.selected), 'typing in a row selects it').toBe('t1');
+    const ink = await bounds(page, 'a', WHITE);
+    expect(ink.x1 - ink.x0, 'the board shows the new words').toBeGreaterThan(8);
+    /* Advanced controls are tucked away; the everyday ones are not. */
+    expect(await page.isHidden('#tsize')).toBe(false);
+    expect(await page.evaluate(() => document.getElementById('textmore').open)).toBe(false);
+    expect(await page.isHidden('#tarc')).toBe(true);
+  });
+
+  test('the review shows the boards, the choices and the breakdown, and holds sample words until they are confirmed', async ({ page }) => {
+    await open(page);
+    /* The page's own default still says YOUR TEAM. */
+    await page.evaluate(() => { cornhole.showTab('order'); cornhole.showOrderStep(2); });
+    expect(await page.locator('#reviewboards img').count()).toBe(1);
+    await expect(page.locator('#reviewlist')).toContainText('Set of 2 boards');
+    await expect(page.locator('#reviewquote')).toContainText('$308.00');
+    await expect(page.locator('#reviewnote')).toContainText('Bags are not included');
+    await expect(page.locator('#reviewnote')).toContainText('not guarantees');
+    await expect(page.locator('#reviewlist')).toContainText('Dispatch');
+    expect(await page.isHidden('#samplewarn')).toBe(false);
+    await expect(page.locator('#sampletext')).toContainText('YOUR TEAM');
+    expect(await page.isDisabled('#tocheckout'), 'not past the sample words without a say-so').toBe(true);
+    await page.check('#keepsamples');
+    expect(await page.isDisabled('#tocheckout')).toBe(false);
+    await page.click('#backtoedit');
+    expect(await page.getAttribute('#tab-text', 'data-open')).toBe('true');
+    await page.evaluate(() => { cornhole.design.a.elements[0].text = 'OUR REUNION'; cornhole.commit(); cornhole.setMode('b'); cornhole.showTab('order'); cornhole.showOrderStep(2); });
+    expect(await page.isHidden('#samplewarn')).toBe(true);
+    expect(await page.isDisabled('#tocheckout')).toBe(false);
+    expect(await page.locator('#reviewboards img').count(), 'two different boards, two pictures').toBe(2);
+  });
+
+  test('the date helper counts business days and never recommends a rush that cannot be done', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => cornhole.showTab('order'));
+    const plus = (days) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+    await setInput(page, 'needby', plus(3));
+    await expect(page.locator('#needbyhint')).toContainText('cannot be ready');
+    await expect(page.locator('#needbyhint')).not.toContainText('tick Rush');
+    await setInput(page, 'needby', plus(14));
+    await expect(page.locator('#needbyhint')).toContainText('tick Rush build');
+    await expect(page.locator('#needbyhint')).toContainText('delivery takes time on top');
+    await page.check('#rush');
+    await expect(page.locator('#needbyhint')).toContainText('cannot promise an arrival date');
+    await setInput(page, 'needby', plus(60));
+    await expect(page.locator('#needbyhint')).toContainText('Plenty of time');
+    await expect(page.locator('#leadtime')).toContainText('Dispatch');
+    await expect(page.locator('#leadtime')).toContainText('not guaranteed');
+  });
+
+  test('pricing is explained from the price list: the default is $249 plus $59 shipping, bags extra, contiguous US', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => cornhole.showTab('order'));
+    expect(await page.textContent('#headtotal')).toBe('$308.00');
+    await expect(page.locator('#quote')).toContainText('Shipping (contiguous US)');
+    await expect(page.locator('#quote tr.total')).toContainText('USD, before tax');
+    await expect(page.locator('#pricenote')).toContainText('2 regulation boards');
+    await expect(page.locator('#pricenote')).toContainText('Bags are not included');
+    await expect(page.locator('#pricenote')).toContainText('contiguous United States');
+    await page.click('#toreview');
+    await expect(page.locator('#shipnote')).toContainText('contiguous United States');
+    await expect(page.locator('#howdispatch')).toContainText('15 business days');
+    const states = await page.evaluate(() => [...document.querySelectorAll('#state option')].map((o) => o.value));
+    expect(states).not.toContain('AK'); expect(states).not.toContain('HI'); expect(states).toContain('TX');
+  });
+
+  test('a picture keeps its full-size master apart from the preview, warns when printed too big, and prints from the master', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => { cornhole.activeBoard().elements = []; });
+    await page.setInputFiles('#addimage', await picture(page, 1200, 600, 'image/jpeg', RED_JPEG));
+    await page.waitForFunction(() => cornhole.activeBoard().elements.some((e) => e.type === 'image'));
+    const el = await page.evaluate(() => cornhole.activeBoard().elements[0]);
+    expect(el.px).toEqual([1200, 600]);
+    expect(el.orig).toMatch(/^data:image\/jpeg/);
+    expect(await page.isHidden('#ireswarn'), '120 dots per inch at 10" wide is fine').toBe(true);
+    await setInput(page, 'iwidth', 24);
+    expect(await page.isHidden('#ireswarn')).toBe(false);
+    await expect(page.locator('#ireswarn')).toContainText('50 dots per inch');
+    await expect(page.locator('#ireswarn')).toContainText('blurry');
+    await page.evaluate(() => { cornhole.showTab('order'); cornhole.showOrderStep(2); });
+    expect(await page.isHidden('#reswarn')).toBe(false);
+    await expect(page.locator('#reswarn')).toContainText('50 dots per inch');
+    const printed = await page.evaluate(async () => { await cornhole.preloadImages(); const g = cornhole.printCanvas('a').getContext('2d'); return Array.from(g.getImageData(1200, 3000, 1, 1).data); });
+    expect(printed[0], 'red, within JPEG rounding').toBeGreaterThan(250); expect(printed[1]).toBeLessThan(6); expect(printed[2]).toBeLessThan(6);
+    const payload = await page.evaluate(() => cornhole.orderPayload());
+    expect(payload.options.assets).toBe('included');
+    expect(payload.design.a.elements[0].orig).toMatch(/^data:image\/jpeg/);
+  });
+
+  test('a lossless logo no bigger than the preview is kept once, and a huge one is re-encoded for print', async ({ page }) => {
+    await open(page); await reset(page);
+    await page.evaluate(() => { cornhole.activeBoard().elements = []; });
+    await page.setInputFiles('#addimage', await picture(page, 400, 400, 'image/png', RED_JPEG));
+    await page.waitForFunction(() => cornhole.activeBoard().elements.some((e) => e.type === 'image'));
+    let el = await page.evaluate(() => cornhole.activeBoard().elements[0]);
+    expect(el.orig).toBeUndefined(); expect(el.px).toEqual([400, 400]);
+    await page.evaluate(() => { cornhole.activeBoard().elements = []; });
+    await page.setInputFiles('#addimage', await picture(page, 5000, 2500, 'image/png', RED_JPEG));
+    await page.waitForFunction(() => cornhole.activeBoard().elements.some((e) => e.type === 'image'));
+    el = await page.evaluate(() => cornhole.activeBoard().elements[0]);
+    expect(el.px, 'the master is capped at 4000 on the long side').toEqual([4000, 2000]);
+    expect(el.orig.length).toBeLessThan(3_000_000 * 1.4);
+  });
+
+  for (const width of [360, 375, 390]) {
+    test('at ' + width + 'px the board stays pinned, the Review bar covers nothing, and a tap selects without the page dragging', async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await open(page); await reset(page);
+      expect(await page.locator('#canvasA').boundingBox().then((b) => b.width)).toBeLessThan(200);
+      expect(await page.isHidden('#mobilebar')).toBe(false);
+      const bar = await page.locator('#mobilebar').boundingBox();
+      const pad = await page.evaluate(() => parseFloat(getComputedStyle(document.body).paddingBottom));
+      expect(pad, 'the page leaves room for the bar').toBeGreaterThanOrEqual(bar.height - 2);
+      /* The controls are right under the board, not a screen away. */
+      const canvas = await page.locator('#canvasA').boundingBox(), tabs = await page.locator('.tabs').boundingBox();
+      expect(tabs.y - (canvas.y + canvas.height)).toBeLessThan(120);
+      expect(await page.evaluate(() => getComputedStyle(document.getElementById('canvasA')).touchAction), 'a finger on the board scrolls').toContain('pan-y');
+      const p = await clientPoint(page, 'a', 12, 30);
+      await page.mouse.click(p.x, p.y);
+      expect(await page.evaluate(() => cornhole.selected)).toBe('t1');
+      expect(await page.evaluate(() => getComputedStyle(document.getElementById('canvasA')).touchAction), 'with a selection the board takes the drag').toBe('none');
+      await page.evaluate(() => window.scrollTo(0, 500));
+      await page.waitForTimeout(100);
+      const after = await page.locator('#canvasA').boundingBox();
+      expect(after.y).toBeGreaterThanOrEqual(50); expect(after.y).toBeLessThan(180);
+      await page.click('#reviewbtn');
+      expect(await page.getAttribute('#tab-order', 'data-open')).toBe('true');
+      expect(await page.isHidden('#orderstep2')).toBe(false);
+      expect(await page.isHidden('#mobilebar'), 'the bar steps aside on the order tab').toBe(true);
+      await page.evaluate(() => cornhole.setMode('b'));
+      expect(await page.isHidden('#canvasA'), 'one compact preview: the board being edited').toBe(true);
+      expect(await page.isHidden('#canvasB')).toBe(false);
+      await expect(page.locator('#boardmode .chip[aria-pressed="true"]')).toHaveText('Board B');
+    });
+  }
+
+  test('on a tablet two different boards sit side by side under the switch', async ({ page }) => {
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await open(page); await reset(page);
+    await page.evaluate(() => cornhole.setMode('b'));
+    const [a, b] = await Promise.all([page.locator('#canvasA').boundingBox(), page.locator('#canvasB').boundingBox()]);
+    expect(a).not.toBeNull(); expect(b).not.toBeNull();
+    expect(Math.abs(a.y - b.y)).toBeLessThan(2);
+    expect(await page.isHidden('#mobilebar')).toBe(false);
   });
 });
