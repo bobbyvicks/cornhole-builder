@@ -58,6 +58,11 @@ test('Garden vows fits both long names inside their original spaces within the b
 test('a name that cannot fit at minimum size stays intact and shows a warning', async ({ page }) => {
   const original = await garden(page), line = original.AVERY;
   await selectLine(page, line.id);
+  // Keep the empty live region exposed before a warning arrives, so assistive
+  // technology can observe its update without routine visible instructions.
+  const status = page.getByRole('status').and(page.locator('#fitstatus'));
+  await expect(status).toHaveCount(1);
+  await expect(status).toBeEmpty();
   const longName = 'W'.repeat(60);
   await page.locator('#ttext').fill(longName);
   const fitted = await readLine(page, line.id);
@@ -65,10 +70,13 @@ test('a name that cannot fit at minimum size stays intact and shows a warning', 
   expect(fitted.text).toBe(longName);
   expect(fitted.width).toBeGreaterThan(line.width);
   await expect(page.locator('#fitstatus')).toHaveAttribute('data-state', 'warning');
+  await expect(status).toBeVisible();
   await expect(page.locator('#fitstatus')).toContainText('Shorten');
   await page.locator('#ttext').fill('AVA');
   expect((await readLine(page, line.id)).size).toBe(line.size);
   await expect(page.locator('#fitstatus')).toHaveAttribute('data-state', 'fit');
+  await expect(status).toHaveCount(1);
+  await expect(status).toBeEmpty();
 });
 
 test('repeated edits and a reload keep the original name budget instead of progressively shrinking it', async ({ page }) => {

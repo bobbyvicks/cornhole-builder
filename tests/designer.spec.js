@@ -940,10 +940,8 @@ test.describe('the audit: saving, keyboard, guidance, pricing, review and print 
     expect(await page.evaluate(() => cornhole.selected)).toBe(first);
     expect(await page.evaluate(() => document.activeElement.id)).toBe('ttext');
     expect(await page.evaluate(() => document.activeElement.selectionEnd)).toBe('YOUR TEAM'.length);
-    await expect(page.locator('#texthint')).toContainText('sample words');
     await page.keyboard.type('THE MILLERS');
     expect(await page.evaluate(() => cornhole.design.a.elements.find((e) => e.type === 'text').text)).toBe('THE MILLERS');
-    expect(await page.isHidden('#texthint')).toBe(true);
     await page.evaluate(() => cornhole.showTab('templates'));
     await page.click('#startblank');
     await page.waitForTimeout(150);
@@ -1322,7 +1320,6 @@ test.describe('the second audit round: saving as you type, focus that never fall
     const pad = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop));
     const covered = await page.evaluate(() => 60 + document.querySelector('.stage').offsetHeight);
     expect(pad, 'the header plus the stuck stage').toBeGreaterThanOrEqual(covered);
-    expect(await page.isHidden('#modehint')).toBe(true);
   });
 
   test('the rush line says about, from the one constant', async ({ page }) => {
