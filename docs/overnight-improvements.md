@@ -333,6 +333,54 @@ the clock and repository state before each run.
   functions. The Vercel permission limitation remains; do not assume this
   branch is live merely because its source is pushed.
 
+## Ninth increment - visible save recovery and unchanged-tab protection
+
+- Started from the clean `423e815` branch at about 4:55 a.m. Toronto. Fetch
+  confirmed main remained `06f7b0e`; the existing overnight PR was open and
+  mergeable with no deployment checks. Continued on the same branch.
+- Reproduced a real two-tab data-loss path: after one tab saves new words,
+  switching boards or entering order details in an unchanged older tab writes
+  its stale draft over them. Compare design and order against the last loaded
+  or successfully saved values before writing. Navigation now leaves the
+  shared stored record and its timestamp untouched. Immutable image strings
+  remain shared; no new project format or storage keys are introduced.
+- Keep saves queued while another write is pending, and remember the values
+  actually sent to storage rather than newer edits at completion. Real
+  IndexedDB regressions cover typing and undo during a pending save, unchanged
+  navigation in two tabs, and a fresh edit reverted before its first debounce.
+  Three of the six cases failed before the guard; all six passed afterward.
+  An untouched new page still says Not saved yet and creates no saved record.
+- On phones, show failed, stalled and unreadable save notices alongside the
+  preview while keeping routine saving/saved messages quiet. Refresh sticky
+  scroll spacing when an asynchronous notice changes toolbar height. Six
+  regressions at 320 and 375 pixels failed before the fix and passed afterward;
+  they check readable notices, focused editing, export and persisted contents.
+  Independently inspected the 320-pixel error screenshot for overlap/overflow.
+- A delayed empty-store read exposed a stale screen-reader announcement.
+  Once that check finishes, announce Not saved yet and clear the recovery flag;
+  ordinary fresh loads remain quiet. The new regression failed before the fix.
+- Replace misleading fallback contact/custom-order guidance: notes are sent
+  only with a successfully received order, and an unavailable contact method
+  is not replaced with an invented one. Explain the distinct uses of a shared
+  PNG preview, a full-size print file and an editable project. Manual desktop
+  and phone checks confirm the unavailable-order form keeps its inputs and
+  configured business copy still takes precedence. No pricing, checkout or
+  customer-message behavior changed.
+- Intentional edits in multiple tabs can still overwrite each other's saves.
+  Conflict detection and recovery of competing edits need a separate change;
+  the README now distinguishes that limitation from unchanged navigation.
+- Final clean `npm test`: **68 node tests, 266 Chromium browser tests and
+  TypeScript checks passed**. The first full run had two startup timeouts;
+  retained traces showed Chromium `ERR_NO_BUFFER_SPACE` fetching dependencies
+  before the app executed, with no response headers or syntax errors. Both
+  cases passed three focused reruns, then the entire frozen suite passed.
+  All seven save-notice cases also passed independently after the announcement
+  fix. Independent reviews found no remaining issues within this increment;
+  syntax and whitespace checks passed. Main remained `06f7b0e` on final fetch.
+- No production release or real order was made. The unresolved Vercel preview
+  access, physical iOS keyboard/native-sharing checks and owner-supplied
+  business configuration remain the same as in the previous increment.
+
 ## Next overnight priorities
 
 1. Check the existing overnight PR and remote main for Claude changes before editing.

@@ -173,7 +173,8 @@ status is separate from this source integration.
 - Shipping outside the contiguous US, and real carrier rates.
 - A shareable link for a design (images make the URL too long; it needs a
   saved-designs table).
-- Two tabs on the builder at once overwrite each other's saved project;
-  the newer save wins, with no warning.
+- Navigation in an unchanged tab leaves the shared saved project alone.
+  Making actual edits in two tabs can still overwrite each other's saved
+  project; conflict warnings and recovery of competing edits remain to be added.
 - The prices are placeholders, and `lib/site.mjs` is blank until the
   business fills it in.

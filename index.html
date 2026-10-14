@@ -267,6 +267,7 @@
     .board .label { font-size: 11.5px; }
     .stagebar { padding-top: 6px; margin-top: 4px; gap: 6px; }
     .stagebar .savestatus { display: none; }
+    .stagebar .savestatus:is([data-state="error"], [data-state="waiting"], [data-state="unreadable"]) { display: block; flex-basis: 100%; }
     #stagehint { display: none; }
     #download .long { display: none; }
     #download .short { display: inline; }

@@ -599,13 +599,16 @@ let saveState = 'new', saveBusy = false, saveAgain = false, storageReady = false
 let saveTimer = null, saveNeedsAnnouncement = false, restoreTimedOut = false;
 let startupSnapshot = null;
 let recoverySnapshot = null;
+let saveBaseline = null, saveBaselineState = 'new';
 const hasStartupEdits = () => startupSnapshot !== null && JSON.stringify({ design, order }) !== startupSnapshot;
 function setSaveState(s) {
   saveState = s;
   for (const el of document.querySelectorAll('.savestatus')) { el.textContent = SAVE_TEXT[s]; el.dataset.state = s; }
   if (['error', 'unreadable', 'waiting'].includes(s)) { saveNeedsAnnouncement = true; $('savealert').textContent = SAVE_TEXT[s]; }
-  else if (s === 'saved' && saveNeedsAnnouncement) { $('savealert').textContent = SAVE_TEXT[s]; saveNeedsAnnouncement = false; }
+  else if (['new', 'saved'].includes(s) && saveNeedsAnnouncement) { $('savealert').textContent = SAVE_TEXT[s]; saveNeedsAnnouncement = false; }
   $('exportlink').hidden = !['error', 'waiting'].includes(s);
+  // Recovery notices can resize the pinned toolbar after the last edit.
+  render();
 }
 function projectRecord() { return { version: PROJECT_VERSION, savedAt: new Date().toISOString(), design: JSON.parse(snapshot()), order: { ...order, bagColors: [...order.bagColors] } }; }
 function maySave() {
@@ -623,21 +626,38 @@ function maySave() {
   }
   return true;
 }
+function skipUnchangedSave() {
+  // Navigation also calls save. Keep an unchanged tab from replacing a
+  // newer draft written elsewhere. Container copies share image strings.
+  // A pending write must finish first: it may be replacing this baseline.
+  if (saveBusy || !sameHistoryState(saveBaseline, { design, order })) return false;
+  setSaveState(saveBaselineState);
+  return true;
+}
 function save() {
   clearTimeout(saveTimer); saveTimer = null;
   if (!maySave()) return;
+  if (skipUnchangedSave()) return;
   setSaveState('saving'); flush();
 }
 function saveSoon() {
   if (!maySave()) return;
-  clearTimeout(saveTimer);
+  clearTimeout(saveTimer); saveTimer = null;
+  if (skipUnchangedSave()) return;
   setSaveState('saving');
   saveTimer = setTimeout(() => { saveTimer = null; flush(); }, 400);
 }
 async function flush() {
   if (saveBusy) { saveAgain = true; return; }
+  if (skipUnchangedSave()) return;
   saveBusy = true;
-  try { await saveProject(projectRecord()); if (!saveAgain && !saveTimer) setSaveState('saved'); }
+  // Remember the values sent to storage, not edits made while it writes.
+  const written = copyHistoryState({ design, order });
+  try {
+    await saveProject(projectRecord());
+    saveBaseline = written; saveBaselineState = 'saved';
+    if (!saveAgain && !saveTimer) setSaveState('saved');
+  }
   catch (e) { console.warn('The project could not be saved on this device.', e); setSaveState('error'); }
   saveBusy = false;
   if (saveAgain) { saveAgain = false; flush(); }
@@ -1997,10 +2017,10 @@ function renderSite() {
   const name = SITE.name || 'Cornhole Board Builder';
   $('brand').textContent = name; document.title = name;
   const contact = [SITE.email && 'Email ' + SITE.email, SITE.phone && 'Phone ' + SITE.phone, SITE.address, SITE.hours].filter(Boolean);
-  $('contactcard').textContent = contact.length ? contact.join('. ') + '.' : 'Contact details are being set up. Until then, the notes box on the order form reaches us with your order.';
+  $('contactcard').textContent = contact.length ? contact.join('. ') + '.' : 'Contact details have not been added yet. Order notes are only submitted when an order is successfully received; they are not a separate way to contact the business.';
   $('deliverycard').textContent = SITE.delivery || (SHIP_NOTE + ' ' + dispatchNote());
-  $('customcard').textContent = SITE.customOrders || 'Need something the builder cannot do? Say so in the notes box on the order form.';
-  $('approvalcard').textContent = SITE.approval || 'The preview is the file we print from: what you see on the board is what we print, with the hole cut where it is shown. Check every word before you pay.';
+  $('customcard').textContent = SITE.customOrders || (contact.length ? 'For something the builder cannot do, confirm your requirements with the business before ordering.' : 'Custom-order details have not been added yet. Save an editable copy and wait for a confirmed contact method before ordering a custom request.');
+  $('approvalcard').textContent = SITE.approval || 'Check every word, colour and picture in your board design before ordering. Share preview creates an image for showing others; Print file creates full-size artwork. Save editable copy keeps a project you can reopen in the builder.';
   const photos = $('photos'); photos.textContent = ''; photos.hidden = !SITE.photos.length;
   for (const p of SITE.photos) { const img = new Image(); img.src = p.src; img.alt = p.alt || ''; img.loading = 'lazy'; photos.appendChild(img); }
   $('footer').textContent = name + '. Boards are regulation ACA/ACL size.' + (contact.length ? ' ' + contact.join('. ') + '.' : '');
@@ -2054,6 +2074,10 @@ renderSite();
       history = [copyHistoryState(design)]; future = [];
       syncAll(); unreadable = true;
     }
+  }
+  if (!editedDuringLoad) {
+    saveBaseline = copyHistoryState({ design, order });
+    saveBaselineState = restored ? 'saved' : unreadable ? 'unreadable' : 'new';
   }
   storageReady = true;
   if (editedDuringLoad) save();
