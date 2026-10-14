@@ -9,15 +9,20 @@ A site where people design their own cornhole boards and order them.
   colour, nineteen patterns, 35 fonts, curved text with spacing, outline and
   shadow, 107 pieces of vector clip art in seven groups, any colour, uploaded pictures with
   flip, circle crop and white-background removal. Drag, resize and rotate
-  on the board with handles, snap to centre, layer order, duplicate,
-  undo/redo, and the design is kept in the browser across reloads. One
-  design for both boards, or a different one each.
+  on the board with handles (a red x on the handles removes; so does the
+  button on each list row, and the Delete key), snap to centre, layer order,
+  duplicate, undo/redo, and the design is kept in the browser across
+  reloads. One design for both boards, or a different one each: switch
+  boards above the preview or by tapping one, copy one board to the other,
+  or make the other its colour opposite. On a phone the boards pin under the
+  header, the handles grow to finger size, and picking something up opens
+  the tab that edits it.
 - **Print file.** The same drawing code renders a 2400 x 4800 PNG at 100
   pixels per inch, with the hole marked as a hairline for the shop.
 - **Order.** Options (set or single, satin, gloss or a matte guest-book
   finish that wedding guests sign, bags in your colours, a carrying case,
   rush, quantity), the occasion and the date it is needed by, a gift note,
-  a live quote, a shipping form, and payment on Stripe Checkout. Orders land
+  a live quote, then the shipping form on a second screen, and payment on Stripe Checkout. Orders land
   in a Supabase table; the Stripe webhook marks them paid.
 
 Everything the customer sees is one static file, `index.html`, plus

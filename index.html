@@ -46,7 +46,7 @@
   @media (max-width: 940px) { .builder { grid-template-columns: 1fr; } }
 
   .stage { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; position: sticky; top: 72px; }
-  @media (max-width: 940px) { .stage { position: static; } }
+  .stagehead { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
   .boards { display: flex; gap: 24px; justify-content: center; align-items: flex-start; flex-wrap: wrap; padding: 12px 0 4px; }
   .board { display: flex; flex-direction: column; align-items: center; gap: 8px; width: min(100%, 260px); flex: 1 1 200px; max-width: 300px; }
   .board canvas { width: 100%; aspect-ratio: 1 / 2; display: block; border-radius: 6px; box-shadow: 0 14px 28px rgba(30, 20, 5, .25), 0 2px 4px rgba(0,0,0,.2); cursor: grab; touch-action: none; background: #ccc; }
@@ -54,8 +54,10 @@
   .board canvas.active { outline: 3px solid var(--accent); outline-offset: 4px; }
   .board .label { font-size: 13px; color: var(--muted); font-weight: 600; }
   .board.hidden { display: none; }
+  .board.inactive canvas { opacity: .7; }
   .stagebar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 8px; }
   .stagebar .group { display: flex; gap: 8px; flex-wrap: wrap; }
+  #download .short { display: none; }
   .hint { font-size: 12.5px; color: var(--muted); }
 
   .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 12px; cursor: pointer; font-weight: 600; }
@@ -101,6 +103,10 @@
   .item[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
   .item .thumb { width: 28px; height: 28px; border-radius: 6px; background: #eee center/contain no-repeat; flex: none; }
   .item .name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .itemrow { display: flex; gap: 6px; align-items: stretch; }
+  .itemrow .item { flex: 1; min-width: 0; }
+  .itemdel { flex: none; width: 36px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--bad); font-size: 20px; line-height: 1; cursor: pointer; padding: 0; }
+  .itemdel:hover { border-color: var(--bad); background: #fbeae9; }
   .props { border-top: 1px dashed var(--line); padding-top: 8px; margin-top: 8px; }
   .empty { color: var(--muted); font-size: 13.5px; padding: 6px 0; }
 
@@ -125,7 +131,20 @@
   form.order .full { grid-column: 1 / -1; }
   form.order label { display: block; font-size: 12.5px; font-weight: 600; color: var(--muted); margin-bottom: 3px; }
   form.order input, form.order select, form.order textarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #fff; }
-  form.order textarea { min-height: 64px; resize: vertical; }
+  form.order textarea { min-height: 48px; resize: vertical; }
+  #tab-order h3 { margin: 12px 0 6px; }
+  #tab-order h3:first-child { margin-top: 0; }
+  #tab-order .row { margin: 6px 0; }
+  #tab-order .stephead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  #tab-order .stephead h3 { margin: 0; }
+  .summary { font-size: 13.5px; color: var(--muted); margin: 6px 0 10px; }
+  #tab-order .qty { display: inline-flex; align-items: center; gap: 6px; flex: none; margin-left: auto; }
+  #tab-order .qty label { min-width: 0; }
+  #tab-order .qty input { width: 54px; min-width: 0; flex: none; border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; background: #fff; }
+  #tab-order .toggles { font-size: 13px; gap: 10px; }
+  #tab-order .toggles label { white-space: nowrap; }
+  #tab-order table.quote { margin: 4px 0 6px; }
+  #tab-order table.quote td { padding: 4px 0; }
   .status { margin-top: 10px; padding: 10px 12px; border-radius: 8px; font-size: 14px; display: none; }
   .status[data-kind="info"] { display: block; background: #eef2ff; color: #1c2f6e; }
   .status[data-kind="ok"] { display: block; background: #e8f5ec; color: #145a2a; }
@@ -139,6 +158,37 @@
   .step b { display: block; margin-bottom: 4px; }
   .step p { margin: 0; color: var(--muted); font-size: 14px; }
   footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; padding: 18px 0 30px; }
+
+  /* Phones and small tablets. The boards shrink and pin under the header,
+     so what is being edited stays in view while the controls scroll under
+     it; Board B hides while it is a copy of A; the handles are sized in
+     screen pixels by the script; and while a field has focus the boards
+     shrink again to leave room for the keyboard. */
+  @media (max-width: 940px) {
+    .builder { gap: 10px; padding: 6px 0 40px; }
+    .stage { position: sticky; top: 60px; z-index: 4; padding: 8px 10px 6px; }
+    .stagehead { margin-bottom: 2px; }
+    .boards { gap: 14px; padding: 2px 0 0; }
+    .board { width: auto; flex: 0 0 auto; max-width: none; gap: 3px; }
+    .board canvas { width: auto; height: min(34vh, 340px); }
+    body.typing .board canvas { height: min(20vh, 200px); }
+    .board.same { display: none; }
+    .board .label { font-size: 11.5px; }
+    .stagebar { padding-top: 6px; margin-top: 4px; gap: 6px; }
+    #stagehint { display: none; }
+    #download .long { display: none; }
+    #download .short { display: inline; }
+    .pane { padding: 12px; }
+    .chip { padding: 8px 12px; }
+    .btn { padding: 9px 12px; }
+    .btn.small { padding: 7px 10px; }
+    .hero { padding: 12px 0 2px; }
+    .hero p { display: none; }
+  }
+  @media (max-width: 600px) {
+    nav.site a { display: none; }
+    form.order { grid-template-columns: 1fr; }
+  }
   .sr { position: absolute; left: -9999px; }
 </style>
 </head>
@@ -168,6 +218,14 @@
 
   <div class="builder" id="builder">
     <section class="stage" aria-label="Board preview">
+      <div class="stagehead">
+        <div class="chips" id="boardmode" role="group" aria-label="Which board to edit">
+          <button class="chip" data-v="same" aria-pressed="true">Same on both</button>
+          <button class="chip" data-v="a" aria-pressed="false">Board A</button>
+          <button class="chip" data-v="b" aria-pressed="false">Board B</button>
+        </div>
+        <span class="hint" id="modehint" hidden>Tap a board to edit it</span>
+      </div>
       <div class="boards">
         <div class="board" id="boardA">
           <canvas id="canvasA" data-board="a" width="480" height="960" aria-label="Board A preview"></canvas>
@@ -185,10 +243,10 @@
           <button class="btn small" id="reset">Start over</button>
         </div>
         <div class="group">
-          <button class="btn small" id="download" title="A 2400 x 4800 PNG at 100 pixels per inch">Download print file</button>
+          <button class="btn small" id="download" title="A 2400 x 4800 PNG at 100 pixels per inch"><span class="long">Download print file</span><span class="short">Print file</span></button>
         </div>
       </div>
-      <p class="hint" id="stagehint">Drag anything on the board. Pull the corner square to resize and the round handle to rotate. Arrow keys nudge, + and - resize, Delete removes.</p>
+      <p class="hint" id="stagehint">Drag anything on the board. Pull the corner square to resize, the round handle to rotate, and the red &times; to remove. Arrow keys nudge, + and - resize, Delete removes.</p>
     </section>
 
     <aside class="panel" aria-label="Design options">
@@ -208,17 +266,10 @@
 
       <div class="pane" id="tab-board" data-open="false">
         <h3>Boards</h3>
-        <div class="row" id="samerow">
-          <label for="same" class="auto">
-            <input type="checkbox" id="same" checked> Same design on both boards
-          </label>
-        </div>
-        <div class="row" id="whichrow" hidden>
-          <label>Editing</label>
-          <div class="chips" id="which">
-            <button class="chip" data-v="a" aria-pressed="true">Board A</button>
-            <button class="chip" data-v="b" aria-pressed="false">Board B</button>
-          </div>
+        <p class="hint" id="boardshint"></p>
+        <div class="row" id="boardactions" hidden>
+          <button class="btn small" id="copyother"></button>
+          <button class="btn small" id="swapcolours" title="The other board gets this design with its two main colours switched - the classic look for a set"></button>
         </div>
 
         <h3>Base</h3>
@@ -315,50 +366,57 @@
       </div>
 
       <div class="pane" id="tab-order" data-open="false">
-        <h3>What you're ordering</h3>
-        <div class="chips" id="product"></div>
-        <div class="row" style="margin-top:10px"><label for="qty">Quantity</label><input type="number" id="qty" min="1" max="10" value="1" style="max-width:90px"></div>
-        <h3>Finish</h3>
-        <div class="chips" id="finish"></div>
-        <p class="hint" id="finishhint"></p>
-        <h3>Extras</h3>
-        <div class="chips" id="bags"></div>
-        <div class="row" id="bagcolors" hidden>
-          <label>Bag colours</label>
-          <input type="color" id="bag1" value="#c8102e"> <input type="color" id="bag2" value="#1f3a93">
-          <span class="hint">4 of each</span>
+        <div id="orderstep1">
+          <h3>What you're ordering</h3>
+          <div class="row">
+            <div class="chips" id="product"></div>
+            <span class="qty"><label for="qty">Qty</label><input type="number" id="qty" min="1" max="10" value="1"></span>
+          </div>
+          <h3>Finish and extras</h3>
+          <div class="chips" id="finish"></div>
+          <p class="hint" id="finishhint" hidden></p>
+          <div class="row">
+            <div class="chips" id="bags"></div>
+            <span id="bagcolors" hidden><input type="color" id="bag1" value="#c8102e"> <input type="color" id="bag2" value="#1f3a93"> <span class="hint">4 of each</span></span>
+          </div>
+          <div class="row toggles">
+            <label><input type="checkbox" id="carrycase"> <span id="caselabel"></span></label>
+            <label><input type="checkbox" id="rush"> <span id="rushlabel"></span></label>
+          </div>
+          <h3>The occasion</h3>
+          <div class="row">
+            <label for="occasion">It's for</label><select id="occasion"></select>
+            <label for="needby" class="auto">by</label><input type="date" id="needby" title="The date you need it by (optional)">
+          </div>
+          <p class="hint" id="needbyhint" hidden></p>
+          <div class="row"><label for="giftnote">Gift note</label><input type="text" id="giftnote" maxlength="300" placeholder="Printed on a card in the box (optional)"></div>
+          <h3>Price</h3>
+          <table class="quote" id="quote"></table>
+          <p class="hint" id="leadtime"></p>
+          <button class="btn primary" type="button" id="tocheckout" style="width:100%;padding:12px">Continue to your details</button>
         </div>
-        <div class="row toggles">
-          <label><input type="checkbox" id="carrycase"> <span id="caselabel"></span></label>
+        <div id="orderstep2" hidden>
+          <div class="stephead">
+            <h3>Your details</h3>
+            <button class="btn small" type="button" id="backtoorder">&larr; Back to the order</button>
+          </div>
+          <p class="summary" id="ordersummary"></p>
+          <form class="order" id="orderform" novalidate>
+            <div><label for="name">Name</label><input id="name" name="name" autocomplete="name" required maxlength="100"></div>
+            <div><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required maxlength="200"></div>
+            <div class="full"><label for="line1">Street address</label><input id="line1" name="line1" autocomplete="address-line1" required maxlength="120"></div>
+            <div><label for="line2">Apartment, suite (optional)</label><input id="line2" name="line2" autocomplete="address-line2" maxlength="120"></div>
+            <div><label for="city">City</label><input id="city" name="city" autocomplete="address-level2" required maxlength="80"></div>
+            <div><label for="state">State</label><select id="state" name="state" autocomplete="address-level1" required></select></div>
+            <div><label for="postal">ZIP</label><input id="postal" name="postal" autocomplete="postal-code" required inputmode="numeric" pattern="\d{5}(-\d{4})?"></div>
+            <div><label for="phone">Phone (for the carrier)</label><input id="phone" name="phone" type="tel" autocomplete="tel" maxlength="40"></div>
+            <div><label for="country">Country</label><select id="country" name="country"><option value="US">United States</option></select></div>
+            <div class="full"><label for="notes">Anything we should know? (optional)</label><textarea id="notes" name="notes" maxlength="2000"></textarea></div>
+            <div class="full"><button class="btn primary" type="submit" id="checkout" style="width:100%;padding:12px">Continue to payment</button></div>
+          </form>
+          <div class="status" id="orderstatus" role="status"></div>
+          <p class="hint">Payment is taken on a secure Stripe page. We ship to the contiguous United States. Sales tax, where it applies, is added at checkout.</p>
         </div>
-        <div class="row toggles"><label><input type="checkbox" id="rush"> <span id="rushlabel"></span></label></div>
-
-        <h3>The occasion</h3>
-        <div class="row"><label for="occasion">It's for</label><select id="occasion"></select></div>
-        <div class="row"><label for="needby">Needed by</label><input type="date" id="needby"><span class="hint">optional</span></div>
-        <p class="hint" id="needbyhint"></p>
-        <div class="row"><label for="giftnote">Gift note</label><input type="text" id="giftnote" maxlength="300" placeholder="Printed on a card in the box (optional)"></div>
-
-        <h3>Price</h3>
-        <table class="quote" id="quote"></table>
-        <p class="hint" id="leadtime"></p>
-
-        <h3>Your details</h3>
-        <form class="order" id="orderform" novalidate>
-          <div><label for="name">Name</label><input id="name" name="name" autocomplete="name" required maxlength="100"></div>
-          <div><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required maxlength="200"></div>
-          <div class="full"><label for="phone">Phone (for the carrier)</label><input id="phone" name="phone" type="tel" autocomplete="tel" maxlength="40"></div>
-          <div class="full"><label for="line1">Street address</label><input id="line1" name="line1" autocomplete="address-line1" required maxlength="120"></div>
-          <div class="full"><label for="line2">Apartment, suite (optional)</label><input id="line2" name="line2" autocomplete="address-line2" maxlength="120"></div>
-          <div><label for="city">City</label><input id="city" name="city" autocomplete="address-level2" required maxlength="80"></div>
-          <div><label for="state">State</label><select id="state" name="state" autocomplete="address-level1" required></select></div>
-          <div><label for="postal">ZIP</label><input id="postal" name="postal" autocomplete="postal-code" required inputmode="numeric" pattern="\d{5}(-\d{4})?"></div>
-          <div><label for="country">Country</label><select id="country" name="country"><option value="US">United States</option></select></div>
-          <div class="full"><label for="notes">Anything we should know? (optional)</label><textarea id="notes" name="notes" maxlength="2000"></textarea></div>
-          <div class="full"><button class="btn primary" type="submit" id="checkout" style="width:100%;padding:12px">Continue to payment</button></div>
-        </form>
-        <div class="status" id="orderstatus" role="status"></div>
-        <p class="hint">Payment is taken on a secure Stripe page. We ship to the contiguous United States. Sales tax, where it applies, is added at checkout.</p>
       </div>
     </aside>
   </div>

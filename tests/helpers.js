@@ -27,6 +27,7 @@ export const reset = (page) => page.evaluate(() => {
       elements: [{ type: 'text', id: 't1', text: 'HELLO', font: 'Impact', size: 4, color: '#ffffff', outline: '#000000', outlineWidth: 0, x: 12, y: 30, rotation: 0, arc: 0, spacing: 0, shadow: false }] },
     b: { base: { kind: 'paint', color: '#1f3a93', color2: '#4fa3e3', angle: 180, stain: 'walnut' }, pattern: { kind: 'none', color: '#f5f5f0', size: 3 }, elements: [] } });
   cornhole.setOrder({ product: 'set', quantity: 1, finish: 'satin', bags: 'none', rush: false, carryCase: false, occasion: 'other', needBy: '', giftNote: '' });
+  cornhole.showOrderStep(1);
   cornhole.showTab('board');
   cornhole.paint();
 });
@@ -38,16 +39,12 @@ const ART = `const __prev = cornhole.selected; if (__prev) cornhole.select(null)
 const BACK = `if (__prev) { cornhole.select(__prev); cornhole.paint(); }`;
 
 
-/** Client coordinates of a selected element's handle: 'resize' or 'rotate'. */
+/** Client coordinates of a selected element's handle: 'resize', 'rotate' or 'delete'. */
 export const handlePoint = (page, id, which) => page.evaluate(([id, which]) => {
   cornhole.paint();
-  const el = cornhole.activeBoard().elements.find((e) => e.id === id), box = cornhole.boxes.get(id);
-  const lx = which === 'resize' ? box.w / 2 + 0.15 : 0;
-  const ly = which === 'resize' ? box.h / 2 + 0.15 + box.oy : -box.h / 2 - 0.15 + box.oy - 0.9;
-  const a = el.rotation * Math.PI / 180;
-  const x = el.x + lx * Math.cos(a) - ly * Math.sin(a), y = el.y + lx * Math.sin(a) + ly * Math.cos(a);
+  const p = cornhole.handlePoints(id)[which];
   const r = document.getElementById('canvasA').getBoundingClientRect();
-  return { x: r.left + x / 24 * r.width, y: r.top + y / 48 * r.height, bx: x, by: y };
+  return { x: r.left + p.x / 24 * r.width, y: r.top + p.y / 48 * r.height, bx: p.x, by: p.y };
 }, [id, which]);
 
 /** The colour under a point given in inches on a board's preview canvas. */

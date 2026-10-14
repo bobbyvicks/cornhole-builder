@@ -370,12 +370,36 @@ function renderBoard(ctx, b, ppi, { print = false } = {}) {
   ctx.restore();
 }
 
+/* Handle geometry, in inches, set at each paint from the preview's size on
+   screen: a handle is about 14 px wide on a phone and on a desktop alike,
+   though the 24" board shows at 150 px on one and 300 px on the other. */
 const HANDLE = { size: 0.6, rotateGap: 0.9, hit: 0.9 };
+function sizeHandles() {
+  const r = $('canvasA').getBoundingClientRect();
+  const css = r.width > 0 ? r.width / BOARD.w : 12;   // CSS pixels per inch
+  HANDLE.size = clamp(14 / css, 0.6, 3);
+  HANDLE.hit = clamp(20 / css, 0.9, 4.5);
+  HANDLE.rotateGap = HANDLE.size * 1.5;
+}
+/* Where a selected element's handles sit, in its own (rotated) frame. */
+function handleSpots(el) {
+  const box = boxes.get(el.id); if (!box) return null;
+  const rx = box.w / 2 + 0.15, top = -box.h / 2 - 0.15 + box.oy, bottom = box.h / 2 + 0.15 + box.oy;
+  return { resize: [rx, bottom], delete: [rx, top], rotate: [0, top - HANDLE.rotateGap] };
+}
+/* The same in board inches, for the tests. */
+function handlePoints(id) {
+  const el = findEl(id), spots = el && handleSpots(el); if (!spots) return null;
+  const a = rad(el.rotation), out = {};
+  for (const [k, [lx, ly]] of Object.entries(spots)) out[k] = { x: el.x + lx * Math.cos(a) - ly * Math.sin(a), y: el.y + lx * Math.sin(a) + ly * Math.cos(a) };
+  return out;
+}
 const guides = { v: false, h: false };
 let raf = 0;
 function render() { if (!raf) raf = requestAnimationFrame(paint); }
 function paint() {
   raf = 0;
+  sizeHandles();
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const ppi = 20 * dpr;
   for (const key of ['a', 'b']) {
@@ -405,12 +429,17 @@ function paint() {
         ctx.lineDashOffset = 8 / ppi; ctx.strokeStyle = '#1f3a93'; ctx.strokeRect(x0, y0, bw, bh);
         ctx.setLineDash([]);
         /* The handles: a square at the bottom-right corner to resize, a
-           circle above the top edge to rotate. */
+           circle above the top edge to rotate, a red x at the top-right
+           corner to remove. */
         const hs = HANDLE.size;
         ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#1f3a93'; ctx.lineWidth = 2 / ppi;
         ctx.fillRect(x0 + bw - hs / 2, y0 + bh - hs / 2, hs, hs); ctx.strokeRect(x0 + bw - hs / 2, y0 + bh - hs / 2, hs, hs);
         ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(0, y0 - HANDLE.rotateGap + hs / 2); ctx.stroke();
         ctx.beginPath(); ctx.arc(0, y0 - HANDLE.rotateGap, hs / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        const dx = x0 + bw, dr = hs * 0.6, k = hs * 0.25;
+        ctx.beginPath(); ctx.arc(dx, y0, dr, 0, Math.PI * 2); ctx.fillStyle = '#b3261e'; ctx.fill();
+        ctx.strokeStyle = '#ffffff'; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(dx - k, y0 - k); ctx.lineTo(dx + k, y0 + k); ctx.moveTo(dx + k, y0 - k); ctx.lineTo(dx - k, y0 + k); ctx.stroke();
         ctx.restore();
       }
     }
@@ -490,12 +519,18 @@ function hitTest(b, ix, iy) {
   return null;
 }
 function handleAt(el, ix, iy) {
-  const box = boxes.get(el.id); if (!box) return null;
+  const spots = handleSpots(el); if (!spots) return null;
+  const oy = boxes.get(el.id).oy || 0;
   const l = toLocal(el, ix, iy);
-  const rx = box.w / 2 + 0.15, ry = box.h / 2 + 0.15 + box.oy;
-  if (Math.hypot(l.x - rx, l.y - ry) <= HANDLE.hit) return 'resize';
-  if (Math.hypot(l.x, l.y - (-box.h / 2 - 0.15 + box.oy - HANDLE.rotateGap)) <= HANDLE.hit) return 'rotate';
-  return null;
+  let best = null, bd = Infinity;
+  for (const [name, [x, y]] of Object.entries(spots)) {
+    /* A handle reaches HANDLE.hit inches, but never more than part of the
+       way to the element's centre, so a small element can still be picked
+       up by its middle. The nearest handle within reach wins. */
+    const d = Math.hypot(l.x - x, l.y - y), reach = Math.min(HANDLE.hit, 0.6 * Math.hypot(x, y - oy));
+    if (d <= reach && d < bd) { bd = d; best = name; }
+  }
+  return best;
 }
 function toInches(c, ev) {
   const r = c.getBoundingClientRect();
@@ -511,8 +546,14 @@ for (const c of [$('canvasA'), $('canvasB')]) {
     const p = toInches(c, ev);
     const sel = selectedEl();
     const handle = sel && (design.same ? key === 'a' : key === active) ? handleAt(sel, p.x, p.y) : null;
+    if (handle === 'delete') { removeElement(sel.id); ev.preventDefault(); return; }
     let el = sel;
-    if (!handle) { el = hitTest(activeBoard(), p.x, p.y); select(el ? el.id : null); }
+    if (!handle) {
+      el = hitTest(activeBoard(), p.x, p.y); select(el ? el.id : null);
+      /* Picking something up opens the tab that edits it, so on a phone
+         its controls are right under the board. */
+      if (el) showTab(el.type === 'text' ? 'text' : 'art');
+    }
     if (!el) return;
     const box = boxes.get(el.id) || { oy: 0 };
     const l = toLocal(el, p.x, p.y);
@@ -577,13 +618,20 @@ function chips(id, onPick) {
 function setChip(id, v) { for (const b of $(id).querySelectorAll('.chip')) b.setAttribute('aria-pressed', String(b.dataset.v === v)); }
 function setRange(id, v, label) { $(id).value = v; $(id + 'val').textContent = label; }
 
-function setActive(key) { active = key; selected = null; setChip('which', key); syncAll(); }
+function setActive(key) { active = key; selected = null; syncAll(); }
 function select(id) { selected = id; render(); syncLists(); syncProps(); }
 function showTab(name) {
   for (const b of document.querySelectorAll('.tabs [role=tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === name));
   for (const p of document.querySelectorAll('.pane')) p.dataset.open = String(p.id === 'tab-' + name);
 }
 document.querySelector('.tabs').addEventListener('click', (ev) => { const b = ev.target.closest('[role=tab]'); if (b) showTab(b.dataset.tab); });
+/* While a field in the panel has focus on a phone, the keyboard takes half
+   the screen: the boards shrink (see the stylesheet) so the field and the
+   board both stay in view. */
+const panel = document.querySelector('aside.panel');
+const TYPING = 'input:not([type=checkbox]):not([type=color]):not([type=range]):not([type=file]), textarea, select';
+panel.addEventListener('focusin', (ev) => { if (ev.target.matches(TYPING)) document.body.classList.add('typing'); });
+panel.addEventListener('focusout', () => setTimeout(() => { const a = document.activeElement; if (!a || !panel.contains(a) || !a.matches(TYPING)) document.body.classList.remove('typing'); }, 50));
 
 // -- templates
 function applyTemplate(id) {
@@ -634,18 +682,46 @@ $('patcolor').addEventListener('input', () => { activeBoard().pattern.color = $(
 $('patcolor').addEventListener('change', commit);
 $('patsize').addEventListener('input', () => { activeBoard().pattern.size = Number($('patsize').value); $('patsizeval').textContent = $('patsize').value + '"'; render(); });
 $('patsize').addEventListener('change', commit);
-$('same').addEventListener('change', () => {
-  design.same = $('same').checked;
-  if (!design.same && !design.b.elements.length && JSON.stringify(design.b) === JSON.stringify(freshBoard())) {
-    /* Splitting the boards starts B as a copy of A, with fresh ids, so the
-       person edits from what they have rather than from a blank board. */
-    design.b = JSON.parse(JSON.stringify(design.a));
-    for (const e of design.b.elements) e.id = uid();
+/* Two boards: one design on both, or each its own. The switch sits above
+   the preview; tapping a board switches too. Going from one design to two
+   starts B as a copy of A, with fresh ids, unless B already has a design
+   of its own from earlier. */
+function withFreshIds(b) { const c = JSON.parse(JSON.stringify(b)); for (const e of c.elements) e.id = uid(); return c; }
+function setMode(v) {
+  if (v === 'same') { design.same = true; active = 'a'; }
+  else {
+    if (design.same && !design.b.elements.length && JSON.stringify(design.b) === JSON.stringify(freshBoard())) design.b = withFreshIds(design.a);
+    design.same = false; active = v;
   }
-  if (design.same) setActive('a'); else syncAll();
-  commit();
-});
-chips('which', (v) => setActive(v));
+  selected = null; syncAll(); commit();
+}
+chips('boardmode', setMode);
+const otherKey = () => (active === 'a' ? 'b' : 'a');
+$('copyother').addEventListener('click', () => { design[otherKey()] = withFreshIds(activeBoard()); syncAll(); commit(); });
+/* The classic set: the other board is this one with its two main colours
+   exchanged - the board colour and the colour of the first text (or clip,
+   or the pattern). Everything in either colour switches, and anything
+   left that no longer reads against the new board (a second shade of the
+   old board colour, say) takes the old board colour instead. */
+const rgb = (hex) => { const n = parseInt(hex.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
+const lum = (hex) => { const [r, g, b] = rgb(hex).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+const contrast = (a, b) => { const la = lum(a), lb = lum(b); return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05); };
+function oppositeColours(src) {
+  const b = withFreshIds(src);
+  const low = (c) => (c || '').toLowerCase(), isHex = (c) => /^#[0-9a-f]{6}$/.test(low(c));
+  const c1 = b.base.kind !== 'wood' ? low(b.base.color) : (b.pattern.kind !== 'none' ? low(b.pattern.color) : '');
+  const second = b.elements.find((e) => e.type !== 'image' && low(e.color) !== c1);
+  const c2 = second ? low(second.color) : (b.pattern.kind !== 'none' && low(b.pattern.color) !== c1 ? low(b.pattern.color) : '');
+  if (!c1 || !c2) return b;
+  const sw = (c) => (low(c) === c1 ? c2 : low(c) === c2 ? c1 : c);
+  b.base.color = sw(b.base.color); b.base.color2 = sw(b.base.color2); b.pattern.color = sw(b.pattern.color);
+  for (const e of b.elements) if (e.type !== 'image') {
+    e.color = sw(e.color); e.outline = sw(e.outline);
+    if (b.base.kind !== 'wood' && isHex(e.color) && isHex(b.base.color) && contrast(e.color, b.base.color) < 1.8) e.color = c1;
+  }
+  return b;
+}
+$('swapcolours').addEventListener('click', () => { design[otherKey()] = oppositeColours(activeBoard()); syncAll(); commit(); });
 
 function syncBoard() {
   const b = activeBoard();
@@ -663,13 +739,24 @@ function syncBoard() {
   $('patcolor').value = b.pattern.color;
   $('patsize').value = b.pattern.size; $('patsizeval').textContent = b.pattern.size + '"';
   $('patternopts').style.visibility = b.pattern.kind === 'none' ? 'hidden' : 'visible';
-  $('same').checked = design.same;
-  const twoBoards = order.product === 'set';
-  $('samerow').hidden = !twoBoards;
-  $('whichrow').hidden = design.same || !twoBoards;
+  const twoBoards = order.product === 'set', split = twoBoards && !design.same, other = active === 'a' ? 'b' : 'a';
+  setChip('boardmode', design.same ? 'same' : active);
+  $('boardmode').hidden = !twoBoards;
+  $('modehint').hidden = !split;
+  $('boardactions').hidden = !split;
+  $('copyother').textContent = 'Copy to Board ' + other.toUpperCase();
+  $('swapcolours').textContent = 'Board ' + other.toUpperCase() + ' in the opposite colours';
+  $('boardshint').textContent = !twoBoards ? 'A single board.'
+    : design.same ? 'One design on both boards. For two different boards, pick Board A or Board B above the preview.'
+    : 'Editing Board ' + active.toUpperCase() + '. Tap the other board in the preview to switch. Same on both goes back to one design.';
   $('boardB').classList.toggle('hidden', !twoBoards);
-  $('boardB').querySelector('.label').textContent = design.same ? 'Board B (same as A)' : 'Board B';
-  for (const s of document.querySelectorAll('.activename')) s.textContent = (design.same || !twoBoards) ? 'your board' : 'board ' + active.toUpperCase();
+  $('boardB').classList.toggle('same', design.same);
+  for (const k of ['a', 'b']) {
+    const box = $('board' + k.toUpperCase()), editing = split && active === k;
+    box.classList.toggle('inactive', split && active !== k);
+    box.querySelector('.label').textContent = 'Board ' + k.toUpperCase() + (editing ? ' - editing' : k === 'b' && design.same ? ' (same as A)' : '');
+  }
+  for (const s of document.querySelectorAll('.activename')) s.textContent = split ? 'board ' + active.toUpperCase() : 'your board';
 }
 
 // -- text tab
@@ -823,7 +910,14 @@ function itemButton(el, pressed, onClick) {
   n.textContent = el.type === 'image' ? 'Picture, ' + el.width + '" wide' : el.type === 'clip' ? (CLIPS[el.name] || {}).label + ', ' + el.width + '"' : el.text;
   if (el.type === 'text') n.style.fontFamily = '"' + el.font + '", Impact, sans-serif';
   b.append(t, n); b.addEventListener('click', onClick);
-  return b;
+  /* Each row carries its own remove button, so nothing has to be selected
+     first to be taken off the board. */
+  const row = document.createElement('div'); row.className = 'itemrow';
+  const x = document.createElement('button'); x.type = 'button'; x.className = 'itemdel'; x.dataset.id = el.id;
+  x.title = 'Remove'; x.setAttribute('aria-label', 'Remove ' + n.textContent); x.textContent = '×';
+  x.addEventListener('click', () => removeElement(el.id));
+  row.append(b, x);
+  return row;
 }
 function syncLists() {
   const b = activeBoard();
@@ -871,14 +965,14 @@ function fillChips(id, table) {
   for (const [k, v] of Object.entries(table)) {
     const b = document.createElement('button'); b.className = 'chip'; b.type = 'button'; b.dataset.v = k;
     const price = id === 'product' ? money(v.cents) : (v.cents ? '+' + money(v.cents) : '');
-    b.textContent = v.label + ' ';
+    b.textContent = (v.short || v.label) + ' ';
     if (price) { const s = document.createElement('small'); s.textContent = price; b.appendChild(s); }
     box.appendChild(b);
   }
 }
 fillChips('product', PRICING.products); fillChips('finish', PRICING.finishes); fillChips('bags', PRICING.bags);
-$('rushlabel').textContent = PRICING.rush.label + ' (+' + money(PRICING.rush.cents) + ')';
-$('caselabel').textContent = PRICING.carryCase.label + ' (+' + money(PRICING.carryCase.cents) + ' each)';
+$('rushlabel').textContent = (PRICING.rush.short || PRICING.rush.label) + ' (+' + money(PRICING.rush.cents) + ')';
+$('caselabel').textContent = (PRICING.carryCase.short || PRICING.carryCase.label) + ' (+' + money(PRICING.carryCase.cents) + ')';
 $('leadtime').textContent = 'Built to order. Standard orders ship in about ' + PRICING.leadTimeDays + ' business days.';
 $('finishhint').textContent = 'The guest-book finish is a smooth matte clear coat that takes paint pens: guests sign the boards at the reception, and the signatures are sealed under a second coat of your choice afterwards (we include the kit).';
 for (const s of US_STATES) { const o = document.createElement('option'); o.value = s; o.textContent = s; $('state').appendChild(o); }
@@ -895,6 +989,11 @@ $('bag2').addEventListener('input', () => { order.bagColors[1] = $('bag2').value
 $('occasion').addEventListener('change', () => { order.occasion = $('occasion').value; syncOrder(); });
 $('needby').addEventListener('change', () => { order.needBy = $('needby').value; syncOrder(); });
 $('giftnote').addEventListener('input', () => { order.giftNote = $('giftnote').value; });
+/* The tab is two screens, each about the height of the other tabs: the
+   order and its price first, the address after Continue. */
+function showOrderStep(n) { $('orderstep1').hidden = n !== 1; $('orderstep2').hidden = n !== 2; }
+$('tocheckout').addEventListener('click', () => showOrderStep(2));
+$('backtoorder').addEventListener('click', () => showOrderStep(1));
 
 function syncOrder() {
   setChip('product', order.product); setChip('finish', order.finish); setChip('bags', order.bags);
@@ -909,7 +1008,8 @@ function syncOrder() {
     const lead = order.rush ? 7 : Math.round(PRICING.leadTimeDays * 1.4) + 7;
     hint = days < lead ? 'That is ' + days + ' days away. Standard orders take about ' + Math.round(PRICING.leadTimeDays * 1.4) + ' days plus shipping' + (order.rush ? ', and even rush is tight - email us first.' : ', so tick Rush build to make it.') : 'Plenty of time - we will plan the build around it.';
   }
-  $('needbyhint').textContent = hint;
+  $('needbyhint').textContent = hint; $('needbyhint').hidden = !hint;
+  $('finishhint').hidden = order.finish !== 'guestbook';
   const q = quote(order);
   const t = $('quote'); t.textContent = '';
   for (const l of q.lines) {
@@ -917,6 +1017,7 @@ function syncOrder() {
   }
   const tr = t.insertRow(); tr.className = 'total'; tr.insertCell().textContent = 'Total'; tr.insertCell().textContent = money(q.total);
   $('headtotal').textContent = money(q.total);
+  $('ordersummary').textContent = q.lines.slice(0, -1).map((l) => (l.qty > 1 ? l.qty + ' x ' : '') + l.label).join(', ') + ', shipped to your door: ' + money(q.total) + '.';
   return q;
 }
 
@@ -1034,5 +1135,5 @@ window.cornhole = {
   setDesign(d) { design = migrate(JSON.parse(JSON.stringify(d))); selected = null; syncAll(); commit(); },
   setOrder(o) { Object.assign(order, o); syncAll(); },
   select, commit, undo, redo, render, paint, showTab, printCanvas, previewDataUrl, orderPayload,
-  activeBoard, addClip, applyTemplate, migrate,
+  activeBoard, addClip, applyTemplate, migrate, showOrderStep, handlePoints, setMode,
 };
