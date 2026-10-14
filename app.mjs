@@ -964,20 +964,14 @@ function applyBlank() {
   selected = null; active = 'a';
   syncAll(); commit(); promptForWords();
 }
-/* Straight to the words: the first text is selected and ready to type
-   over, with a line saying so. */
+/* Straight to the words: the first text is selected and ready to type over. */
 function promptForWords() {
   const first = design.a.elements.find((e) => e.type === 'text');
   showTab('text');
-  const hint = $('texthint');
   if (first) {
     select(first.id);
-    hint.textContent = 'Replace the sample words below. Long names resize to fit; choose any line to change its font and colours.';
-    hint.hidden = false;
     const i = $('ttext'); i.focus(); i.select();
   } else {
-    hint.textContent = 'A blank board. Add your first words with the button below, then colours and art from the other tabs.';
-    hint.hidden = false;
     $('addtext').focus();
   }
 }
@@ -1009,8 +1003,7 @@ function renderTemplates() {
       c.setAttribute('aria-hidden', 'true');
       renderBoard(c.getContext('2d'), t.board(), 128 * 2 / BOARD.h);
       const s = document.createElement('span'); s.textContent = t.label;
-      const action = document.createElement('small'); action.className = 'tpl-action'; action.textContent = 'Personalize design'; action.setAttribute('aria-hidden', 'true');
-      b.append(c, s, action);
+      b.append(c, s);
       b.addEventListener('click', () => askThenApply('the ' + t.label + ' template', () => applyTemplate(t.id)));
       grid.appendChild(b);
     }
@@ -1124,13 +1117,9 @@ function syncBoard() {
   const twoBoards = order.product === 'set', split = twoBoards && !design.same, other = active === 'a' ? 'b' : 'a';
   setChip('boardmode', design.same ? 'same' : active);
   $('boardmode').hidden = !twoBoards;
-  $('modehint').hidden = !split;
   $('boardactions').hidden = !split;
   $('copyother').textContent = 'Copy to Board ' + other.toUpperCase();
   $('swapcolours').textContent = 'Board ' + other.toUpperCase() + ' in the opposite colours';
-  $('boardshint').textContent = !twoBoards ? 'A single board.'
-    : design.same ? 'One design on both boards. For two different boards, pick Board A or Board B above the preview.'
-    : 'Editing Board ' + active.toUpperCase() + '. Switch with Board A and Board B above the preview. Both boards match goes back to one design.';
   $('boardB').classList.toggle('hidden', !twoBoards);
   $('boardB').classList.toggle('same', design.same);
   for (const k of ['a', 'b']) {
@@ -1175,17 +1164,19 @@ function syncPersonalization() {
   const host = $('personalization'); if (!host) return;
   const el = selectedEl(); host.hidden = !el || el.type !== 'text'; if (host.hidden) return;
   if (!host.childElementCount) {
-    host.innerHTML = '<p class="hint">Change each line below, then choose your colours. Select a line to adjust its font and placement.</p><div class="personalization-actions"><label><input type="checkbox" id="autofittext"> Keep this line within its original space</label><button class="btn small" id="fittext" type="button">Fit this line</button></div><p id="fitstatus" class="fit-status" role="status" aria-live="polite"></p>';
+    host.innerHTML = '<div class="personalization-actions"><label><input type="checkbox" id="autofittext"> Auto-fit text</label><button class="btn small" id="fittext" type="button">Fit this line</button></div><p id="fitstatus" class="fit-status sr" role="status" aria-live="polite"></p>';
     $('autofittext').addEventListener('change', () => { const e = selectedEl(); if (!e || e.type !== 'text') return; e.fitReference ||= fittingReference(e); e.autoFit = $('autofittext').checked; fitTemplateText(e); render(); syncProps(); commit(); });
     $('fittext').addEventListener('click', () => { const e = selectedEl(); if (!e || e.type !== 'text') return; e.fitReference ||= fittingReference(e); e.autoFit = true; fitTemplateText(e); render(); syncProps(); commit(); });
   }
   $('autofittext').checked = !!el.autoFit;
   const status = $('fitstatus');
-  if (!el.autoFit) { status.textContent = 'Manual sizing. Fit this line whenever you need help with a long name.'; status.dataset.state = 'manual'; return; }
+  if (!el.autoFit) { status.textContent = ''; status.classList.add('sr'); status.dataset.state = 'manual'; return; }
   const ref = fittingReference(el), limit = fitLimits(el, ref), actual = measureTextBox(el);
   const tooLong = actual.w > limit.w + 0.03 || actual.h > limit.h + 0.03;
+  const reduced = el.size < ref.size - 0.01;
   status.dataset.state = tooLong ? 'warning' : 'fit';
-  status.textContent = tooLong ? 'This line is still too long to fit clearly. Shorten the words or adjust the layout before ordering.' : el.size < ref.size - 0.01 ? 'Text reduced to fit its original space. Check the preview for readability.' : 'Text fits its original space. Longer names resize automatically.';
+  status.classList.toggle('sr', !tooLong && !reduced);
+  status.textContent = tooLong ? 'Text is too long. Shorten it or adjust the layout before ordering.' : reduced ? 'Text reduced to fit. Check readability.' : '';
 }
 for (const [cat, fonts] of FONTS) {
   const g = document.createElement('optgroup'); g.label = cat;
@@ -1201,7 +1192,7 @@ function addElement(el, tab) {
 $('addtext').addEventListener('click', () => {
   const b = activeBoard();
   const el = addElement(T('NEW TEXT', { size: 3, y: 36, color: b.base.kind === 'wood' ? '#36393b' : '#f5f5f0' }), 'text');
-  if (el) { $('texthint').hidden = true; $('ttext').focus(); $('ttext').select(); }
+  if (el) { $('ttext').focus(); $('ttext').select(); }
 });
 const field = (id, key, map = (v) => v, label = null) => {
   $(id).addEventListener('input', () => {
@@ -1222,7 +1213,6 @@ const toggle = (id, key) => {
 };
 const inch = (v) => v + '"', deg = (v) => v + '°';
 field('ttext', 'text');
-$('ttext').addEventListener('input', () => { $('texthint').hidden = true; });
 field('tfont', 'font');
 field('tsize', 'size', Number, inch);
 field('tcolor', 'color');
@@ -1478,7 +1468,7 @@ function itemRow(el, pressed, onClick) {
     const q = document.createElement('input'); q.type = 'text'; q.className = 'quick'; q.value = el.text; q.maxLength = 60; q.dataset.id = el.id;
     q.setAttribute('aria-label', 'Words: ' + (el.fitReference?.text || el.text)); q.style.fontFamily = '"' + el.font + '", Impact, sans-serif';
     q.addEventListener('focus', () => { if (selected !== el.id) select(el.id); });
-    q.addEventListener('input', () => { const e = findEl(el.id); if (!e) return; e.text = q.value; fitTemplateText(e); $('texthint').hidden = true; render(); updateRow(row, e, selected === e.id); if (selected === e.id) syncProps(); saveSoon(); });
+    q.addEventListener('input', () => { const e = findEl(el.id); if (!e) return; e.text = q.value; fitTemplateText(e); render(); updateRow(row, e, selected === e.id); if (selected === e.id) syncProps(); saveSoon(); });
     q.addEventListener('change', commit);
     row.append(b, q);
   } else {
