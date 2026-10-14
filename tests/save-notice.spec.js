@@ -72,6 +72,54 @@ test('an empty recovery replaces its waiting announcement without announcing nor
   await expect(page.locator('#savealert')).toHaveText('');
 });
 
+test('the announcement region is outside the startup gate, so a notice written as the builder opens is announced', async ({ page }) => {
+  await open(page); await reset(page); await settled(page);
+  // An unreadable record whose read is held: its notice is written in the
+  // same breath as the gate opens, so the region must already be exposed.
+  await page.evaluate(async () => {
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open('cornhole', 1);
+      request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
+    });
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('project', 'readwrite');
+      tx.objectStore('project').put({ design: { a: null } }, 'current');
+      tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+    localStorage.setItem('cornhole.project.v2', '{unfinished JSON');
+  });
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('gatedNoticeReadDelayed')) return;
+    sessionStorage.setItem('gatedNoticeReadDelayed', 'yes');
+    const gate = new Promise(resolve => { window.releaseGatedNoticeRead = resolve; });
+    const openDb = indexedDB.open.bind(indexedDB);
+    indexedDB.open = (...args) => {
+      const request = openDb(...args);
+      request.addEventListener('success', event => {
+        event.stopImmediatePropagation();
+        window.gatedNoticeReadWaiting = true;
+        gate.then(() => request.dispatchEvent(new Event('success')));
+      }, { once: true });
+      return request;
+    };
+  });
+  await page.reload();
+  await page.waitForFunction(() => window.cornhole && window.gatedNoticeReadWaiting && !cornhole.loaded);
+  expect(await page.evaluate(() => ['.panel', '.stage', '#mobilebar'].every(s => document.querySelector(s).inert))).toBe(true);
+  expect(await page.evaluate(() => document.getElementById('savealert').closest('[inert]')), 'the live region is in no inert region').toBeNull();
+  const cdp = await page.context().newCDPSession(page);
+  const { root } = await cdp.send('DOM.getDocument', { depth: 0 });
+  const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector: '#savealert' });
+  const { nodes } = await cdp.send('Accessibility.getPartialAXTree', { nodeId, fetchRelatives: false });
+  const region = nodes.find(n => n.role && n.role.value === 'status');
+  expect(region && !region.ignored, 'assistive technology sees the region before anything is written to it').toBe(true);
+  await cdp.detach();
+  await page.evaluate(() => window.releaseGatedNoticeRead());
+  await page.waitForFunction(() => cornhole.loaded && cornhole.saveState === 'unreadable');
+  await expect(page.locator('#savealert')).toContainText(/could not be read/i);
+});
+
 test('once a write has failed, the notice stays while each keystroke retries, so the field being typed in does not jump', async ({ page }) => {
   // A phone with its keyboard open: the stage sits in the flow, so a notice
   // that comes and goes above the field moves the field by its own height.

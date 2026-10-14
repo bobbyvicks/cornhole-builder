@@ -117,6 +117,26 @@ test.describe('mobile touch and editing', () => {
     await expect(page.locator('#tab-art')).toBeVisible();
   });
 
+  test('the checkbox toggles keep their finger-sized targets in a browser that does not know :has()', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 740 });
+    await open(page);
+    await reset(page);
+    // An engine without :has() drops a whole rule when one selector in its
+    // list uses it. Stand in for one by making :has() unknown to this one.
+    await page.evaluate(() => {
+      for (const style of document.querySelectorAll('style')) style.textContent = style.textContent.replace(/:has\(/g, ':unknown-pseudo(');
+    });
+    expect(await page.evaluate(() => CSS.supports('selector(:unknown-pseudo(a))'))).toBe(false);
+    const heights = {};
+    for (const [tab, ids] of [['text', ['tshadow']], ['art', ['cflip']], ['order', ['carrycase', 'rush']]]) {
+      await page.evaluate((name) => cornhole.showTab(name), tab);
+      if (tab === 'text') await page.evaluate(() => cornhole.select('t1'));
+      if (tab === 'art') await page.evaluate(() => cornhole.select(cornhole.addClip('heart').id));
+      for (const id of ids) heights[id] = await page.locator(`label:has(#${id})`).evaluate((el) => el.getBoundingClientRect().height);
+    }
+    for (const [id, height] of Object.entries(heights)) expect(height, `the ${id} toggle stays a finger-sized target`).toBeGreaterThanOrEqual(43.5);
+  });
+
   test('the template choices have readable previews and the bottom action leaves room for the page', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 740 });
     await open(page);

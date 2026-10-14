@@ -143,6 +143,40 @@ test('accepting the found project puts it back, leaves the stored copy as it was
   expect(await words(page)).toBe('SAVED EARLIER');
 });
 
+test('accepting the found project keeps words still being typed over a committed edit one Undo away', async ({ page }) => {
+  await startWithSlowRecovery(page);
+  await builderOpen(page);
+  await page.getByRole('tab', { name: 'Board', exact: true }).click();
+  await page.locator('#paints .sw[data-v="#c8102e"]').click();
+  await page.getByRole('tab', { name: 'Text', exact: true }).click();
+  await page.locator('#texts .item').click();
+  await page.locator('#ttext').fill('TYPED MEANWHILE');
+  expect(await page.evaluate(() => cornhole.historyLength), 'the typing has had no change event yet').toBe(2);
+  expect(await finishRecovery(page, 'accept')).toEqual([LATE_PROMPT]);
+  expect(await words(page)).toBe('SAVED EARLIER');
+  const state = () => page.evaluate(() => ({ text: cornhole.design.a.elements[0].text, color: cornhole.design.a.base.color }));
+  await page.evaluate(() => cornhole.undo());
+  expect(await state(), 'the words being typed are one step back').toEqual({ text: 'TYPED MEANWHILE', color: '#c8102e' });
+  await page.evaluate(() => cornhole.undo());
+  expect(await state()).toEqual({ text: 'YOUR TEAM', color: '#c8102e' });
+  await page.evaluate(() => { cornhole.redo(); cornhole.redo(); });
+  await settled(page); await reloaded(page);
+  expect(await words(page)).toBe('SAVED EARLIER');
+});
+
+test('accepting the found project after an order-only edit leaves no Undo step that changes nothing', async ({ page }) => {
+  await startWithSlowRecovery(page);
+  await builderOpen(page);
+  await page.getByRole('tab', { name: 'Order', exact: true }).click();
+  await page.locator('#qty').fill('3');
+  expect(await finishRecovery(page, 'accept')).toEqual([LATE_PROMPT]);
+  expect(await words(page)).toBe('SAVED EARLIER');
+  expect(await page.evaluate(() => cornhole.historyLength)).toBe(2);
+  await page.locator('#undo').click();
+  expect(await words(page)).toBe('YOUR TEAM');
+  await expect(page.locator('#undo'), 'the untouched opening design is the last step back').toBeDisabled();
+});
+
 test('order choices entered after the notice are kept on request even without a design-history entry', async ({ page }) => {
   await startWithSlowRecovery(page);
   await builderOpen(page);

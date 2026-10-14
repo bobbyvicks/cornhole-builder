@@ -119,7 +119,9 @@
   input[type=color] { flex: none; width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 8px; padding: 3px; background: #fff; cursor: pointer; }
   input[type=checkbox] { width: 18px; height: 18px; flex: none; }
   .toggles { display: flex; gap: 12px; flex-wrap: wrap; font-size: 13.5px; }
-  .toggles label, .warn label, #cliponly label:has(input[type=checkbox]) { font-weight: 600; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
+  /* No :has() in this list: a selector list is dropped whole where one
+     selector is unknown, and these are the phone-sized targets. */
+  .toggles label, .warn label, label.toggle { font-weight: 600; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
   details.more { border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; margin: 10px 0 4px; }
   details.more summary { cursor: pointer; font-weight: 600; font-size: 13.5px; min-height: 44px; padding: 11px 0; color: var(--accent); }
   details.more[open] summary { border-bottom: 1px dashed var(--line); margin-bottom: 4px; }
@@ -354,6 +356,12 @@
     <div id="donebody"></div>
   </section>
 
+  <!-- The save announcements live outside the regions that are inert
+       while the saved project is read back: a notice written into an
+       inert region (the read failed, or is still going after six seconds)
+       is hidden from assistive technology at the time, and a live region
+       that first appears with its text already in place is not read out. -->
+  <span class="sr" id="savealert" role="status"></span>
   <div class="builder" id="builder">
     <section class="stage" aria-label="Board preview" inert>
       <div class="stagehead">
@@ -399,7 +407,6 @@
       </div>
 
       <p class="hint" id="uploadstatus" role="status" aria-live="polite" hidden></p>
-      <span class="sr" id="savealert" role="status"></span>
       <div class="pane" id="tab-templates" data-open="true" role="tabpanel" aria-labelledby="tabbtn-templates">
         <div class="project" id="project">
           <span class="savestatus" data-state="new">Not saved yet</span>
@@ -497,7 +504,7 @@
           <div class="row" id="cliponly">
             <label for="ccolor">Colour</label><input type="color" id="ccolor">
             <label for="coutline" class="auto">Outline</label><input type="color" id="coutline"><input type="range" id="coutlinew" min="0" max="0.5" step="0.025" style="min-width:70px" aria-label="Outline width"><span class="val" id="coutlinewval"></span>
-            <label class="auto"><input type="checkbox" id="cflip"> Flip</label>
+            <label class="auto toggle"><input type="checkbox" id="cflip"> Flip</label>
           </div>
           <div class="row">
             <button class="btn small" id="idup">Duplicate</button>

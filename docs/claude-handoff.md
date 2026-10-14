@@ -109,8 +109,45 @@ order-accessibility, order-unavailable) pass. One spec fails on this branch
 before and after the fixes in the Linux Chromium used here:
 `mobile-accessibility.spec.js` "the template choices have readable previews
 and the bottom action leaves room for the page" (265.6 px of room against
-the 300.3 px it asks for at 320 x 740); it was not changed. The full suite
-was not run for the fix commit; run `npm test` before merging.
+the 300.3 px it asks for at 320 x 740); it was not changed in that commit.
+The commit after it (`3e45aee`) shrinks the template cards and the bottom
+bar's caption below 360 px, and that spec passes since. The full suite was
+not run for the fix commits; run `npm test` before merging.
+
+## Second review round
+
+A review of the fix commit found five further defects, fixed in the commit
+after `3e45aee`, each with a regression spec:
+
+- A late result declined while the very first edit was a drag of the default
+  words left the saved design with no way back: nothing had been recorded,
+  the saved design took `history[0]`, and a cancelled touch rolled the drag
+  back without recording anything, so Undo stayed disabled and the next
+  reload lost the saved design. A cancelled gesture now goes through
+  `commit` (a no-op save in every other case, so an ordinary cancelled touch
+  still adds no Undo step), and the late-read code records an edit still in
+  progress whenever it differs from the last history entry, not only when
+  the history holds one entry. That also keeps typing done on top of a
+  committed edit one Undo away when the found project is accepted, and the
+  entry that only kept the untouched default in place is pushed only when
+  the found project is declined, so accepting after an order-only edit no
+  longer leaves an Undo step that changes nothing.
+- `#savealert`, the live region for the save notices, sat inside the panel
+  that is inert while the saved project is read back. The "could not be
+  read" and "still checking" notices are written in the same task as the
+  gate opens, so the region entered the accessibility tree with its text
+  already in place, which screen readers do not announce. It now sits just
+  before `.builder`, outside every inert region.
+- The clip-art Flip toggle had joined the `.toggles label, .warn label`
+  rule through a `:has()` selector; a browser without `:has()` drops a
+  selector list whole, which took the other toggles' 44 px targets with it.
+  The Flip label carries a `toggle` class instead and the rule uses no
+  `:has()`.
+
+Verified for that commit: 69 node tests, the TypeScript check, and focused
+Chromium runs of `designer`, `startup-recovery`, `gesture-merge`,
+`save-notice` and `mobile-accessibility` (all passing, including the
+template-card spec above).
 
 ## Verification
 

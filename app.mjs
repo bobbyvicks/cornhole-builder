@@ -861,8 +861,12 @@ for (const c of [$('canvasA'), $('canvasB')]) {
     c.classList.remove('dragging');
     if (c.hasPointerCapture(pointerId)) c.releasePointerCapture(pointerId);
     render(); syncProps(); settleTyping();
-    if (moved && !cancelled) commit();
-    else if (moved && rolledBack) save(); // Undo any save that completed while the gesture was in progress.
+    /* A cancelled gesture is rolled back, so commit has nothing new to
+       record and only repeats the save, undoing one that completed while
+       the gesture was in progress. The one exception is a saved design
+       offered and declined meanwhile: it took history[0], and the
+       rolled-back design is recorded above it, one Undo away from it. */
+    if (moved && (!cancelled || rolledBack)) commit();
   };
   c.addEventListener('pointerup', end);
   c.addEventListener('pointercancel', end);
@@ -2135,12 +2139,19 @@ function openBuilder() {
   startupSnapshot = null;
   let keepEdits = editedDuringLoad;
   if (p && editedDuringLoad) {
-    // Whichever design the customer keeps, the other is one Undo away: when
-    // nothing has been recorded yet, record the design as it stands (a drag
-    // still in progress is recorded when it ends).
-    if (history.length === 1 && !drag) history.push(copyHistoryState(design));
+    // Whichever design the customer keeps, the other is one Undo away. An
+    // edit still in progress (typing, a colour pick) is not in the history
+    // yet, so the design is recorded as it stands; a drag is recorded when
+    // it ends, whether it completes or is cancelled.
+    if (!drag && !sameHistoryState(history[history.length - 1], design)) history.push(copyHistoryState(design));
     if (confirm(LATE_PROJECT_PROMPT)) keepEdits = false;
-    else { history[0] = copyHistoryState(migrate(p.design)); future = []; syncHistoryButtons(); }
+    else {
+      // The saved design takes the untouched default's place at the start
+      // of the history. When that default is still the design on screen
+      // (an order-only edit), it keeps an entry of its own above it.
+      if (history.length === 1 && !drag) history.push(copyHistoryState(design));
+      history[0] = copyHistoryState(migrate(p.design)); future = []; syncHistoryButtons();
+    }
   }
   if (p && !keepEdits) {
     const previousDesign = design, previousOrder = { ...order, bagColors: [...order.bagColors] };
