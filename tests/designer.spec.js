@@ -346,7 +346,7 @@ test.describe('the quote and the order', () => {
     await expect(page.locator('#orderstatus')).toContainText('Could not reach the server');
   });
 
-  test('coming back from a cancelled payment reports the verified pending order', async ({ page }) => {
+  test('coming back from a cancelled payment reports the verified pending order and how to pay again', async ({ page }) => {
     await page.route('**/api/order?code=*', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
       code: 'CH-ABC234', status: 'pending', product: 'set', quantity: 1, amount_cents: 30800, currency: 'usd',
     }) }));
@@ -354,6 +354,7 @@ test.describe('the quote and the order', () => {
     expect(await page.isHidden('#done')).toBe(false);
     expect(await page.textContent('#donebody')).toContain('CH-ABC234');
     await expect(page.locator('#done')).toContainText(/payment.*not.*confirmed|not.*confirmed.*payment/i);
+    await expect(page.locator('#done')).toContainText('open the Order tab, review it and continue to payment again');
     await expect(page.locator('#done')).not.toContainText(/no charge|nothing was charged/i);
   });
 });
@@ -1022,6 +1023,20 @@ test.describe('the audit: saving, keyboard, guidance, pricing, review and print 
     await expect(page.locator('#howdispatch')).toContainText('15 business days');
     const states = await page.evaluate(() => [...document.querySelectorAll('#state option')].map((o) => o.value));
     expect(states).not.toContain('AK'); expect(states).not.toContain('HI'); expect(states).toContain('TX');
+  });
+
+  test('the header link to How it works opens the steps it names, and so does a link to #how', async ({ page }) => {
+    await open(page); await reset(page);
+    const firstStep = page.locator('#how .step').first();
+    await expect(firstStep).toBeHidden();
+    await page.click('nav.site a[href="#how"]');
+    await expect(page.locator('#how > details')).toHaveJSProperty('open', true);
+    await expect(firstStep).toBeVisible();
+    await expect(page.locator('#howdispatch')).toBeInViewport();
+    await page.goto('about:blank');
+    await open(page, { query: '#how' });
+    await expect(page.locator('#how > details')).toHaveJSProperty('open', true);
+    await expect(firstStep).toBeVisible();
   });
 
   test('a picture keeps its full-size master apart from the preview, warns when printed too big, and prints from the master', async ({ page }) => {

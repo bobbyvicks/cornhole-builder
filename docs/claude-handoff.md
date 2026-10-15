@@ -159,6 +159,26 @@ Chromium runs of `designer`, `startup-recovery`, `gesture-merge`,
 `save-notice` and `mobile-accessibility` (all passing, including the
 template-card spec above).
 
+## Review of PR #3 (minimal interface)
+
+A review of the merge of `codex/minimal-interface` found two defects, fixed
+in the commit after `6af9752`, each with a regression spec:
+
+- The cancelled return link showed the pending copy ("check the status
+  again before starting another payment"), but that row never leaves
+  `pending`: the webhook moves an order on only for a completed payment.
+  With the old pay-again note removed, nothing said how to pay. A cancelled
+  return whose order is still pending now says payment was not completed,
+  and to open the Order tab, review and continue to payment again, which
+  places a new order with a new code. It claims nothing about a charge, and
+  a successful return that is still pending keeps the check-again copy.
+- The header "How it works" link landed on the closed disclosure. Following
+  it, or loading `#how`, now opens the steps.
+
+Verified for that commit: 69 node tests, the TypeScript check, and focused
+Chromium runs of `designer` and `order-outcome` (all passing). The new specs
+fail on `6af9752`.
+
 ## Verification
 
 At the tested implementation commit `f4d456a`, the final clean `npm test`

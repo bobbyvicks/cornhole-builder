@@ -139,6 +139,9 @@ Then:
 3. Stripe takes payment and sends the customer back to
    `/?order=success&code=…`, which shows the code and fetches the status
    from `GET /api/order?code=…` (status and amount only, never the address).
+   A customer who leaves the Stripe page comes back to
+   `/?order=cancelled&code=…`; that row stays `pending`, so the page says how
+   to pay again from the Order tab (a new order with a new code).
 4. Stripe calls `/api/stripe-webhook`; after checking the signature it
    moves the row from `pending` to `paid`. A second delivery, or one that
    arrives after the shop has moved the order on, changes nothing.

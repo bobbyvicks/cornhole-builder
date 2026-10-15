@@ -1660,6 +1660,11 @@ $('shipnote2').textContent = 'United States addresses in ' + PRICING.shipping.re
    on the address. The two are kept apart everywhere the page speaks of time. */
 const dispatchNote = () => 'Dispatch: about ' + PRICING.leadTimeDays + ' business days after your order (about ' + PRICING.rushDays + ' with a rush build). Delivery: freight transit is on top and depends on your address; we confirm an estimate with your order. Dates are estimates, not guarantees.';
 $('leadtime').textContent = 'Dispatch in about ' + PRICING.leadTimeDays + ' business days (' + PRICING.rushDays + ' with a rush build); delivery time is on top and not guaranteed.';
+/* The steps sit in a closed disclosure. The header link that names them, or a
+   link that arrives at #how, opens it so the steps are what the visitor sees. */
+const howSteps = document.querySelector('#how > details');
+document.querySelector('nav.site a[href="#how"]').addEventListener('click', () => { howSteps.open = true; });
+if (location.hash === '#how') howSteps.open = true;
 $('howdispatch').textContent = 'Built to order and dispatched in about ' + PRICING.leadTimeDays + ' business days (about ' + PRICING.rushDays + ' with the rush option), then shipped by freight to your door anywhere in ' + PRICING.shipping.region + '. Transit time depends on your address and is confirmed with your order.';
 const statePrompt = document.createElement('option');
 statePrompt.value = ''; statePrompt.textContent = 'Select a state';
@@ -1976,8 +1981,13 @@ function showOutcome() {
   }
   $('orderreference').hidden = false; $('returnedordercode').textContent = code;
   retry.hidden = false;
+  /* Leaving the payment page lands on the cancelled link, and only a completed
+     payment moves an order on, so checking again never changes that answer.
+     Say how to pay instead, without guessing about any charge. */
   const states = {
-    pending: ['Payment not confirmed yet.', 'Your order is recorded, but payment has not been confirmed. Check the status again before starting another payment.'],
+    pending: o === 'cancelled'
+      ? ['Payment not completed.', 'Payment for this order has not been confirmed. Your design is still here: to pay, open the Order tab, review it and continue to payment again. That places a new order with a new code.']
+      : ['Payment not confirmed yet.', 'Your order is recorded, but payment has not been confirmed. Check the status again before starting another payment.'],
     paid: ['Payment confirmed.', 'Your order is marked as paid.'],
     in_production: ['Your boards are in production.', 'Order status: in production.'],
     shipped: ['Your order has shipped.', 'Order status: shipped.'],

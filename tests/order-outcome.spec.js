@@ -69,6 +69,25 @@ test('a cancelled return URL uses a paid server record instead of claiming no ch
   expect(methods).toEqual(['GET']);
 });
 
+test('leaving the payment page with the order still pending says how to pay again, and a successful return does not', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.route(endpoint, route => reply(route, outcome('pending')));
+  await open(page, { query: query('cancelled') });
+  await expect(page.locator('#done')).toContainText(/payment.*not.*(completed|confirmed)/i);
+  await expect(page.locator('#done')).toContainText(/open the Order tab, review it and continue to payment again/);
+  await expect(page.locator('#done')).toContainText(/new order with a new code/);
+  await noFalseAssurance(page);
+  await retryReady(page);
+  // The way it names is there on a phone: the Order tab opens the order steps.
+  await page.getByRole('tab', { name: 'Order', exact: true }).click();
+  await expect(page.locator('#tab-order')).toBeVisible();
+  // A successful return whose payment is still being confirmed is not told to pay again.
+  await open(page, { query: query('success') });
+  await expect(page.locator('#done')).toContainText(/payment.*not.*confirmed yet/i);
+  await expect(page.locator('#done')).toContainText(/check the status again/i);
+  await expect(page.locator('#done')).not.toContainText(/Order tab|continue to payment again|new code/);
+});
+
 test('a server-cancelled order is labelled cancelled without claiming a refund or no charge', async ({ page }) => {
   await page.route(endpoint, route => reply(route, outcome('cancelled')));
   await open(page, { query: query() });
