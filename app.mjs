@@ -998,7 +998,11 @@ const templateTools = document.createElement('div'); templateTools.className = '
 templateTools.innerHTML = '<label class="template-search" for="templatesearch">Find a design<input id="templatesearch" type="search" maxlength="100" placeholder="Try wedding, lake or team"></label><div class="template-filters"><label for="templateoccasion">Occasion</label><select id="templateoccasion"><option value="">All occasions</option></select><button id="cleartemplates" class="btn small" type="button">Clear filters</button></div><p id="templateresults" class="template-results" role="status" aria-live="polite"></p><p id="templateempty" class="template-empty" hidden>No matching designs. Try a different word or clear the filters.</p>';
 $('templates').before(templateTools);
 for (const [key, label] of TEMPLATE_GROUPS) { const option = document.createElement('option'); option.value = key; option.textContent = label; $('templateoccasion').appendChild(option); }
-const normalizeSearch = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+/* Accents are split off (NFD) and every combining mark dropped, so "café"
+   finds "cafe". Written as a Unicode property rather than a range of escaped
+   code points: the deploy upload turns such escapes into the characters
+   themselves, and the file must arrive byte for byte. */
+const normalizeSearch = (s) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
 /* Same words, same text node: a status region announces a change, and
    setting what it already says would have a screen reader read the whole
    sentence again after every character typed. */
