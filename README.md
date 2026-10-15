@@ -20,7 +20,7 @@ A site where people design their own cornhole boards and order them.
   order. Templates are grouped by occasion with a blank start; a template
   hands over its first words selected and ready to type over, and each
   text has a field right in the list. Curve, spacing, rotation and layers
-  sit in a "More" section.
+  sit under "Advanced text" and "Advanced artwork".
 - **A simpler start.** Search templates by name or occasion and filter the
   gallery: the cards are built once, a search shows the ones that match,
   and a thumbnail is drawn when it comes into view rather than all 160-odd
@@ -92,7 +92,7 @@ serves a browser with scripts off).
 custom-order notes, the design-approval policy and the product photos. Every
 field ships blank, and a blank field is shown as "being set up" rather than
 filled with something invented. Fill it in once and the header, footer and
-the "Good to know" cards pick it up.
+the "Contact & delivery" cards at the foot of the page pick it up.
 
 ## Run it locally
 
