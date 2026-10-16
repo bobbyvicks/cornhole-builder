@@ -1998,7 +1998,12 @@ $('giftnote').addEventListener('input', () => { order.giftNote = $('giftnote').v
 /* Three screens, each about the height of the other tabs: the order and
    its price; the review, with both boards as they will print; the address. */
 let confirmedSamples = null, reviewSamples = null, reviewReady = false, reviewSequence = 0, reviewedRevision = null;
-let orderSubmitting = false;
+/* orderSubmitting holds Continue to payment from the tap until the answer.
+   placedRevision is the reviewed design and options of an order the server
+   took without a payment page (it will be invoiced): that order is done, so
+   the button goes until something changes and is reviewed again. payingCode
+   is the order whose payment page the browser is opening. */
+let orderSubmitting = false, placedRevision = null, payingCode = null;
 const sampleSignature = () => JSON.stringify(sampleWordsIn().sort());
 const samplesConfirmed = () => !sampleWordsIn().length || confirmedSamples === sampleSignature();
 const orderRevision = () => JSON.stringify({ design, order });
@@ -2019,6 +2024,9 @@ function showOrderStep(n, { focus = false } = {}) {
   if (n === 3 && (!reviewReady || reviewedRevision !== orderReviewRevision() || !samplesConfirmed() || hasPendingImageUploads())) n = 2;
   if (n !== 2) reviewSequence++;
   $('orderstep1').hidden = n !== 1; $('orderstep2').hidden = n !== 2; $('orderstep3').hidden = n !== 3;
+  // Step 3 opens only on a current review, so this compares what is about
+  // to be ordered with the order already placed.
+  $('checkout').hidden = placedRevision !== null && placedRevision === reviewedRevision;
   if (n === 2) renderReview();
   if (n === 3) syncOrder();
   if (focus) {
@@ -2154,8 +2162,24 @@ async function renderReview() {
   }
 }
 
-function status(kind, text) { const s = $('orderstatus'); s.dataset.kind = kind; s.textContent = text; $('saveunsubmitted').hidden = true; }
+/* The answer sits under Continue to payment, which is often at the foot of
+   the screen, so each message is brought into view as it is written, and
+   Save editable copy with it when it is offered. */
+function status(kind, text, { offerSave = false } = {}) {
+  const s = $('orderstatus'), save = $('saveunsubmitted');
+  s.dataset.kind = kind; s.textContent = text; save.hidden = !offerSave;
+  s.scrollIntoView({ block: 'nearest' });
+  if (offerSave) save.scrollIntoView({ block: 'nearest' });
+}
 $('saveunsubmitted').addEventListener('click', exportProject);
+/* A button that is working keeps keyboard focus: the disabled property
+   would drop it to the page. aria-disabled dims it and tells a screen
+   reader, and the caller's flag turns a second press away. */
+function busyButton(btn, on) {
+  if (on) { btn.setAttribute('aria-disabled', 'true'); btn.setAttribute('aria-busy', 'true'); }
+  else { btn.removeAttribute('aria-disabled'); btn.removeAttribute('aria-busy'); }
+}
+function holdCheckout(on) { orderSubmitting = on; busyButton($('checkout'), on); }
 function orderDetails() {
   const f = $('orderform');
   const v = (id) => f.elements[id].value.trim();
@@ -2225,13 +2249,16 @@ $('orderform').addEventListener('submit', async (ev) => {
   const f = $('orderform');
   if (!f.checkValidity()) { f.reportValidity(); return; }
   if (!reviewReady || reviewedRevision !== orderReviewRevision() || !samplesConfirmed()) { showOrderStep(2, { focus: true }); return; }
+  // This reviewed design and these options are already ordered. Enter in a
+  // field still submits through the hidden button: show the answer again.
+  if (placedRevision === reviewedRevision) { $('orderstatus').scrollIntoView({ block: 'nearest' }); return; }
   if (hasPendingImageUploads()) { status('warn', 'Your picture is still processing. Wait for it to finish, then review your design before continuing.'); return; }
   if (!activeBoard().elements.length && design.a.base.kind === 'paint' && design.a.pattern.kind === 'none') {
     if (!confirm('Your board is a plain colour with nothing on it. Order it like that?')) return;
   }
   const revision = orderRevision(), source = JSON.parse(snapshot()), options = structuredClone(order);
   const keys = options.product === 'set' && !source.same ? ['a', 'b'] : ['a'];
-  const btn = $('checkout'); orderSubmitting = true; btn.disabled = true; status('info', 'Preparing your design…');
+  holdCheckout(true); status('info', 'Preparing your design…');
   try {
     let payload;
     try {
@@ -2248,28 +2275,48 @@ $('orderform').addEventListener('submit', async (ev) => {
     }
     if (!f.checkValidity()) { f.reportValidity(); return; }
     Object.assign(payload, orderDetails());
+    // What is being sent: the revision check above found nothing changed.
+    const sending = orderReviewRevision();
     status('info', 'Sending your design…');
     const r = await fetch('api/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const j = await r.json().catch(() => ({}));
     const files = payload.options.assets === 'pending' ? ' Your pictures were too large to send in full with the order: keep your originals, as the full-size files will need to be supplied separately.' : '';
     if (r.status === 503 && j.error === 'not_configured') {
-      status('warn', 'Ordering is not switched on for this site yet. Your order was not submitted. Nothing was charged. Save an editable copy below to keep your design, then try again when ordering is available.');
-      $('saveunsubmitted').hidden = false;
+      status('warn', 'Ordering is not switched on for this site yet. Your order was not submitted. Nothing was charged. Save an editable copy below to keep your design, then try again when ordering is available.', { offerSave: true });
     } else if (!r.ok) {
       status('bad', j.message || ('Something went wrong (' + r.status + '). Nothing was charged.'));
     } else if (j.url) {
+      // The button stays held while the browser opens the payment page: a
+      // second tap in that moment would place a second order.
+      payingCode = j.code;
       status('ok', 'Order ' + j.code + ' saved. Taking you to payment…');
       window.location.assign(j.url);
       return;
     } else {
+      // Placed, to be invoiced. The button goes, so the focus it had moves
+      // to the answer that replaces it, unless the customer is elsewhere.
+      const here = !document.activeElement || document.activeElement === document.body || $('orderstep3').contains(document.activeElement);
+      placedRevision = sending;
+      $('checkout').hidden = placedRevision === reviewedRevision;
       status('ok', 'Order ' + j.code + ' received. We will email you an invoice for ' + money(j.total) + ' and start once it is paid.' + files);
+      if (here && !$('orderstep3').hidden) $('orderstatus').focus({ preventScroll: true });
     }
   } catch (e) {
+    payingCode = null;
     status('bad', 'Could not reach the server. Check your connection and try again - nothing was charged.');
   } finally {
-    orderSubmitting = false;
-    btn.disabled = false;
+    if (!payingCode) holdCheckout(false);
   }
+});
+/* Back from the payment page through the back-forward cache, the page is
+   as it was left: release the button, and say the payment is not
+   confirmed rather than "Taking you to payment". Paying again places a new
+   order, as the cancelled-payment return says. */
+window.addEventListener('pageshow', (e) => {
+  if (!e.persisted || !payingCode) return;
+  const code = payingCode; payingCode = null;
+  holdCheckout(false);
+  status('warn', 'Payment for order ' + code + ' has not been confirmed. To pay, continue to payment again; that places a new order with a new code.');
 });
 
 /* A return URL identifies the order to check, not its payment status.
@@ -2353,11 +2400,13 @@ async function prepareOutputFonts(source) {
     if (el.type === 'text' && el.autoFit && el.fitReference && el.text !== el.fitReference.text) fitTemplateText(el);
   }
 }
+// Share preview and Download print file are held the way checkout is.
+let sharingPreview = false, makingPrintFile = false;
 async function sharePreview() {
   const btn = $('sharepreview'), message = $('sharestatus');
-  if (btn.disabled) return;
+  if (sharingPreview) return;
   if (hasPendingImageUploads()) { message.hidden = false; message.textContent = 'A picture is still processing. Wait for it to finish, then share your preview.'; return; }
-  btn.disabled = true; message.hidden = false; message.textContent = 'Preparing your preview…';
+  sharingPreview = true; busyButton(btn, true); message.hidden = false; message.textContent = 'Preparing your preview…';
   try {
     const keys = order.product === 'set' ? ['a', 'b'] : ['a'];
     const source = JSON.parse(snapshot());
@@ -2385,19 +2434,19 @@ async function sharePreview() {
     setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
     message.textContent = 'Preview downloaded. Send the image to someone, or save an editable copy from Start to continue later.';
   } catch (_) { message.textContent = 'The preview could not be prepared. Check your uploaded pictures and try again; your editable design is still here.'; }
-  finally { btn.disabled = false; render(); }
+  finally { sharingPreview = false; busyButton(btn, false); render(); }
 }
 $('sharepreview').addEventListener('click', sharePreview);
 $('undo').addEventListener('click', undo);
 $('redo').addEventListener('click', redo);
 $('reset').addEventListener('click', () => { if (!confirm('Start over with the default design? You can restore your current design with Undo.')) return; design = freshDesign(); selected = null; active = 'a'; syncAll(); commit(); });
 $('download').addEventListener('click', async () => {
-  const btn = $('download'); if (btn.disabled) return;
+  const btn = $('download'); if (makingPrintFile) return;
   if (hasPendingImageUploads()) { alert('A picture is still processing. Wait for it to finish, then download the print file.'); return; }
   const keys = boardKeys(), source = JSON.parse(snapshot());
   const long = btn.querySelector('.long'), short = btn.querySelector('.short');
   const labels = [long.textContent, short.textContent];
-  btn.disabled = true; btn.setAttribute('aria-busy', 'true');
+  makingPrintFile = true; busyButton(btn, true);
   long.textContent = 'Preparing print file'; short.textContent = 'Preparing…';
   try {
     await preloadImages(keys, { source });
@@ -2412,7 +2461,7 @@ $('download').addEventListener('click', async () => {
     }
   } catch (error) { alert(error.message + ' Your design is still here.'); }
   finally {
-    btn.disabled = false; btn.removeAttribute('aria-busy');
+    makingPrintFile = false; busyButton(btn, false);
     long.textContent = labels[0]; short.textContent = labels[1]; render();
   }
 });

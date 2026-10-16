@@ -102,7 +102,14 @@ A site where people design their own cornhole boards and order them.
   a live quote, a review, then the shipping form, and payment on Stripe
   Checkout. Orders land in a Supabase table; the Stripe webhook marks them
   paid. Shipping is to the contiguous United States: the page's state list
-  and the server's check both read the price list.
+  and the server's check both read the price list. One tap sends one
+  order: Continue to payment keeps the keyboard focus and turns a second
+  press away while it works and while the payment page opens, and its
+  answer is brought into view under it. An order answered with an invoice
+  instead of a payment page takes the button away, with the order code
+  left on screen, until the design or the options change and are
+  reviewed again. Share preview and Download print file keep the focus
+  the same way while they work.
 
 Everything the customer sees is static: `index.html`, `app.mjs` and the
 modules in `lib/` (`price.mjs`, `clips.mjs`, `templates.mjs`, `store.mjs`,

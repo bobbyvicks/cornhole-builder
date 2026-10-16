@@ -265,6 +265,48 @@ findings, two of them the same defect. All are fixed in the commit after
 Verified for that commit: 71 node tests, the TypeScript check, and the
 whole Chromium suite (335 specs) pass.
 
+## Continue to payment: one tap, one order
+
+From the customer-journey audits (a team set on a phone, keyboard and
+screen reader at 1280 x 900), fixed in the commit after `3db8574`:
+
+- An order the server answers without a payment page (no Stripe key, or
+  Checkout failed to open) is placed and will be invoiced, yet the button
+  came back as "Continue to payment" and a second tap placed a second
+  order, replacing the first code on screen. The reviewed revision of a
+  placed order is kept as `placedRevision`: `#checkout` is hidden while
+  the current review matches it (set in `showOrderStep`), the submit
+  handler turns a matching submit away (Enter in a field still submits
+  through the hidden button), and the code stays in `#orderstatus`, which
+  takes the focus the button had. Changing the design or the options
+  sends the customer through Review as before, and the button is back for
+  that new order. The gift note and the address are not part of the
+  revision, so changing only those does not reopen it.
+- The button is held from the tap until the answer with `aria-disabled`
+  and `orderSubmitting` instead of the `disabled` property, which dropped
+  keyboard focus to the page. With a payment URL it stays held while the
+  browser opens the payment page (`payingCode`); a return through the
+  back-forward cache releases it and says the payment for that code is
+  not confirmed and that paying again places a new order, as the
+  cancelled-payment return does. A navigation stopped before the payment
+  page arrives leaves the button held until a reload.
+- `status()` brings `#orderstatus` into view as it writes (`block:
+  'nearest'`), and `#saveunsubmitted` with it when ordering is not
+  switched on: both were below the fold at 1280 x 900.
+- Download print file and Share preview use the same `aria-disabled` and
+  flag pattern (`busyButton`), so the focus stays on them while they work.
+
+`tests/checkout-result.spec.js` covers the invoice answer (requestSubmit
+and Enter in ZIP send nothing more, an unchanged review keeps it placed, a
+changed option makes a new order), the held 503 at 1280 x 900 and
+390 x 844 (focus on the button, answer and Save editable copy in view and
+not under the pinned board), the payment hand-off and its back-forward
+return, and the focus on the two output buttons. No existing spec
+changed.
+
+Verified for that commit: 71 node tests, the TypeScript check, and the
+whole Chromium suite (340 specs) pass.
+
 ## Verification
 
 At the tested implementation commit `f4d456a`, the final clean `npm test`
