@@ -207,3 +207,57 @@ for (const width of [320, 375, 390]) test.describe(`the other-tab notice at ${wi
     await other.close();
   });
 });
+
+/* Where the toolbar under the boards can be out of view while someone
+   edits - a wide screen at the top of the page, where the stage runs
+   below the fold, or a phone so short that its board scrolls away - the
+   notice and Reload sit in a line under the tabs that stays in view. */
+const inView = (locator) => locator.evaluate((el) => {
+  const r = el.getBoundingClientRect(), header = document.querySelector('header.top').getBoundingClientRect().bottom;
+  const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+  return r.height > 0 && r.top >= header - 0.5 && r.bottom <= innerHeight + 0.5 && Boolean(hit) && (hit === el || el.contains(hit));
+});
+for (const viewport of [{ width: 1280, height: 900 }, { width: 320, height: 568 }, { width: 375, height: 420 }]) test.describe(`the other-tab notice at ${viewport.width} x ${viewport.height}`, () => {
+  test.use({ viewport });
+
+  test('stays in view with its Reload beside it on every tab while a field is being used, and nothing overflows', async ({ page, context }) => {
+    const other = await twoTabs(page, context);
+    await edit(other, 'FROM THE OTHER TAB');
+    await page.waitForFunction(() => cornhole.saveState === 'elsewhere');
+    const notice = page.locator('#tabnotice .savestatus');
+    const reload = page.getByRole('button', { name: 'Reload', exact: true });
+    await expect(reload, 'one Reload, the one beside the notice').toHaveCount(1);
+    await expect(page.locator('#tabnotice')).toContainText(NOTICE);
+    await expect(page.locator('#tabnotice').getByRole('button', { name: 'Reload', exact: true })).toBeVisible();
+    await expect(page.locator('.stagebar .savestatus'), 'the toolbar leaves that notice to the line').toBeHidden();
+    await expect(page.locator('#project .savestatus'), 'and so does the Start pane').toBeHidden();
+
+    for (const name of ['Text', 'Board', 'Art', 'Order', 'Start']) {
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.getByRole('tab', { name, exact: true }).click();
+      const field = page.locator('.pane[data-open="true"]').locator('input:not([type=file]):not([type=checkbox]):not([type=color]):not([type=range]), select, textarea').filter({ visible: true }).first();
+      await field.focus();
+      await page.waitForTimeout(100);
+      expect(await inView(notice), name + ': the notice is in view').toBe(true);
+      expect(await inView(reload), name + ': Reload is in view').toBe(true);
+      const covered = await page.locator('#tabnotice').evaluate((el) => el.getBoundingClientRect().bottom);
+      expect(await field.evaluate((el) => el.getBoundingClientRect().top), name + ': the field is not under it').toBeGreaterThanOrEqual(covered - 0.5);
+      // And with the foot of the pane at the foot of the screen.
+      await page.locator('.pane[data-open="true"]').evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().bottom + scrollY - innerHeight));
+      await page.waitForTimeout(100);
+      expect(await inView(notice), name + ': still in view at the foot of the pane').toBe(true);
+      expect(await inView(reload)).toBe(true);
+    }
+    const box = await reload.boundingBox();
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(viewport.width);
+
+    await reload.focus();
+    await reloadWith(page, () => page.keyboard.press('Enter'));
+    expect(await words(page)).toBe('FROM THE OTHER TAB');
+    await expect(page.locator('#tabnotice')).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Reload', exact: true })).toHaveCount(0);
+    await other.close();
+  });
+});

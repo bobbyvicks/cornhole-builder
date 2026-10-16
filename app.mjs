@@ -98,10 +98,11 @@ const TEXT_DEFAULTS = { outline: '#111111', outlineWidth: 0, rotation: 0, arc: 0
    for when it is put back. One picture per board fills it at a time. */
 const IMAGE_DEFAULTS = { rotation: 0, opacity: 1, flipH: false, circleCrop: false, knockout: false, cover: false };
 const CLIP_DEFAULTS = { color: '#f5f5f0', outline: '#111111', outlineWidth: 0, rotation: 0, opacity: 1, flipH: false, width: 8 };
-/* Words may run over several lines, so a line break stays. Any other
-   control character - a tab pasted in, the carriage return of a file
-   written elsewhere - prints as nothing and the order would refuse it, so
-   it becomes a space. A field's value never holds a carriage return, so
+/* Words may run over several lines, so a line break stays, and the
+   carriage return of a file written elsewhere, alone or before a line
+   feed, becomes a line break too. Any other control character - a tab
+   pasted in - prints as nothing and the order would refuse it, so it
+   becomes a space. A field's value never holds a carriage return, so
    there the change is one character for one and the caret stays put. */
 const cleanWords = (text) => String(text).replace(/\r\n?/g, '\n').replace(/\p{Cc}/gu, (c) => (c === '\n' ? c : ' '));
 function withDefaults(el) {
@@ -661,8 +662,10 @@ function paint() {
     }
     c.classList.toggle('active', !design.same && key === active && order.product === 'set');
     /* With something selected the board takes the touch so it can be
-       dragged; with nothing selected a finger on it scrolls the page. */
-    c.classList.toggle('grabbable', Boolean(el && editingHere));
+       dragged; with nothing selected a finger on it scrolls the page. A
+       picture filling the board is never dragged, so with it selected
+       the board still scrolls the page. */
+    c.classList.toggle('grabbable', Boolean(el && editingHere && !fills(el)));
   }
 }
 
@@ -731,7 +734,9 @@ const SAVE_TEXT = {
 };
 /* The states that are notices: each is announced once, stays on screen
    until a write succeeds, and is shown in the pinned toolbar on a phone
-   (the .stagebar .savestatus rule in index.html lists the same four). */
+   (the .stagebar .savestatus rule in index.html lists the same four).
+   Where that toolbar is not pinned in view, the other-tab notice and its
+   Reload sit in a line under the tabs instead (#tabnotice). */
 const NOTICE_STATES = ['error', 'waiting', 'unreadable', 'elsewhere'];
 let saveState = 'new', saveBusy = false, saveAgain = false, storageReady = false, loaded = false;
 let saveTimer = null, saveNeedsAnnouncement = false, restoreTimedOut = false;
@@ -753,6 +758,9 @@ function setSaveState(s) {
   else if (['new', 'saved'].includes(s) && saveNeedsAnnouncement) { $('savealert').textContent = SAVE_TEXT[s]; saveNeedsAnnouncement = false; }
   $('exportlink').hidden = !['error', 'waiting'].includes(s);
   $('reloadlatest').hidden = s !== 'elsewhere';
+  // The line under the tabs that carries the other-tab notice where the
+  // toolbar can be out of view (the stylesheet says where).
+  $('tabnotice').hidden = s !== 'elsewhere';
   // Recovery notices can resize the pinned toolbar after the last edit.
   render();
 }
@@ -1004,11 +1012,17 @@ function toInches(c, ev) {
 const sizeKey = (el) => (el.type === 'text' ? 'size' : 'width');
 const sizeMax = (el) => (el.type === 'text' ? 16 : 24);
 let drag = null;
+/* A press on the picture filling the board, waiting to see whether it is
+   a tap: the pointer, the board and where it went down. */
+let coverTap = null;
+/* How far, in screen pixels, a tap may wander and still be a tap. */
+const TAP_SLOP = 10;
 for (const c of [$('canvasA'), $('canvasB')]) {
   /* With two different boards, the board that has the keyboard focus is
      the one the keys edit - so tabbing to Board A makes it the active one. */
   c.addEventListener('focus', () => { const key = c.dataset.board; if (!design.same && order.product === 'set' && key !== active) setActive(key); });
   c.addEventListener('pointerdown', (ev) => {
+    coverTap = null;
     if (drag || !ev.isPrimary || ev.button !== 0) return;
     const key = c.dataset.board;
     if (!design.same && order.product === 'set' && key !== active) setActive(key);
@@ -1021,13 +1035,18 @@ for (const c of [$('canvasA'), $('canvasB')]) {
     if (handle === 'delete') { removeElement(sel.id); ev.preventDefault(); return; }
     let el = sel;
     if (!handle) {
-      el = hitTest(activeBoard(), p.x, p.y); select(el ? el.id : null);
+      el = hitTest(activeBoard(), p.x, p.y);
+      /* A picture filling the board is picked by a tap, when the finger
+         lifts (see pointerup), not as it lands: it lies under every spot
+         nothing else covers, so a swipe that starts there is the page
+         being scrolled, and the selection and the open tab stay as they
+         were. It is never dragged: it has no place on the board to move to. */
+      if (el && fills(el)) { coverTap = { pointerId: ev.pointerId, canvas: c, id: el.id, x: ev.clientX, y: ev.clientY }; return; }
+      select(el ? el.id : null);
       /* Picking something up opens the tab that edits it, so on a phone
          its controls are right under the board. */
       if (el) showTab(el.type === 'text' ? 'text' : 'art');
     }
-    /* A picture filling the board is selected, not dragged: it has no
-       place on the board to move to. */
     if (!el || fills(el)) return;
     const box = boxes.get(el.id) || { oy: 0 };
     const l = toLocal(el, p.x, p.y);
@@ -1086,6 +1105,18 @@ for (const c of [$('canvasA'), $('canvasB')]) {
   };
   c.addEventListener('pointerup', end);
   c.addEventListener('pointercancel', end);
+  /* The tap that picks the picture filling the board: the pointer lifts
+     close to where it went down. A swipe goes further, or the browser
+     takes it over to scroll the page and cancels it, and picks nothing. */
+  c.addEventListener('pointerup', (ev) => {
+    const tap = coverTap; coverTap = null;
+    if (!tap || tap.canvas !== c || tap.pointerId !== ev.pointerId) return;
+    if (Math.hypot(ev.clientX - tap.x, ev.clientY - tap.y) > TAP_SLOP) return;
+    const el = findEl(tap.id);
+    if (!el || !fills(el)) return;
+    select(el.id); showTab('art');
+  });
+  c.addEventListener('pointercancel', (ev) => { if (coverTap && coverTap.pointerId === ev.pointerId) coverTap = null; });
   c.addEventListener('lostpointercapture', end);
 }
 /* Keyboard. Undo and redo work anywhere but inside a field. The keys that
@@ -1170,9 +1201,15 @@ panel.addEventListener('focusout', () => setTimeout(settleTyping, 50));
    a control the browser scrolls into view on focus would land under them:
    the document says how much of its top is covered. */
 function syncScrollPadding() {
-  const st = document.querySelector('.stage');
+  const st = document.querySelector('.stage'), notice = $('tabnotice');
   let pad = '';
   if (window.matchMedia('(max-width: 940px)').matches && getComputedStyle(st).position === 'sticky') pad = (parseFloat(getComputedStyle(st).top) || 0) + st.offsetHeight + 8 + 'px';
+  else if (notice.offsetHeight) {
+    /* The other-tab notice pins at the top of the panel: on its own on a
+       wide screen, with the tabs on a short phone. */
+    const pinned = getComputedStyle(notice).position === 'sticky' ? notice : notice.parentElement;
+    pad = (parseFloat(getComputedStyle(pinned).top) || 0) + pinned.offsetHeight + 16 + 'px';
+  }
   if (document.documentElement.style.scrollPaddingTop !== pad) document.documentElement.style.scrollPaddingTop = pad;
 }
 /* Bring the controls up under the (sticky) board on a phone. */
@@ -1643,12 +1680,16 @@ const printDpi = (el) => (el.px ? el.px[0] / printWidth(el) : null);
 function resolutionNote(el, where) {
   const dpi = printDpi(el); if (dpi === null || dpi >= SHARP_DPI) return '';
   const start = 'The picture' + (where ? ' on ' + where : '') + ' is ' + el.px[0] + ' x ' + el.px[1] + ' pixels: ';
-  const look = ' dots per inch, which will look ' + (dpi < SOFT_DPI ? 'blurry' : 'soft') + '. ' + SHARP_DPI + ' or more prints sharp: use a bigger file, or ';
+  const look = ' dots per inch, which will look ' + (dpi < SOFT_DPI ? 'blurry' : 'soft') + '. ';
   if (fills(el)) {
+    /* No file can make this one sharp: covering the board at SHARP_DPI
+       takes 4800 pixels down its 48", and the page keeps no more than
+       ORIG_SIDE (4000) on a picture's long side. So the note does not
+       ask for a bigger file; it offers the picture's own size. */
     const tall = printWidth(el) > BOARD.w;
-    return start + 'filling the board, ' + (tall ? BOARD.h + '" tall' : BOARD.w + '" wide') + ', it prints at about ' + Math.round(dpi) + look + 'untick Fill the board.';
+    return start + 'filling the board, ' + (tall ? BOARD.h + '" tall' : BOARD.w + '" wide') + ', it prints at about ' + Math.round(dpi) + look + 'Untick Fill the board to print it at its own size.';
   }
-  return start + 'at ' + el.width + '" wide it prints at about ' + Math.round(dpi) + look + 'make it no wider than ' + (Math.floor(el.px[0] / SHARP_DPI * 4) / 4) + '".';
+  return start + 'at ' + el.width + '" wide it prints at about ' + Math.round(dpi) + look + SHARP_DPI + ' or more prints sharp: use a bigger file, or make it no wider than ' + (Math.floor(el.px[0] / SHARP_DPI * 4) / 4) + '".';
 }
 function lowResImages(keys) {
   const out = [];
@@ -2379,6 +2420,7 @@ $('exportbtn').addEventListener('click', exportProject);
 $('exportlink').addEventListener('click', exportProject);
 // The latest saved project is whatever another tab wrote last: a reload reads it.
 $('reloadlatest').addEventListener('click', () => location.reload());
+$('tabreload').addEventListener('click', () => location.reload());
 $('importbtn').addEventListener('click', () => $('importfile').click());
 let projectFileSequence = 0;
 $('importfile').addEventListener('change', async () => {

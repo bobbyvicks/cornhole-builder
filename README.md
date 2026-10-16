@@ -12,9 +12,12 @@ A site where people design their own cornhole boards and order them.
   vector clip art in thirteen groups, any colour, uploaded pictures with
   flip, circle crop and white-background removal, and Fill the board: one
   picture per board drawn edge to edge under everything else, centred and
-  trimmed to fit, in the preview and the print file alike (picked from an
-  empty spot or its list row, with no handles; unticked, it goes back to
-  the place and size it had). Drag, resize and rotate
+  trimmed to fit, in the preview and the print file alike (picked by a
+  tap or a click on an empty spot, or from its list row, with no handles;
+  a swipe that starts on it scrolls the page; unticked, it goes back to
+  the place and size it had). Its print-size note offers unticking rather
+  than a bigger file, since no file the page keeps can cover the board at
+  100 dots per inch. Drag, resize and rotate
   on the board with handles (a red x on the handles removes; so does the
   button on each list row, and the Delete key), snap to centre, layer order,
   duplicate, undo/redo, and the design is kept in the browser across
@@ -59,7 +62,9 @@ A site where people design their own cornhole boards and order them.
   the time on a BroadcastChannel (through the storage event in a browser
   without one). A tab that hears of a newer save than the one on its
   screen says the project was changed in another tab, offers Reload, and
-  says its next change replaces it; that change saves as usual, the
+  says its next change replaces it (in the pinned toolbar on a phone, and
+  otherwise in a line under the tabs that stays in view while the panel
+  scrolls); that change saves as usual, the
   status goes back to "Saved on this device", and the other tab is the
   one told. The notice is announced once, and looking around an
   out-of-date tab writes nothing. A page back from the back-forward cache

@@ -209,15 +209,32 @@ test('the print-size warning for a filling picture uses the size it prints at', 
   await page.check('#icover');
   /* 48" tall and 96" wide: 2000 / 96 is about 21 dots per inch. */
   await expect(page.locator('#ireswarn')).toBeVisible();
-  await expect(page.locator('#ireswarn')).toHaveText('The picture is 2000 x 1000 pixels: filling the board, 48" tall, it prints at about 21 dots per inch, which will look blurry. 100 or more prints sharp: use a bigger file, or untick Fill the board.');
+  await expect(page.locator('#ireswarn')).toHaveText('The picture is 2000 x 1000 pixels: filling the board, 48" tall, it prints at about 21 dots per inch, which will look blurry. Untick Fill the board to print it at its own size.');
 
   /* A tall picture is governed by the 24" width instead: 1200 / 24 is 50. */
   await upload(page, await picture(page, 1200, 3000, 'image/png', "g.fillStyle = '#c8102e'; g.fillRect(0, 0, w, h);"));
   await page.check('#icover');
-  await expect(page.locator('#ireswarn')).toHaveText(/^The picture is 1200 x 3000 pixels: filling the board, 24" wide, it prints at about 50 dots per inch, which will look blurry\./);
+  await expect(page.locator('#ireswarn')).toHaveText('The picture is 1200 x 3000 pixels: filling the board, 24" wide, it prints at about 50 dots per inch, which will look blurry. Untick Fill the board to print it at its own size.');
   await page.evaluate(() => { cornhole.showTab('order'); cornhole.showOrderStep(2); });
   await expect(page.locator('#reswarn')).toContainText('1200 x 3000 pixels: filling the board, 24" wide');
   await expect(page.locator('#reswarn'), 'the other picture is back at 10", sharp again').not.toContainText('2000 x 1000');
+  expect(errors).toEqual([]);
+});
+
+test('a file of exactly the board\'s shape is kept at 2000 x 4000, so the note for a filling picture never asks for a bigger file', async ({ page }) => {
+  const errors = await open(page); await reset(page);
+  /* 3000 x 6000 is more than the page keeps (4000 on the long side), and
+     no file can cover the board at 100 dots per inch: 2400 x 4800 would. */
+  const pic = await upload(page, await picture(page, 3000, 6000, 'image/png', "g.fillStyle = '#c8102e'; g.fillRect(0, 0, w, h);"));
+  expect(pic.px).toEqual([2000, 4000]);
+  await expect(page.locator('#ireswarn')).toBeHidden();
+  await page.check('#icover');
+  const note = 'The picture is 2000 x 4000 pixels: filling the board, 24" wide, it prints at about 83 dots per inch, which will look soft. Untick Fill the board to print it at its own size.';
+  await expect(page.locator('#ireswarn')).toHaveText(note);
+  await expect(page.locator('#ireswarn')).not.toContainText('bigger file');
+  await page.evaluate(() => { cornhole.showTab('order'); cornhole.showOrderStep(2); });
+  await expect(page.locator('#reswarn')).toContainText(note);
+  await expect(page.locator('#reswarn')).not.toContainText('bigger file');
   expect(errors).toEqual([]);
 });
 
@@ -266,4 +283,61 @@ test.describe('on a phone', () => {
       expect(errors).toEqual([]);
     });
   }
+
+  /* A finger swiped up the board, as the browser sees a real one: CDP
+     touch events, so the page can scroll under it. */
+  async function swipe(page, cdp, from) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 1, ...from }] });
+    for (let i = 1; i <= 10; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ id: 1, x: from.x, y: from.y - 12 * i }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await page.waitForTimeout(300);
+  }
+  const touchAction = (page) => page.evaluate(() => getComputedStyle(document.getElementById('canvasA')).touchAction);
+  const openTab = (page) => page.evaluate(() => document.querySelector('.pane[data-open="true"]').id);
+
+  test('a swipe on a filled board scrolls the page and leaves the selection and the open tab alone; a tap still picks the picture', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const errors = await open(page); await reset(page);
+    const pic = await upload(page, await landscape(page, '#c8102e', 400, 200));
+    await page.check('#icover');
+    await settled(page);
+    await page.evaluate(() => { cornhole.select(null); cornhole.showTab('text'); window.scrollTo(0, 0); });
+    const cdp = await page.context().newCDPSession(page);
+    /* An empty spot, below the words: the picture is all that is there.
+       It is measured before each touch, as the board pins once the page
+       has scrolled. */
+    const at = async (x, y) => {
+      const p = await clientPoint(page, 'a', x, y);
+      expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y).id, p), 'the touch lands on the board').toBe('canvasA');
+      return p;
+    };
+
+    for (const n of [1, 2]) {
+      const before = await page.evaluate(() => scrollY);
+      await swipe(page, cdp, await at(12, 44));
+      expect(await page.evaluate(() => scrollY), 'swipe ' + n + ' scrolls the page').toBeGreaterThan(before + 40);
+      expect(await page.evaluate(() => cornhole.selected), 'nothing is picked').toBeNull();
+      expect(await openTab(page), 'the Text tab stays open').toBe('tab-text');
+      expect(await touchAction(page)).toContain('pan-y');
+    }
+
+    /* A tap picks the picture and opens the tab that edits it, and the board still scrolls the page. */
+    const spot = await at(12, 44);
+    await page.touchscreen.tap(spot.x, spot.y);
+    expect(await page.evaluate(() => cornhole.selected)).toBe(pic.id);
+    expect(await openTab(page)).toBe('tab-art');
+    expect(await touchAction(page), 'a picture filling the board is never dragged').toContain('pan-y');
+    const before = await page.evaluate(() => scrollY);
+    await swipe(page, cdp, await at(12, 44));
+    expect(await page.evaluate(() => scrollY), 'with the picture selected the board still scrolls').toBeGreaterThan(before + 40);
+    expect(await page.evaluate(() => cornhole.selected)).toBe(pic.id);
+    expect(await openTab(page)).toBe('tab-art');
+
+    /* The words on it are still picked, and then the board takes the drag. */
+    const word = await at(12, 30);
+    await page.touchscreen.tap(word.x, word.y);
+    expect(await page.evaluate(() => cornhole.selected)).toBe('t1');
+    expect(await touchAction(page)).toBe('none');
+    expect(errors).toEqual([]);
+  });
 });

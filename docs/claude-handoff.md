@@ -205,6 +205,14 @@ tab whose screen is out of date is told:
   successful save puts the status back to "Saved on this device", and the
   other tab is then the one told. Unchanged navigation still writes nothing
   and keeps the notice up.
+- Where the toolbar under the boards is not pinned in view - a wide
+  screen, where at the top of the page the stage runs below the fold, or
+  a phone no more than 620 px tall, where the board scrolls away - the
+  notice and a Reload of its own (`#tabreload`) sit in `#tabnotice`, a
+  line under the tabs: pinned under the header on its own on a wide
+  screen, pinned with the tabs (`.tabband`) on a short phone. The toolbar
+  and the Start pane leave that notice out there, so one Reload shows at
+  a time, and the scroll padding makes room for the line while it is up.
 - A save another tab made while this one was still reading its project is
   checked when the read finishes; a page back from the back-forward cache
   reads the saved record and compares its `tab` and `savedAt`.
@@ -213,12 +221,49 @@ tab whose screen is out of date is told:
 real IndexedDB: the notice and its single announcement, Reload showing the
 other tab's design, an edit in the out-of-date tab winning and the other
 tab then told, the storage-event fallback, the back-forward cache check,
-and the phone layout at 320, 375 and 390 px. The stale-tab specs in
+the phone layout at 320, 375 and 390 px, and the line under the tabs at
+1280 x 900, 320 x 568 and 375 x 420 (in view on every tab with a field
+focused and at the foot of the pane). The stale-tab specs in
 `tests/noop-saving.spec.js` now expect that notice in the stale tab where
 they used to wait for "Saved".
 
 Verified for that commit: 71 node tests, the TypeScript check, and the
 whole Chromium suite (330 specs) pass.
+
+## Review of Fill the board and two tabs
+
+A review of the Fill the board and two-tabs commits raised five
+findings, two of them the same defect. All are fixed in the commit after
+`3cfdf18`, the three in the code each with a spec:
+
+- With a picture filling the board, a swipe on the board on a phone
+  picked the picture, switched to the Art tab, and from then on the board
+  took every touch (`grabbable`, `touch-action: none`) though the picture
+  is never dragged, so swipes on the board stopped scrolling the page and
+  no tap could clear it. A filling picture no longer makes the board
+  grabbable, and it is picked when the finger lifts within `TAP_SLOP`
+  pixels of where it landed, not as it lands: a swipe that starts on it
+  scrolls the page and leaves the selection and the open tab alone. A tap
+  or a click still picks it and opens the Art tab, and the words on it
+  are picked as before.
+- The other-tab notice and Reload were off screen while editing at
+  1280 x 900 (below the fold at the top of the page) and on phones short
+  enough for the board to scroll away; see the `#tabnotice` bullet under
+  "Two tabs".
+- The print-size note for a filling picture told people to use a bigger
+  file, but none can help: covering the board at 100 dots per inch takes
+  2400 x 4800 pixels and the page keeps at most 4000 on the long side, so
+  a filling picture prints at about 83 at best. Its note now ends
+  "Untick Fill the board to print it at its own size." Ordinary pictures
+  keep their wording; the dpi thresholds are unchanged.
+- The comments on the words cleaning (`cleanWords` in `app.mjs`, the
+  `words` check in `api/order.ts`) said a carriage return becomes a
+  space; the code turns it, alone or before a line feed, into a line
+  break, and only other control characters into spaces. The comments now
+  say so; no code changed.
+
+Verified for that commit: 71 node tests, the TypeScript check, and the
+whole Chromium suite (335 specs) pass.
 
 ## Verification
 

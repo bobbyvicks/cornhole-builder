@@ -75,8 +75,9 @@ const placed = {
   rotation: degrees,
 };
 /* Words may run over several lines, so a line break is allowed. No other
-   control character is: a tab or a carriage return prints as nothing, and
-   the page turns them into spaces before it sends anything. */
+   control character is: a tab or a carriage return prints as nothing.
+   The page never sends one: it turns a carriage return, alone or before
+   a line feed, into a line break, and any other into a space. */
 const words = z.string().min(1).max(60)
   .refine((s) => !/\p{Cc}/u.test(s.replaceAll("\n", "")), "text may hold line breaks but no other control characters");
 const textEl = z.object({

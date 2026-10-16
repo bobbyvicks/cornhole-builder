@@ -1052,6 +1052,8 @@ test.describe('the audit: saving, keyboard, guidance, pricing, review and print 
     expect(await page.isHidden('#ireswarn')).toBe(false);
     await expect(page.locator('#ireswarn')).toContainText('50 dots per inch');
     await expect(page.locator('#ireswarn')).toContainText('blurry');
+    /* An ordinary picture can be made sharp, so its note says how. */
+    await expect(page.locator('#ireswarn')).toContainText('100 or more prints sharp: use a bigger file, or make it no wider than 12".');
     await page.evaluate(() => { cornhole.showTab('order'); cornhole.showOrderStep(2); });
     expect(await page.isHidden('#reswarn')).toBe(false);
     await expect(page.locator('#reswarn')).toContainText('50 dots per inch');
