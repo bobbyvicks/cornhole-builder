@@ -31,8 +31,12 @@ A site where people design their own cornhole boards and order them.
   tab that edits it, and a bar at the foot carries the total and Review
   order. Templates are grouped by occasion with a blank start; a template
   hands over its first words selected and ready to type over, and each
-  text has a field right in the list. Curve, spacing, rotation and layers
-  sit under "Advanced text" and "Advanced artwork". Each board carries a
+  text has a field right in the list, named by its place in it (Words 1,
+  Words 2). A field whose words are still a sample selects them when it
+  is tapped, clicked or tabbed to, so typing replaces them; words the
+  customer has changed keep the caret where it lands. Curve, spacing,
+  rotation and layers sit under "Advanced text" and "Advanced artwork".
+  Each board carries a
   hidden description for a screen reader, made again at every redraw: the
   base, the pattern, every text with its words and font, the clip art by
   name, the pictures by count, and which board is being edited when the
@@ -94,8 +98,10 @@ A site where people design their own cornhole boards and order them.
   is no email follow-up yet, so none is promised).
 - **Review.** Before the address: both boards as they will print, every
   choice, the price breakdown in USD before tax with what is and is not
-  included, a check on words left over from a template, and the
-  resolution warnings. Dispatch time (from the price list) is kept apart
+  included, a check on sample words (the page's own placeholders, such
+  as YOUR TEAM or NEW TEXT, and a template's words still unchanged on
+  the texts it put there, but not the same words typed by the customer),
+  and the resolution warnings. Dispatch time (from the price list) is kept apart
   from delivery time, which is never promised.
 - **Print file.** The same drawing code renders a 2400 x 4800 PNG at 100
   pixels per inch, with the hole marked as a hairline for the shop.
@@ -207,7 +213,8 @@ Clip art lives in `lib/clips.mjs`: each piece is a function that draws paths
 into a 100 x 100 box, so it scales to any size and prints as vectors.
 Templates are in `lib/templates.mjs`, built from the same element helpers
 the page uses; each carries an `occasion`, which is the group it is shown
-under, and its words are what the review calls sample words. The browser suite draws every piece and loads
+under, and its words, while they stay unchanged on the texts it put
+there, are what the review calls sample words. The browser suite draws every piece and loads
 every template, so a broken addition fails a test rather than a customer.
 
 ### Creative pack

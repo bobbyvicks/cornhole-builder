@@ -354,6 +354,69 @@ changed.
 Verified for that commit: 71 node tests, the TypeScript check, and the
 whole Chromium suite (353 specs) pass.
 
+## Sample words: the untouched ones, selected when tapped
+
+From the customer-journey audits (a team set on a phone and a tablet,
+a first-timer's wedding at 390 x 844, keyboard and screen reader),
+fixed in the commit after `117c138`:
+
+- Every text of every template counted as sample words, matched on the
+  words alone, so a customer who started blank and typed EST. 2026 (the
+  Team template's line, and a team founded this year) was told these
+  were a template's sample words and could not continue until they
+  ticked "Print these words exactly as they are". EST. 2018, EST. 2015
+  and any other line a template happens to use did the same.
+  `isSampleText(el)` in `app.mjs` now decides: the page's placeholders
+  (YOUR TEAM, NEW TEXT, YOUR NAME, YOUR WORDS) are a sample whoever
+  typed them; a template's words are a sample only on a text whose
+  `fitReference.text` (set by `applyTemplate`) is those same words, so
+  only while they are unchanged on a text the template put there. A
+  copy of such a text is still a sample until it is typed over;
+  another template's words typed over one are the customer's.
+  `sampleWordsIn()` uses it, so the review and `#samplewarn` follow.
+- Only the first words of a template arrived selected: a tap on SMITH
+  or the date in the Text list put the caret at the end, and 18 of 71
+  keystrokes in the wedding journey went on deleting them. A list
+  field or `#ttext` that takes the focus while its words pass
+  `isSampleText` now selects them (`selectSampleOnFocus`), a moment
+  after the focus arrives, so a tap or a click that goes on to place the
+  caret, as some browsers do, does not undo it. A key pressed first
+  wins, and a field `syncLists` gives the focus back to after building
+  the rows again keeps the caret it had (`restoringFocus`). Words the
+  customer has changed are not selected again. In the Chromium used
+  here a selection made at once survives the click and the tap too;
+  the wait is for other engines and was not checked on a real iPhone.
+- Each list field was named "Words: " and the template's words (from
+  `fitReference.text`), so after typing Sam & Alex over Mr & Mrs a
+  screen reader still heard "Words: Mr & Mrs". The fields are named by
+  their place, "Words 1", "Words 2" and so on; a change of order or a
+  removal builds the rows again, so the numbers stay right. The triage
+  suggested "Words, line 1", but one text can hold several lines
+  (Enter starts a new one), so "line" would mislead.
+- The Help text now says to tap a template's words and type to replace
+  them.
+- Limits: a design saved before templates set `fitReference` has no
+  mark on its template words, so they are no longer flagged. A
+  customer's own text that is given a `fitReference` by Auto-fit or
+  Fit this line while it reads exactly like a template's line is
+  flagged again, since the mark cannot tell the two apart.
+
+`tests/sample-words.spec.js` starts blank and types EST. 2026 (the
+review is clear and Continue is enabled, also after a reload), holds
+the untouched Team template for YOUR TEAM and EST. 2026, lists SMITH
+and the date but not the new words on Wedding with the first line
+replaced, checks a typed-back template line, a duplicated line and
+another template's words on a template line, the field names by place
+before and after a removal, a slow mouse click, Tab, the `#ttext`
+field and a rebuilt list keeping its caret at 1280 x 900, and at
+390 x 844 with touch a tap on SMITH selecting 0 to 5, JONES replacing
+it in the field and on the board, and a second tap leaving a caret.
+The existing NEW TEXT and YOUR TEAM specs in `designer.spec.js`,
+`multiline-text.spec.js` and `order-preflight.spec.js` are unchanged.
+
+Verified for that commit: 71 node tests, the TypeScript check, and the
+whole Chromium suite (361 specs) pass.
+
 ## Verification
 
 At the tested implementation commit `f4d456a`, the final clean `npm test`

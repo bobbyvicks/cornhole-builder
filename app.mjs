@@ -146,13 +146,28 @@ const TEMPLATES = [
   ...makeTemplates({ T, C, freshBoard }),
   ...makeCreativeTemplates({ T, C, freshBoard }),
 ];
-/* The words a template arrives with. A design that still carries one at
-   the checkout is almost always a mistake, so the review asks.
+/* Sample words: the placeholders the page itself puts on a board, and
+   the words a template arrives with. A design that still carries one at
+   the checkout is almost always a mistake, so the review asks; and a
+   words field holding one selects it all when it takes the focus, so
+   typing replaces it.
    Words compare with their spaces and line breaks evened out, so sample
    words only broken onto two lines still count. */
 const sampleKey = (text) => text.trim().replace(/\s+/g, ' ').toLowerCase();
-const SAMPLE_WORDS = new Set(['your team', 'new text', 'your name', 'your words']);
-for (const t of TEMPLATES) for (const e of t.board().elements) if (e.type === 'text') SAMPLE_WORDS.add(sampleKey(e.text));
+const PLACEHOLDER_WORDS = new Set(['your team', 'new text', 'your name', 'your words']);
+const TEMPLATE_WORDS = new Set();
+for (const t of TEMPLATES) for (const e of t.board().elements) if (e.type === 'text') TEMPLATE_WORDS.add(sampleKey(e.text));
+/* A placeholder is a sample whoever typed it. A template's words are a
+   sample only on a text the template put there, while they are still
+   its words: applyTemplate keeps them as the text's fitReference. The
+   same words typed by the customer - EST. 2026, for a team founded this
+   year - are theirs. */
+function isSampleText(el) {
+  if (!el || el.type !== 'text') return false;
+  const key = sampleKey(el.text), ref = el.fitReference;
+  if (PLACEHOLDER_WORDS.has(key)) return true;
+  return !!ref && typeof ref.text === 'string' && sampleKey(ref.text) === key && TEMPLATE_WORDS.has(key);
+}
 
 let design = freshDesign();
 let active = 'a';           // which board the panel edits
@@ -181,7 +196,7 @@ function isPristine() {
 }
 function sampleWordsIn() {
   const out = new Set();
-  for (const k of boardKeys()) for (const e of design[k].elements) if (e.type === 'text' && SAMPLE_WORDS.has(sampleKey(e.text))) out.add(e.text.trim());
+  for (const k of boardKeys()) for (const e of design[k].elements) if (isSampleText(e)) out.add(e.text.trim());
   return [...out];
 }
 
@@ -1552,6 +1567,25 @@ function wordsFrom(area, min) {
   fitRows(area, min);
   return words;
 }
+/* A words field that takes the focus while its text is still a sample
+   (isSampleText) has the words selected, so the first key typed replaces
+   them, the way a template's first words already arrive. It waits a
+   moment, since in some browsers the tap or the click that brought the
+   focus goes on to put the caret where it landed. A key pressed first
+   wins, and so does a field given its focus back by syncLists, which
+   puts back the caret it had. Words the customer has changed keep the
+   caret where it lands. */
+let restoringFocus = false;
+function selectSampleOnFocus(area, textOf) {
+  let pending = 0;
+  const cancel = () => clearTimeout(pending);
+  area.addEventListener('focus', () => {
+    cancel();
+    if (restoringFocus || !isSampleText(textOf())) return;
+    pending = setTimeout(() => { if (document.activeElement === area) area.setSelectionRange(0, area.value.length); });
+  });
+  for (const type of ['keydown', 'input', 'blur']) area.addEventListener(type, cancel);
+}
 const field = (id, key, map = (v) => v, label = null) => {
   $(id).addEventListener('input', () => {
     const el = selectedEl(); if (!el) return; el[key] = map($(id).value);
@@ -1571,6 +1605,7 @@ const toggle = (id, key) => {
 };
 const inch = (v) => v + '"', deg = (v) => v + '°';
 field('ttext', 'text', () => wordsFrom($('ttext'), 2));
+selectSampleOnFocus($('ttext'), selectedEl);
 field('tfont', 'font');
 field('tsize', 'size', Number, inch);
 field('tcolor', 'color');
@@ -1866,8 +1901,12 @@ function moveLayer(dir) {
 
 /* A row in the Text or Art list. Text rows carry the words in a field, so
    a name or a date is changed right there; every row carries its own
-   remove button, so nothing has to be selected first. */
-function itemRow(el, pressed, onClick) {
+   remove button, so nothing has to be selected first. A words field is
+   named by its place in the list (Words 1, Words 2), not by the words a
+   template gave it, which the customer may have typed over; the words
+   themselves are its value. A change of order or a removal builds the
+   rows again, so the numbers stay right. */
+function itemRow(el, pressed, onClick, place) {
   const row = document.createElement('div'); row.className = 'itemrow';
   const b = document.createElement('button'); b.className = 'item'; b.type = 'button'; b.dataset.id = el.id; b.setAttribute('aria-pressed', String(pressed));
   const t = document.createElement('span'); t.className = 'thumb';
@@ -1879,8 +1918,9 @@ function itemRow(el, pressed, onClick) {
     b.classList.add('pick'); b.title = 'Select, to change the font, size and colour';
     const q = document.createElement('textarea'); q.className = 'quick words'; q.setAttribute('wrap', 'off'); q.value = el.text; q.maxLength = 60; q.dataset.id = el.id;
     fitRows(q, 1);
-    q.setAttribute('aria-label', 'Words: ' + (el.fitReference?.text || el.text)); q.style.fontFamily = '"' + el.font + '", Impact, sans-serif';
+    q.setAttribute('aria-label', 'Words ' + place); q.style.fontFamily = '"' + el.font + '", Impact, sans-serif';
     q.addEventListener('focus', () => { if (selected !== el.id) select(el.id); });
+    selectSampleOnFocus(q, () => findEl(el.id));
     q.addEventListener('input', () => { const e = findEl(el.id); if (!e) return; e.text = wordsFrom(q, 1); fitTemplateText(e); render(); updateRow(row, e, selected === e.id); if (selected === e.id) syncProps(); saveSoon(); });
     q.addEventListener('change', commit);
     row.append(b, q);
@@ -1918,7 +1958,6 @@ function updateRow(row, el, pressed) {
   if (el.type === 'text') {
     t.style.background = el.color;
     const q = row.querySelector('.quick'); q.style.fontFamily = '"' + el.font + '", Impact, sans-serif';
-    q.setAttribute('aria-label', 'Words: ' + (el.fitReference?.text || el.text));
     if (document.activeElement !== q && q.value !== el.text) { q.value = el.text; fitRows(q, 1); }
   } else if (el.type === 'clip') {
     t.textContent = ''; const c = clipThumb(el.name, el.color); c.style.width = c.style.height = '28px'; t.appendChild(c);
@@ -1942,7 +1981,7 @@ function syncLists() {
     if (keep && keep.list === list) lostFocus = true;
     list.textContent = '';
     if (!els.length) { const p = document.createElement('div'); p.className = 'empty'; p.textContent = emptyText; list.appendChild(p); }
-    for (const el of els) list.appendChild(itemRow(el, el.id === selected, () => select(el.id)));
+    els.forEach((el, i) => list.appendChild(itemRow(el, el.id === selected, () => select(el.id), i + 1)));
   }
   $('addtext').disabled = countOf(b, 'text') >= MAX_TEXTS;
   if (keep && lostFocus) {
@@ -1952,7 +1991,10 @@ function syncLists() {
        to remove. An id from a project file can hold any character. */
     const rows = keep.list ? [...keep.list.querySelectorAll('.itemrow')] : [], row = rows[Math.min(keep.row, rows.length - 1)];
     const again = document.querySelector('.' + keep.cls + '[data-id="' + CSS.escape(keep.id) + '"]') || (row && row.querySelector('.item')) || (keep.list ? $(keep.list.id === 'texts' ? 'addtext' : 'addimagebtn') : null);
-    if (again) { again.focus({ preventScroll: true }); if (keep.cls === 'quick' && keep.s != null && again.setSelectionRange) try { again.setSelectionRange(keep.s, keep.e); } catch (_) {} }
+    if (again) {
+      restoringFocus = true; again.focus({ preventScroll: true }); restoringFocus = false;
+      if (keep.cls === 'quick' && keep.s != null && again.setSelectionRange) try { again.setSelectionRange(keep.s, keep.e); } catch (_) {}
+    }
   }
 }
 function syncProps() {
