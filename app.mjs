@@ -1376,8 +1376,10 @@ $('copyother').addEventListener('click', () => { design[otherKey()] = withFreshI
    or the pattern). Everything in either colour switches, and anything
    left that no longer reads against the new board (a second shade of the
    old board colour, say) takes the old board colour instead. */
-const lum = (hex) => { const [r, g, b] = rgb(hex).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
-const contrast = (a, b) => { const la = lum(a), lb = lum(b); return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05); };
+const lumOf = (channels) => { const [r, g, b] = channels.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+const lum = (hex) => lumOf(rgb(hex));
+const ratio = (la, lb) => (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+const contrast = (a, b) => ratio(lum(a), lum(b));
 function oppositeColours(src) {
   const b = withFreshIds(src);
   const low = (c) => (c || '').toLowerCase();
@@ -1485,6 +1487,45 @@ for (const [cat, fonts] of FONTS) {
   for (const [f] of fonts) { const o = document.createElement('option'); o.value = f; o.textContent = f; o.style.fontFamily = '"' + f + '"'; g.appendChild(o); }
   $('tfont').appendChild(g);
 }
+/* New words and new clip art come in one of two inks, charcoal or
+   off-white: whichever stands out more from the spot they land on. That
+   spot is read off a small drawing of the board under the new item's box:
+   the base (a fade at that height, a stain with its grain), the pattern
+   and a picture filling the board, but not the hole, which is cut out, or
+   the other items, which can be moved. Each ink is scored by the contrast
+   that nine tenths of the spot get from it, so a grain line, a thin border
+   or an anti-aliased edge does not decide it, but a pattern covering much
+   of the spot does. Off-white wins a tie, as it is what a painted board
+   always gave. A colour passed to addClip is kept. */
+const INKS = ['#f5f5f0', '#36393b'];
+const INK_PPI = 4;
+let inkCanvas = null;
+function defaultInk(b, el) {
+  if (!inkCanvas) { inkCanvas = document.createElement('canvas'); inkCanvas.width = BOARD.w * INK_PPI; inkCanvas.height = BOARD.h * INK_PPI; }
+  const W = inkCanvas.width, H = inkCanvas.height;
+  const ctx = inkCanvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return INKS[0];
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  ctx.save();
+  ctx.scale(INK_PPI, INK_PPI);
+  boardPath(ctx); ctx.clip();
+  drawBase(ctx, b.base);
+  drawPattern(ctx, b.pattern);
+  const cover = coverOf(b);
+  if (cover) drawImage(ctx, cover);
+  ctx.restore();
+  const def = CLIPS[el.name];
+  const box = el.type === 'text' ? measureTextBox(el) : { w: el.width, h: el.width * ((def && def.aspect) || 1), oy: 0 };
+  const cy = el.y + box.oy;
+  const x0 = clamp(Math.floor((el.x - box.w / 2) * INK_PPI), 0, W - 1), x1 = clamp(Math.ceil((el.x + box.w / 2) * INK_PPI), x0 + 1, W);
+  const y0 = clamp(Math.floor((cy - box.h / 2) * INK_PPI), 0, H - 1), y1 = clamp(Math.ceil((cy + box.h / 2) * INK_PPI), y0 + 1, H);
+  const px = ctx.getImageData(x0, y0, x1 - x0, y1 - y0).data, spot = [];
+  for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 0) spot.push(lumOf([px[i], px[i + 1], px[i + 2]]));
+  if (!spot.length) return INKS[0];
+  const score = (ink) => { const l = lum(ink), c = spot.map((s) => ratio(l, s)).sort((p, q) => p - q); return c[Math.floor(c.length / 10)]; };
+  return score(INKS[1]) > score(INKS[0]) ? INKS[1] : INKS[0];
+}
 function addElement(el, tab) {
   const b = activeBoard();
   if (countOf(b, el.type) >= limitOf(el.type)) { alert('Up to ' + limitOf(el.type) + ' of those per board.'); return null; }
@@ -1492,8 +1533,9 @@ function addElement(el, tab) {
   return el;
 }
 $('addtext').addEventListener('click', () => {
-  const b = activeBoard();
-  const el = addElement(T('NEW TEXT', { size: 3, y: 36, color: b.base.kind === 'wood' ? '#36393b' : '#f5f5f0' }), 'text');
+  const fresh = T('NEW TEXT', { size: 3, y: 36 });
+  fresh.color = defaultInk(activeBoard(), fresh);
+  const el = addElement(fresh, 'text');
   if (el) { $('ttext').focus(); $('ttext').select(); }
 });
 /* The words fields are textareas: a row for each line of the words, from
@@ -1769,9 +1811,9 @@ $('clearclips').addEventListener('click', () => { $('clipsearch').value = ''; cl
 fillClips();
 function addClip(name, o = {}) {
   if (!CLIPS[name]) return null;
-  const b = activeBoard();
-  const color = b.base.kind === 'wood' || b.base.color === '#fffaf0' || b.base.color === '#f5f0e6' || b.base.color === '#ffffff' ? '#36393b' : '#f5f5f0';
-  const el = addElement(C(name, { color, width: 8, x: 12, y: 36, ...o }), 'art');
+  const fresh = C(name, { width: 8, x: 12, y: 36, ...o });
+  if (o.color === undefined) fresh.color = defaultInk(activeBoard(), fresh);
+  const el = addElement(fresh, 'art');
   if (el) $('iwidth').focus();
   return el;
 }

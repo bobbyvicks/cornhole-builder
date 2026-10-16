@@ -307,6 +307,53 @@ changed.
 Verified for that commit: 71 node tests, the TypeScript check, and the
 whole Chromium suite (340 specs) pass.
 
+## New items in an ink that shows
+
+From the customer-journey audits (visual polish at 390 x 844, a team
+set on a phone and a tablet), fixed in the commit after `7682e74`:
+
+- The Add text button gave off-white words on every base but wood, and
+  new clip art switched to charcoal only for four exact lowercase hex
+  values, so on Wedding (ivory) the new words were a dashed box with
+  nothing in it (1.05:1) and the Heart on Garden vows (`#F6F1E5`) did
+  not show at all (1.03:1); Engagement, Baby shower, Brewery and Winter
+  were 1.4 to 2.2:1. On The cabin's walnut every new item was charcoal,
+  at 1.1:1.
+- `defaultInk(board, el)` in `app.mjs` now picks charcoal (`#36393b`)
+  or off-white (`#f5f5f0`) from the board where the new item lands: it
+  draws the base, the pattern and a picture filling the board (not the
+  hole, and not the other items) at 4 pixels per inch, reads the patch
+  under the item's box, and takes the ink with the higher contrast at
+  the tenth percentile of that patch, so grain lines, a thin border or
+  an anti-aliased edge do not decide it. Off-white wins a tie. Add text
+  and `addClip` use it whenever no colour is passed in; the creative
+  pack spec and the others that pass a colour keep theirs. Pictures are
+  unchanged.
+- The triage suggested comparing against the base colour alone (the
+  lower of the two contrasts for a fade, the stain colour for wood).
+  That would have put charcoal on Lake days, whose lower half, where new
+  items land, is a deep teal pattern (1.3:1); reading the spot handles
+  that, a fade at the height of the item, and a light picture filling a
+  dark board. A stripe pattern under the item still leaves half of it on
+  the weaker colour whichever ink is taken.
+- Where new items land is unchanged (12 in across, 36 in down), so on a
+  board with something already there they still sit on top of it; that
+  is a separate item.
+
+`tests/new-item-ink.spec.js` applies Wedding, Monogram, Engagement,
+Baby shower, Garden, Garden vows, Lake days, Brewery and Winter, presses
+the Add text button and taps the Heart in the Art tab: each comes in an
+ink at least 3:1 against the bare board under it, the words add hundreds
+of pixels of that ink to the preview, and the middle of the Heart is its
+colour, not the board's. It also checks off-white on the default navy
+board, off-white on the walnut cabin and charcoal on the natural-wood
+rustic board, both ends of a fade, a light picture filling a navy
+board, and a colour passed to `addClip` being kept. No existing spec
+changed.
+
+Verified for that commit: 71 node tests, the TypeScript check, and the
+whole Chromium suite (353 specs) pass.
+
 ## Verification
 
 At the tested implementation commit `f4d456a`, the final clean `npm test`

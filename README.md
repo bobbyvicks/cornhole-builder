@@ -17,7 +17,10 @@ A site where people design their own cornhole boards and order them.
   a swipe that starts on it scrolls the page; unticked, it goes back to
   the place and size it had). Its print-size note offers unticking rather
   than a bigger file, since no file the page keeps can cover the board at
-  100 dots per inch. Drag, resize and rotate
+  100 dots per inch. New words and new clip art come in charcoal or
+  off-white, whichever stands out more from the board where they land
+  (the paint, a fade at that height, the stain, the pattern or a picture
+  filling the board). Drag, resize and rotate
   on the board with handles (a red x on the handles removes; so does the
   button on each list row, and the Delete key), snap to centre, layer order,
   duplicate, undo/redo, and the design is kept in the browser across
