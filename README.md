@@ -20,7 +20,12 @@ A site where people design their own cornhole boards and order them.
   order. Templates are grouped by occasion with a blank start; a template
   hands over its first words selected and ready to type over, and each
   text has a field right in the list. Curve, spacing, rotation and layers
-  sit under "Advanced text" and "Advanced artwork".
+  sit under "Advanced text" and "Advanced artwork". Each board carries a
+  hidden description for a screen reader, made again at every redraw: the
+  base, the pattern, every text with its words and font, the clip art by
+  name, the pictures by count, and which board is being edited when the
+  two differ. The canvas keeps its short label, and the description is
+  not a live region, so nothing is announced while someone edits.
 - **A simpler start.** Search templates by name or occasion and filter the
   gallery: the cards are built once, a search shows the ones that match,
   and a thumbnail is drawn when it comes into view rather than all 160-odd

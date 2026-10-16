@@ -475,6 +475,48 @@ function handlePoints(id) {
   for (const [k, [lx, ly]] of Object.entries(spots)) out[k] = { x: el.x + lx * Math.cos(a) - ly * Math.sin(a), y: el.y + lx * Math.sin(a) + ly * Math.cos(a) };
   return out;
 }
+/* Each board in words, for a screen reader: a canvas is a picture it
+   cannot read. The hidden element the canvas points at with
+   aria-describedby says what is drawn - the base, the pattern if there is
+   one, every text with its words and its font, the clip art by name, the
+   pictures by count - and, with two different boards, which of them the
+   panel is editing. The canvas keeps its short label; this is the detail
+   read after it. It is made again at every paint, a few string joins, so
+   it never lags behind the board, and the text node is only written when
+   the words change. It is not a live region: nothing is announced while
+   someone edits, it is read when the board is reached. */
+const COUNT_WORDS = ['no', 'one', 'two', 'three', 'four'];
+const listed = (items) => (items.length < 2 ? items.join('') : items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1]);
+const sentence = (s) => s.charAt(0).toUpperCase() + s.slice(1) + '.';
+function baseWords(base) {
+  if (base.kind === 'wood') return (STAINS[base.stain] || STAINS.walnut).label.toLowerCase() + ' stained wood';
+  if (base.kind === 'gradient') return 'a fade from ' + colourName(base.color) + ' to ' + colourName(base.color2 || base.color);
+  return 'painted ' + colourName(base.color);
+}
+function describeBoard(key) {
+  const b = boardFor(key), split = order.product === 'set' && !design.same;
+  const words = [], clips = [];
+  let pictures = 0;
+  for (const e of b.elements) {
+    if (e.type === 'text') words.push(e.text.trim() ? '"' + e.text.trim() + '" in ' + e.font : 'an empty text');
+    else if (e.type === 'clip') clips.push((CLIPS[e.name] || {}).label || 'clip art');
+    else if (e.type === 'image') pictures++;
+  }
+  const out = [];
+  if (key === 'b' && design.same) out.push('The same design as Board A.');
+  out.push(sentence(baseWords(b.base)));
+  if (b.pattern.kind !== 'none') out.push('Pattern: ' + (PATTERNS[b.pattern.kind] || b.pattern.kind).toLowerCase() + ' in ' + colourName(b.pattern.color) + '.');
+  if (words.length) out.push('Words: ' + listed(words) + '.');
+  if (clips.length) out.push('Clip art: ' + listed(clips) + '.');
+  if (pictures) out.push(sentence((COUNT_WORDS[pictures] || String(pictures)) + (pictures === 1 ? ' picture' : ' pictures')));
+  if (!b.elements.length) out.push('No words or artwork yet.');
+  if (split) out.push(key === active ? 'This is the board being edited.' : 'Board ' + active.toUpperCase() + ' is being edited.');
+  return out.join(' ');
+}
+function describeBoards() {
+  for (const key of ['a', 'b']) setText($('desc' + key.toUpperCase()), describeBoard(key));
+}
+
 const guides = { v: false, h: false };
 let raf = 0;
 function render() { if (!raf) raf = requestAnimationFrame(paint); }
@@ -482,6 +524,7 @@ function paint() {
   raf = 0;
   sizeHandles();
   syncScrollPadding();
+  describeBoards();
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const ppi = 20 * dpr;
   for (const key of ['a', 'b']) {
