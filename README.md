@@ -10,7 +10,11 @@ A site where people design their own cornhole boards and order them.
   shadow, on one line or several (Enter in a words field starts a new line;
   each line is centred, and bent and spaced on its own), 131 pieces of
   vector clip art in thirteen groups, any colour, uploaded pictures with
-  flip, circle crop and white-background removal. Drag, resize and rotate
+  flip, circle crop and white-background removal, and Fill the board: one
+  picture per board drawn edge to edge under everything else, centred and
+  trimmed to fit, in the preview and the print file alike (picked from an
+  empty spot or its list row, with no handles; unticked, it goes back to
+  the place and size it had). Drag, resize and rotate
   on the board with handles (a red x on the handles removes; so does the
   button on each list row, and the Delete key), snap to centre, layer order,
   duplicate, undo/redo, and the design is kept in the browser across

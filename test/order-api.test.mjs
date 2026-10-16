@@ -281,6 +281,34 @@ test('a picture may carry its print master and pixel size, and the order records
   assert.equal(r2.body.error, 'too_large');
 });
 
+test('a picture that fills the board is accepted and stored as sent; two filling one board are refused', async () => {
+  const handler = await load({ SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'k', STRIPE_SECRET_KEY: 'sk_test' });
+  let calls = stub();
+  const o = goodOrder(); o.design.a.elements[1].cover = true;
+  let res = fakeRes(); await handler(req(o), res);
+  assert.equal(res.code, 200, JSON.stringify(res.body));
+  const stored = JSON.parse(calls.find((c) => c.url.includes('/rest/v1/cornhole_orders') && c.method === 'POST').body);
+  assert.equal(stored.design.a.elements[1].cover, true);
+  assert.equal(stored.amount_cents, quote(o.options).total, 'filling the board changes nothing in the price');
+  /* An order from a page that knows nothing of it carries no cover field. */
+  assert.equal(goodOrder().design.a.elements[1].cover, undefined);
+
+  calls = stub();
+  const two = goodOrder();
+  two.design.a.elements[1].cover = true;
+  two.design.a.elements.push({ ...two.design.a.elements[1], id: 'e4' });
+  res = fakeRes(); await handler(req(two), res);
+  assert.equal(res.code, 400);
+  assert.match(res.body.message, /design\.a\.elements: only one picture can fill a board/);
+  assert.equal(calls.length, 0, 'nothing was stored or sent to payment');
+
+  calls = stub();
+  const wrong = goodOrder(); wrong.design.a.elements[1].cover = 'yes';
+  res = fakeRes(); await handler(req(wrong), res);
+  assert.equal(res.code, 400);
+  assert.match(res.body.message, /design\.a\.elements\.1\.cover/);
+});
+
 /* Use the shipped template factory, with the same default fields its
    browser adapters supply. Do not copy template geometry into fixtures:
    newly approved artwork must still pass the real checkout boundary. */

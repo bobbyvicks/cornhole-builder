@@ -93,7 +93,10 @@ const today = () => new Date().toISOString().slice(0, 10);
    STATE
    ==================================================================== */
 const TEXT_DEFAULTS = { outline: '#111111', outlineWidth: 0, rotation: 0, arc: 0, spacing: 0, shadow: false };
-const IMAGE_DEFAULTS = { rotation: 0, opacity: 1, flipH: false, circleCrop: false, knockout: false };
+/* A picture with cover set fills the whole board, under everything else
+   (see drawImage); its own place, width, turn and circle crop are kept
+   for when it is put back. One picture per board fills it at a time. */
+const IMAGE_DEFAULTS = { rotation: 0, opacity: 1, flipH: false, circleCrop: false, knockout: false, cover: false };
 const CLIP_DEFAULTS = { color: '#f5f5f0', outline: '#111111', outlineWidth: 0, rotation: 0, opacity: 1, flipH: false, width: 8 };
 /* Words may run over several lines, so a line break stays. Any other
    control character - a tab pasted in, the carriage return of a file
@@ -110,6 +113,9 @@ function withDefaults(el) {
 const T = (text, o) => withDefaults({ type: 'text', text, font: 'Anton', size: 4, color: '#f5f5f0', x: 12, y: 30, ...o });
 const C = (name, o) => withDefaults({ type: 'clip', name, x: 12, y: 20, ...o });
 
+/* Whether an item is a picture filling its board, and the one that does. */
+const fills = (el) => el.type === 'image' && el.cover === true;
+const coverOf = (b) => b.elements.find(fills) || null;
 function freshBoard(o = {}) {
   return {
     base: { kind: 'paint', color: '#1f3a93', color2: '#4fa3e3', angle: 180, stain: 'walnut', ...(o.base || {}) },
@@ -125,6 +131,13 @@ function freshDesign() {
 function migrate(d) {
   if (!d || !d.a || !d.b) return freshDesign();
   const out = { version: DESIGN_VERSION, same: d.same !== false, a: freshBoard(d.a), b: freshBoard(d.b) };
+  /* A picture saved before Fill the board existed has no cover field and
+     gets false from the defaults. A file that marks two pictures on one
+     board keeps the first, as the page itself only ever allows one. */
+  for (const key of ['a', 'b']) {
+    const cover = coverOf(out[key]);
+    for (const e of out[key].elements) if (e.type === 'image' && e !== cover) e.cover = false;
+  }
   return out;
 }
 
@@ -406,10 +419,28 @@ function drawText(ctx, el) {
   ctx.restore();
 }
 
+/* A picture is drawn at its place, or, when it fills the board, scaled
+   so that it covers all of the 24 x 48 (as CSS object-fit: cover does):
+   centred, the overflowing edges cut off by the board's outline, with its
+   place, width, turn and circle crop set aside until it is put back. Its
+   opacity, flip and white-background removal still apply. Its hit box is
+   the whole board; hitTest picks it only where nothing else is. */
 function drawImage(ctx, el) {
   const source = printing ? (el.orig || el.src) : el.src;
   const img = el.knockout ? knockedOut(source) : imageFor(source);
   const iw = img ? (img.naturalWidth || img.width) : (el.px ? el.px[0] : 1), ih = img ? (img.naturalHeight || img.height) : (el.px ? el.px[1] : 1);
+  if (fills(el)) {
+    const k = Math.max(BOARD.w / iw, BOARD.h / ih), w = iw * k, h = ih * k;
+    boxes.set(el.id, { w: BOARD.w, h: BOARD.h, oy: 0 });
+    ctx.save();
+    ctx.translate(BOARD.w / 2, BOARD.h / 2);
+    ctx.globalAlpha = el.opacity;
+    if (el.flipH) ctx.scale(-1, 1);
+    if (img) ctx.drawImage(img, -w / 2, -h / 2, w, h);
+    else { ctx.fillStyle = 'rgba(255,255,255,.4)'; ctx.fillRect(-BOARD.w / 2, -BOARD.h / 2, BOARD.w, BOARD.h); }
+    ctx.restore();
+    return;
+  }
   let w = el.width, h = w * ih / iw;
   if (el.circleCrop) { const d = Math.min(w, h); boxes.set(el.id, { w: d, h: d, oy: 0 }); }
   else boxes.set(el.id, { w, h, oy: 0 });
@@ -476,7 +507,12 @@ function renderBoard(ctx, b, ppi, { print = false } = {}) {
   ctx.clip();
   drawBase(ctx, b.base);
   drawPattern(ctx, b.pattern);
-  for (const el of b.elements) (DRAWERS[el.type] || (() => {}))(ctx, el);
+  /* A picture that fills the board goes down first, over the base and the
+     pattern (which show through where it is see-through) and under every
+     other item, wherever it sits in the list. */
+  const cover = coverOf(b);
+  if (cover) drawImage(ctx, cover);
+  for (const el of b.elements) if (el !== cover) (DRAWERS[el.type] || (() => {}))(ctx, el);
   drawHole(ctx, print);
   if (!print) {
     /* A soft bevel so the preview reads as an object, not a flat rectangle. */
@@ -499,8 +535,14 @@ function sizeHandles() {
   HANDLE.hit = clamp(20 / css, 0.9, 4.5);
   HANDLE.rotateGap = HANDLE.size * 1.5;
 }
-/* Where a selected element's handles sit, in its own (rotated) frame. */
+/* Where a selected element's handles sit, in its own (rotated) frame. A
+   picture filling the board has none: it has no size or turn of its own
+   to change, and a red x in the board's corner would sit where people
+   reach for the artwork above it. It is removed like anything else from
+   its row's x in the Art list, the Remove button under it, or the Delete
+   key while the board has the focus. */
 function handleSpots(el) {
+  if (fills(el)) return null;
   const box = boxes.get(el.id); if (!box) return null;
   const rx = box.w / 2 + 0.15, top = -box.h / 2 - 0.15 + box.oy, bottom = box.h / 2 + 0.15 + box.oy;
   return { resize: [rx, bottom], delete: [rx, top], rotate: [0, top - HANDLE.rotateGap] };
@@ -545,7 +587,7 @@ function describeBoard(key) {
   if (b.pattern.kind !== 'none') out.push('Pattern: ' + (PATTERNS[b.pattern.kind] || b.pattern.kind).toLowerCase() + ' in ' + colourName(b.pattern.color) + '.');
   if (words.length) out.push('Words: ' + listed(words) + '.');
   if (clips.length) out.push('Clip art: ' + listed(clips) + '.');
-  if (pictures) out.push(sentence((COUNT_WORDS[pictures] || String(pictures)) + (pictures === 1 ? ' picture' : ' pictures')));
+  if (pictures) out.push(sentence((COUNT_WORDS[pictures] || String(pictures)) + (pictures === 1 ? ' picture' : ' pictures') + (coverOf(b) ? (pictures === 1 ? ', filling the board' : ', one filling the board') : '')));
   if (!b.elements.length) out.push('No words or artwork yet.');
   if (split) out.push(key === active ? 'This is the board being edited.' : 'Board ' + active.toUpperCase() + ' is being edited.');
   return out.join(' ');
@@ -577,7 +619,16 @@ function paint() {
     // Keyboard navigation reaches the canvas whose selection the controls
     // edit. A second preview must not receive keys intended for that selection.
     c.tabIndex = editingHere ? 0 : -1;
-    if (el && editingHere) {
+    if (el && editingHere && fills(el)) {
+      /* A picture filling the board is outlined just inside the board's
+         edge, with no handles (see handleSpots). */
+      ctx.save(); ctx.scale(ppi, ppi);
+      const inset = 0.35;
+      ctx.setLineDash([8 / ppi, 5 / ppi]); ctx.lineWidth = 2 / ppi;
+      ctx.strokeStyle = '#ffffff'; ctx.strokeRect(inset, inset, BOARD.w - 2 * inset, BOARD.h - 2 * inset);
+      ctx.lineDashOffset = 8 / ppi; ctx.strokeStyle = '#1f3a93'; ctx.strokeRect(inset, inset, BOARD.w - 2 * inset, BOARD.h - 2 * inset);
+      ctx.restore();
+    } else if (el && editingHere) {
       const box = boxes.get(el.id);
       if (box) {
         ctx.save(); ctx.scale(ppi, ppi);
@@ -840,14 +891,17 @@ function toLocal(el, ix, iy) {
   return { x: dx * Math.cos(a) - dy * Math.sin(a), y: dx * Math.sin(a) + dy * Math.cos(a) };
 }
 function hitTest(b, ix, iy) {
+  const cover = coverOf(b);
   for (let i = b.elements.length - 1; i >= 0; i--) {
     const el = b.elements[i], box = boxes.get(el.id);
-    if (!box) continue;
+    if (!box || el === cover) continue;
     const l = toLocal(el, ix, iy);
     const hw = Math.max(box.w, 1) / 2 + 0.2, hh = Math.max(box.h, 1) / 2 + 0.2;
     if (Math.abs(l.x) <= hw && Math.abs(l.y - box.oy) <= hh) return el;
   }
-  return null;
+  /* A picture filling the board lies under everything, so it is picked
+     only where nothing else is: the artwork on it stays easy to pick up. */
+  return cover && ix >= 0 && ix <= BOARD.w && iy >= 0 && iy <= BOARD.h ? cover : null;
 }
 function handleAt(el, ix, iy) {
   const spots = handleSpots(el); if (!spots) return null;
@@ -892,7 +946,9 @@ for (const c of [$('canvasA'), $('canvasB')]) {
          its controls are right under the board. */
       if (el) showTab(el.type === 'text' ? 'text' : 'art');
     }
-    if (!el) return;
+    /* A picture filling the board is selected, not dragged: it has no
+       place on the board to move to. */
+    if (!el || fills(el)) return;
     const box = boxes.get(el.id) || { oy: 0 };
     const l = toLocal(el, p.x, p.y);
     drag = { id: el.id, pointerId: ev.pointerId, canvas: c, board: activeBoard(), mode: handle || 'move', dx: el.x - p.x, dy: el.y - p.y, moved: false,
@@ -968,6 +1024,9 @@ document.addEventListener('keydown', (ev) => {
   const el = selectedEl(); if (!el) return;
   const step = ev.shiftKey ? 1 : 0.1;
   const nudge = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[ev.key];
+  /* A picture filling the board neither moves nor resizes: its own place
+     and width wait, unchanged, for it to be put back. Delete still works. */
+  if (fills(el) && (nudge || ['+', '=', '-'].includes(ev.key))) { ev.preventDefault(); return; }
   /* The keys stop where a drag stops: the server refuses artwork further off the board. */
   if (nudge) { el.x = clamp(r1(el.x + nudge[0]), -4, BOARD.w + 4); el.y = clamp(r1(el.y + nudge[1]), -4, BOARD.h + 4); if (el.type === 'text') el.autoFit = false; render(); syncProps(); commit(); ev.preventDefault(); }
   else if (ev.key === '+' || ev.key === '=' || ev.key === '-') {
@@ -1495,11 +1554,21 @@ async function shrunkPreview(src, k) {
   c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
   return src.startsWith('data:image/jpeg') ? c.toDataURL('image/jpeg', 0.85) : c.toDataURL('image/png');
 }
+/* The width a picture prints at, in inches: its own, or, filling the
+   board, whatever covering 24 x 48 takes - 48" tall for a picture wider
+   than the board's shape, 24" wide for a narrower one. */
+const printWidth = (el) => (fills(el) && el.px ? Math.max(BOARD.w, BOARD.h * el.px[0] / el.px[1]) : el.width);
 /* Dots per inch a picture prints at, at the width it has on the board. */
-const printDpi = (el) => (el.px ? el.px[0] / el.width : null);
+const printDpi = (el) => (el.px ? el.px[0] / printWidth(el) : null);
 function resolutionNote(el, where) {
   const dpi = printDpi(el); if (dpi === null || dpi >= SHARP_DPI) return '';
-  return 'The picture' + (where ? ' on ' + where : '') + ' is ' + el.px[0] + ' x ' + el.px[1] + ' pixels: at ' + el.width + '" wide it prints at about ' + Math.round(dpi) + ' dots per inch, which will look ' + (dpi < SOFT_DPI ? 'blurry' : 'soft') + '. ' + SHARP_DPI + ' or more prints sharp: use a bigger file, or make it no wider than ' + (Math.floor(el.px[0] / SHARP_DPI * 4) / 4) + '".';
+  const start = 'The picture' + (where ? ' on ' + where : '') + ' is ' + el.px[0] + ' x ' + el.px[1] + ' pixels: ';
+  const look = ' dots per inch, which will look ' + (dpi < SOFT_DPI ? 'blurry' : 'soft') + '. ' + SHARP_DPI + ' or more prints sharp: use a bigger file, or ';
+  if (fills(el)) {
+    const tall = printWidth(el) > BOARD.w;
+    return start + 'filling the board, ' + (tall ? BOARD.h + '" tall' : BOARD.w + '" wide') + ', it prints at about ' + Math.round(dpi) + look + 'untick Fill the board.';
+  }
+  return start + 'at ' + el.width + '" wide it prints at about ' + Math.round(dpi) + look + 'make it no wider than ' + (Math.floor(el.px[0] / SHARP_DPI * 4) / 4) + '".';
 }
 function lowResImages(keys) {
   const out = [];
@@ -1513,6 +1582,16 @@ field('iopacity', 'opacity', Number, (v) => Math.round(v * 100) + '%');
 field('ix', 'x', Number, inch);
 field('iy', 'y', Number, inch);
 toggle('iflip', 'flipH'); toggle('icircle', 'circleCrop'); toggle('iknockout', 'knockout');
+/* Fill the board: one picture per board at a time, so ticking it for one
+   picture unticks it for any other on the same board. Unticking puts the
+   picture back where it was, at the size and turn it had. */
+$('icover').addEventListener('change', () => {
+  const el = selectedEl(); if (!el || el.type !== 'image') return;
+  const on = $('icover').checked;
+  if (on) for (const e of activeBoard().elements) if (e.type === 'image' && e !== el) e.cover = false;
+  el.cover = on;
+  render(); syncLists(); syncProps(); commit();
+});
 field('ccolor', 'color'); field('coutline', 'outline'); field('coutlinew', 'outlineWidth', Number, inch);
 toggle('cflip', 'flipH');
 $('idel').addEventListener('click', () => { if (selected) removeElement(selected); });
@@ -1599,12 +1678,19 @@ function copyToOther() {
     alert(board + ' has reached its limit of ' + limit + ' ' + items + '. Remove ' + items + ' from ' + board + ' to make room, then copy again.');
     return;
   }
-  other.elements.push({ ...JSON.parse(JSON.stringify(el)), id: uid() });
+  const copy = { ...JSON.parse(JSON.stringify(el)), id: uid() };
+  /* A copy of a picture filling this board fills the other one, in place
+     of any picture that filled it before. */
+  if (fills(copy)) for (const e of other.elements) if (e.type === 'image') e.cover = false;
+  other.elements.push(copy);
   render(); commit();
 }
 function duplicate() {
   const el = selectedEl(); if (!el) return;
   const copy = { ...JSON.parse(JSON.stringify(el)), id: uid(), x: clamp(r1(el.x + 1), -4, BOARD.w + 4), y: clamp(r1(el.y + 1), -4, BOARD.h + 4) };
+  /* Only one picture fills a board: a copy of it is an ordinary picture,
+     at the place the original keeps for when it is put back. */
+  if (fills(copy)) copy.cover = false;
   addElement(copy, null);
 }
 function moveLayer(dir) {
@@ -1651,7 +1737,8 @@ function itemRow(el, pressed, onClick) {
    the kind of picture and its width. Kept current as the words change. */
 function rowName(el) {
   if (el.type === 'text') return el.text.trim() ? '"' + el.text + '"' : 'the empty text';
-  return el.type === 'image' ? 'Picture, ' + el.width + '" wide' : (CLIPS[el.name] || {}).label + ', ' + el.width + '"';
+  if (el.type === 'image') return fills(el) ? 'Picture, filling the board' : 'Picture, ' + el.width + '" wide';
+  return (CLIPS[el.name] || {}).label + ', ' + el.width + '"';
 }
 function labelRow(row, el) {
   const name = rowName(el);
@@ -1727,13 +1814,17 @@ function syncProps() {
   } else {
     $('imageonly').hidden = el.type !== 'image';
     $('cliponly').hidden = el.type !== 'clip';
+    /* What a picture filling the board sets aside stays in view, kept for
+       when it is put back, but cannot be changed meanwhile. */
+    const filling = fills(el);
+    for (const id of ['iwidth', 'irot', 'ix', 'iy', 'icircle', 'iforward', 'iback']) $(id).disabled = filling;
     setRange('iwidth', el.width, inch(el.width));
     setRange('irot', el.rotation, deg(el.rotation));
     setRange('iopacity', el.opacity, Math.round(el.opacity * 100) + '%');
     setRange('ix', el.x, inch(el.x)); setRange('iy', el.y, inch(el.y));
     const note = el.type === 'image' ? resolutionNote(el, '') : '';
     $('ireswarn').textContent = note; $('ireswarn').hidden = !note;
-    if (el.type === 'image') { $('iflip').checked = !!el.flipH; $('icircle').checked = !!el.circleCrop; $('iknockout').checked = !!el.knockout; }
+    if (el.type === 'image') { $('iflip').checked = !!el.flipH; $('icircle').checked = !!el.circleCrop; $('iknockout').checked = !!el.knockout; $('icover').checked = fills(el); }
     else { $('ccolor').value = el.color; $('coutline').value = el.outline; setRange('coutlinew', el.outlineWidth, inch(el.outlineWidth)); $('cflip').checked = !!el.flipH; }
   }
 }

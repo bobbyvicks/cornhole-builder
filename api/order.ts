@@ -103,6 +103,10 @@ const imageEl = z.object({
   flipH: z.boolean(),
   circleCrop: z.boolean(),
   knockout: z.boolean(),
+  /* Fill the board: drawn over the whole 24 x 48, centred and trimmed to
+     fit, under everything else, its own place and width set aside. Pages
+     from before it existed do not send it. */
+  cover: z.boolean().optional(),
 });
 const clipEl = z.object({
   type: z.literal("clip"),
@@ -136,7 +140,8 @@ const board = z.object({
   elements: z.array(z.discriminatedUnion("type", [textEl, imageEl, clipEl])).max(MAX_TEXTS_PER_BOARD + MAX_IMAGES_PER_BOARD + MAX_CLIPS_PER_BOARD)
     .refine((els) => els.filter((e) => e.type === "image").length <= MAX_IMAGES_PER_BOARD, "too many images on one board")
     .refine((els) => els.filter((e) => e.type === "text").length <= MAX_TEXTS_PER_BOARD, "too many text items on one board")
-    .refine((els) => els.filter((e) => e.type === "clip").length <= MAX_CLIPS_PER_BOARD, "too much clip art on one board"),
+    .refine((els) => els.filter((e) => e.type === "clip").length <= MAX_CLIPS_PER_BOARD, "too much clip art on one board")
+    .refine((els) => els.filter((e) => e.type === "image" && e.cover).length <= 1, "only one picture can fill a board"),
 });
 const design = z.object({
   version: z.literal(2),
