@@ -98,6 +98,7 @@
   .savestatus { font-size: 12.5px; color: var(--muted); }
   .savestatus[data-state="saved"] { color: var(--ok); }
   .savestatus[data-state="error"], .savestatus[data-state="unreadable"] { color: var(--bad); font-weight: 600; }
+  .savestatus[data-state="elsewhere"] { color: var(--warn); font-weight: 600; }
 
   .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 12px; cursor: pointer; font-weight: 600; min-height: 44px; min-width: 44px; }
   label.btn { display: inline-flex; align-items: center; }
@@ -289,8 +290,10 @@
     .board.same { display: none; }
     .board .label { font-size: 11.5px; }
     .stagebar { padding-top: 6px; margin-top: 4px; gap: 6px; }
+    /* Only the notices show in the pinned toolbar on a phone: the same
+       four states as NOTICE_STATES in app.mjs. */
     .stagebar .savestatus { display: none; }
-    .stagebar .savestatus:is([data-state="error"], [data-state="waiting"], [data-state="unreadable"]) { display: block; flex-basis: 100%; }
+    .stagebar .savestatus:is([data-state="error"], [data-state="waiting"], [data-state="unreadable"], [data-state="elsewhere"]) { display: block; flex-basis: 100%; }
     #download .long { display: none; }
     #download .short { display: inline; }
     .pane { padding: 12px; }
@@ -408,6 +411,7 @@
           <button class="btn small" id="reset">Start over</button>
           <span class="savestatus" data-state="new">Not saved yet</span>
           <button class="btn small" id="exportlink" hidden>Export project</button>
+          <button class="btn small" type="button" id="reloadlatest" hidden>Reload</button>
         </div>
         <div class="group">
           <button class="btn small" id="download" title="A 2400 x 4800 PNG at 100 pixels per inch, drawn from the full-size originals of your pictures"><span class="long">Download print file</span><span class="short">Print file</span></button>
@@ -431,6 +435,7 @@
         <p><b>Text:</b> Replace a template's words in the Text tab; Enter starts a new line. Auto-fit keeps the words within their original space; manual sizing switches it off.</p>
         <p><b>Pictures:</b> Add PNG, JPG, WebP or SVG files. Transparent PNGs work well for logos. Use Remove white background for a logo on white; full-size originals are kept for printing. Fill the board puts one picture edge to edge behind everything, trimmed to fit; select it from an empty spot on the board or its row in the Art list, and untick it to put it back.</p>
         <p><b>Files:</b> Save editable copy keeps a project you can reopen. Share preview creates an image; Print file downloads full-size artwork.</p>
+        <p><b>Two tabs:</b> This browser keeps one design, saved after every change. If it is open in two tabs, the last change saved wins; the other tab says so and offers Reload.</p>
       </details>
       <p class="hint" id="uploadstatus" role="status" aria-live="polite" hidden></p>
       <div class="pane" id="tab-templates" data-open="true" role="tabpanel" aria-labelledby="tabbtn-templates">

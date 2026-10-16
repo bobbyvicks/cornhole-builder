@@ -727,28 +727,101 @@ const SAVE_TEXT = {
   saving: 'Saving…',
   saved: 'Saved on this device',
   error: 'Not saved: this browser cannot store the project (storage full or blocked). Export it to keep it.',
+  elsewhere: 'This project was changed in another tab. Reload to see the latest; your next change here replaces it.',
 };
+/* The states that are notices: each is announced once, stays on screen
+   until a write succeeds, and is shown in the pinned toolbar on a phone
+   (the .stagebar .savestatus rule in index.html lists the same four). */
+const NOTICE_STATES = ['error', 'waiting', 'unreadable', 'elsewhere'];
 let saveState = 'new', saveBusy = false, saveAgain = false, storageReady = false, loaded = false;
 let saveTimer = null, saveNeedsAnnouncement = false, restoreTimedOut = false;
 let startupSnapshot = null;
 let recoverySnapshot = null;
 let saveBaseline = null, saveBaselineState = 'new';
 const hasStartupEdits = () => startupSnapshot !== null && JSON.stringify({ design, order }) !== startupSnapshot;
-/* A notice that storage failed, is still being read or could not be read
-   stays until a write succeeds: on a phone it sits in the pinned toolbar,
+/* A notice that storage failed, is still being read, could not be read or
+   was changed in another tab stays until a write succeeds: on a phone it
+   sits in the pinned toolbar,
    and swapping it for "Saving…" on every keystroke would move the field
    being typed in by the notice's height, twice per key. */
-const noticeShowing = () => ['error', 'waiting', 'unreadable'].includes(saveState);
+const noticeShowing = () => NOTICE_STATES.includes(saveState);
 function setSaveState(s) {
   if (saveState === s) return;
   saveState = s;
   for (const el of document.querySelectorAll('.savestatus')) { el.textContent = SAVE_TEXT[s]; el.dataset.state = s; }
-  if (['error', 'unreadable', 'waiting'].includes(s)) { saveNeedsAnnouncement = true; $('savealert').textContent = SAVE_TEXT[s]; }
+  if (NOTICE_STATES.includes(s)) { saveNeedsAnnouncement = true; $('savealert').textContent = SAVE_TEXT[s]; }
   else if (['new', 'saved'].includes(s) && saveNeedsAnnouncement) { $('savealert').textContent = SAVE_TEXT[s]; saveNeedsAnnouncement = false; }
   $('exportlink').hidden = !['error', 'waiting'].includes(s);
+  $('reloadlatest').hidden = s !== 'elsewhere';
   // Recovery notices can resize the pinned toolbar after the last edit.
   render();
 }
+
+/* TWO TABS, ONE SAVED PROJECT. The device keeps a single project
+   (lib/store.mjs), so two tabs that both make changes take turns at it and
+   the last save wins. There is no merge; the point is that nobody is
+   surprised. Each page load makes a token of its own and every save
+   carries it. After a save the tab sends {tab, savedAt} on a
+   BroadcastChannel; a tab that hears of a save newer than anything it has
+   read or written itself says the project was changed in another tab,
+   offers Reload, and says its next change replaces it. That next change
+   saves as usual and puts the status back, and the first tab is then the
+   one told. A browser without BroadcastChannel gets the same note through
+   the storage event: the saving tab writes it to localStorage, which fires
+   the event in the other tabs (and never in itself).
+   The token is kept in sessionStorage too, so the tab that wrote the
+   saved record can be told from the console or a test. It is made fresh
+   at every load rather than read back from there: a duplicated tab starts
+   with a copy of its source tab's sessionStorage, and with the same token
+   it would take that tab's saves for its own and say nothing. */
+const TAB_KEY = 'cornhole.tab', SAVE_NOTE_KEY = 'cornhole.saved', TAB_CHANNEL = 'cornhole.project';
+const TAB = (() => {
+  let token;
+  try { token = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, '0')).join(''); }
+  catch (_) { token = Math.random().toString(36).slice(2) + Date.now().toString(36); }
+  try { sessionStorage.setItem(TAB_KEY, token); } catch (_) {}
+  return token;
+})();
+// When the newest save this page has read or made was written, and the
+// newest save another tab has told it about, in milliseconds.
+let knownSave = -Infinity, heardSave = -Infinity;
+const noteTime = (note) => { const t = note && typeof note.savedAt === 'string' ? Date.parse(note.savedAt) : NaN; return Number.isFinite(t) ? t : -Infinity; };
+const changedElsewhere = () => heardSave > knownSave;
+/* A tab that cannot save keeps saying so: its next change would not
+   replace anything. One still reading its own project decides when the
+   read is done, against the save it read. */
+function showChangedElsewhere() {
+  if (storageReady && changedElsewhere() && saveState !== 'error') setSaveState('elsewhere');
+}
+function heardOfSave(note) {
+  if (!note || typeof note !== 'object' || note.tab === TAB) return;
+  const time = noteTime(note);
+  if (time <= heardSave) return;
+  heardSave = time;
+  showChangedElsewhere();
+}
+let tabChannel = null;
+try {
+  if (typeof BroadcastChannel === 'function') {
+    tabChannel = new BroadcastChannel(TAB_CHANNEL);
+    tabChannel.onmessage = (e) => heardOfSave(e.data);
+  }
+} catch (_) { tabChannel = null; }
+if (!tabChannel) window.addEventListener('storage', (e) => {
+  if (e.key !== SAVE_NOTE_KEY || !e.newValue) return;
+  try { heardOfSave(JSON.parse(e.newValue)); } catch (_) {}
+});
+function tellOtherTabs(record) {
+  const note = { tab: TAB, savedAt: record.savedAt };
+  if (tabChannel) { try { tabChannel.postMessage(note); } catch (_) {} }
+  else { try { localStorage.setItem(SAVE_NOTE_KEY, JSON.stringify(note)); } catch (_) {} }
+}
+/* A page kept in the back-forward cache hears nothing while it is away,
+   so on its return it reads the saved record and checks who wrote it. */
+window.addEventListener('pageshow', (e) => {
+  if (!e.persisted || !storageReady) return;
+  loadProject().then((p) => { if (p) heardOfSave(p); }, () => {});
+});
 /* The record is a container copy that shares the pictures' strings, as the
    history does: serialising a design with photos in it just to parse it
    back froze the page for a good part of a second per edit on a phone. */
@@ -772,8 +845,10 @@ function skipUnchangedSave() {
   // Navigation also calls save. Keep an unchanged tab from replacing a
   // newer draft written elsewhere. Container copies share image strings.
   // A pending write must finish first: it may be replacing this baseline.
+  // The screen matching this tab's last save says nothing of a newer one
+  // another tab has made since, so that notice stays.
   if (saveBusy || !sameHistoryState(saveBaseline, { design, order })) return false;
-  setSaveState(saveBaselineState);
+  setSaveState(changedElsewhere() ? 'elsewhere' : saveBaselineState);
   return true;
 }
 function save() {
@@ -795,11 +870,16 @@ async function flush() {
   if (skipUnchangedSave()) return;
   saveBusy = true;
   // Remember the values sent to storage, not edits made while it writes.
-  const record = projectRecord(), written = { design: record.design, order: record.order };
+  // The record names this tab; the export file (projectRecord alone) does not.
+  const record = { ...projectRecord(), tab: TAB }, written = { design: record.design, order: record.order };
   try {
     await saveProject(record);
     saveBaseline = written; saveBaselineState = 'saved';
-    if (!saveAgain && !saveTimer) setSaveState('saved');
+    knownSave = Math.max(knownSave, noteTime(record));
+    tellOtherTabs(record);
+    // Another tab's save that came in while this one was writing, and was
+    // made after it, is the one kept: the notice stays.
+    if (!saveAgain && !saveTimer) setSaveState(changedElsewhere() ? 'elsewhere' : 'saved');
   }
   catch (e) { console.warn('The project could not be saved on this device.', e); setSaveState('error'); }
   saveBusy = false;
@@ -2297,6 +2377,8 @@ $('download').addEventListener('click', async () => {
 });
 $('exportbtn').addEventListener('click', exportProject);
 $('exportlink').addEventListener('click', exportProject);
+// The latest saved project is whatever another tab wrote last: a reload reads it.
+$('reloadlatest').addEventListener('click', () => location.reload());
 $('importbtn').addEventListener('click', () => $('importfile').click());
 let projectFileSequence = 0;
 $('importfile').addEventListener('change', async () => {
@@ -2369,6 +2451,9 @@ function openBuilder() {
     } });
   } catch (_) { unreadable = true; }
   clearTimeout(timeout);
+  // The save just read is not news when another tab announces it, kept
+  // or declined; one made after the read is (see showChangedElsewhere).
+  if (p) knownSave = Math.max(knownSave, noteTime(p));
   // Edits are possible only once the six-second notice has opened the
   // builder. Include ones still in progress (typing, a colour picker, or
   // dragging) even when their change/commit event has not happened yet.
@@ -2420,6 +2505,7 @@ function openBuilder() {
     recoverySnapshot = JSON.stringify({ design, order });
     setSaveState('unreadable');
   } else setSaveState('new');
+  showChangedElsewhere();
   openBuilder();
 })();
 window.addEventListener('resize', render);
@@ -2466,6 +2552,7 @@ window.cornhole = {
   get boxes() { return boxes; },
   get loaded() { return loaded; },
   get saveState() { return saveState; },
+  SAVE_TEXT, NOTICE_STATES,
   get historyLength() { return history.length; },
   setDesign(d) { design = migrate(JSON.parse(JSON.stringify(d))); selected = null; syncAll(); commit(); },
   setOrder(o) { Object.assign(order, o); syncAll(); },

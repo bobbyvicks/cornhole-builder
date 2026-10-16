@@ -18,6 +18,8 @@ for (const action of ['switch boards', 'navigate tabs', 'enter order details']) 
   const originalOther = await other.evaluate(() => ({ design: cornhole.design, order: cornhole.order }));
   await editAndCommit(page, 'LATEST FROM THE FIRST TAB'); await settled(page);
   const latest = await stored(page);
+  // The stale tab is told of the newer save before it does anything.
+  await other.waitForFunction(() => cornhole.saveState === 'elsewhere');
 
   if (action === 'switch boards') await other.locator('#boardmode [data-v="b"]').click();
   else if (action === 'navigate tabs') {
@@ -27,7 +29,9 @@ for (const action of ['switch boards', 'navigate tabs', 'enter order details']) 
     await other.click('#toreview'); await other.click('#tocheckout');
     await expect(other.locator('#orderstep3')).toBeVisible();
   }
-  await settled(other);
+  // Past the 400 ms typing debounce: a write would have ended in "saved".
+  await other.waitForTimeout(600);
+  expect(await other.evaluate(() => cornhole.saveState), 'looking around writes nothing and keeps the notice').toBe('elsewhere');
   expect(await other.evaluate(() => ({ design: cornhole.design, order: cornhole.order }))).toEqual(originalOther);
   expect(await stored(other), 'unchanged controls must not replace or redate the newer shared draft').toEqual(latest);
   await reloaded(page);

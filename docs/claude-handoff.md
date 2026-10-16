@@ -50,7 +50,8 @@ those release instructions. The artwork from PR #1 is already included in #2.
   text accurately describes when notes are submitted; preview, print and project
   downloads have distinct explanations.
 - Unchanged board/order navigation no longer saves a stale
-  tab over a newer draft. Pending-save typing and undo remain safe. Mobile save
+  tab over a newer draft, and a tab that is behind another tab's save now
+  says so (see "Two tabs" below). Pending-save typing and undo remain safe. Mobile save
   errors, stalled reads and unreadable drafts remain visible; completed recovery
   updates the screen-reader announcement.
 - Latest increment: returning from checkout verifies the stored order status
@@ -179,6 +180,46 @@ Verified for that commit: 69 node tests, the TypeScript check, and focused
 Chromium runs of `designer` and `order-outcome` (all passing). The new specs
 fail on `6af9752`.
 
+## Two tabs
+
+Two tabs on one device share the single saved record in `lib/store.mjs`,
+and the last save still wins; there is no merge. What changed is that the
+tab whose screen is out of date is told:
+
+- Each page load makes a random token (`TAB` in `app.mjs`), kept in
+  sessionStorage as `cornhole.tab` and made fresh at every load, so a
+  duplicated tab, which starts with a copy of its source tab's
+  sessionStorage, never shares it. The saved record carries it as `tab`;
+  the exported project file does not.
+- After every successful save the tab posts `{tab, savedAt}` on the
+  BroadcastChannel `cornhole.project`. Without BroadcastChannel it writes
+  the same note to localStorage (`cornhole.saved`) and the other tabs hear
+  it through the storage event.
+- A tab that hears of a save newer than the one it read or wrote itself
+  moves to the save state `elsewhere`: "This project was changed in another
+  tab. Reload to see the latest; your next change here replaces it." with a
+  Reload button (`#reloadlatest`) beside it. It is announced once through
+  `#savealert`, it is one of `NOTICE_STATES` (so it stays while typing and
+  shows in the pinned toolbar on a phone, as the CSS rule beside it does),
+  and a tab that cannot save keeps its error notice instead. The tab's next
+  successful save puts the status back to "Saved on this device", and the
+  other tab is then the one told. Unchanged navigation still writes nothing
+  and keeps the notice up.
+- A save another tab made while this one was still reading its project is
+  checked when the read finishes; a page back from the back-forward cache
+  reads the saved record and compares its `tab` and `savedAt`.
+
+`tests/two-tabs.spec.js` drives two pages in one browser context over the
+real IndexedDB: the notice and its single announcement, Reload showing the
+other tab's design, an edit in the out-of-date tab winning and the other
+tab then told, the storage-event fallback, the back-forward cache check,
+and the phone layout at 320, 375 and 390 px. The stale-tab specs in
+`tests/noop-saving.spec.js` now expect that notice in the stale tab where
+they used to wait for "Saved".
+
+Verified for that commit: 71 node tests, the TypeScript check, and the
+whole Chromium suite (330 specs) pass.
+
 ## Verification
 
 At the tested implementation commit `f4d456a`, the final clean `npm test`
@@ -210,9 +251,9 @@ Run `npm test` again after code changes.
    and Vercel team permissions blocked preview inspection.
 2. Test the iOS keyboard and native OS sharing on physical devices. Chromium
    emulation does not verify those behaviors.
-3. Add conflict detection and recovery if supporting deliberate edits in two
-   tabs. The latest fix protects unchanged navigation; competing actual edits
-   can still overwrite each other's saves.
+3. Merge competing edits from two tabs, if that is ever wanted. Today the
+   last save wins and the tab that is behind says so and offers Reload (see
+   "Two tabs"); its view is not combined with the other tab's changes.
 4. Obtain and verify the owner's actual prices, contact details, product photos
    and fulfilment policies before release. Keep existing prices and checkout
    behavior intact until the owner provides replacements.

@@ -53,6 +53,17 @@ A site where people design their own cornhole boards and order them.
   nothing can be typed over it; a device that takes more than six seconds
   gets the builder anyway, with a notice, and a design found after that
   is offered, not forced - whichever design is not kept is one Undo away.
+  Two tabs on one device share the one saved project and the last save
+  wins, but nobody is surprised: each page load has a token of its own
+  that goes into every save, and after a save the tab sends the token and
+  the time on a BroadcastChannel (through the storage event in a browser
+  without one). A tab that hears of a newer save than the one on its
+  screen says the project was changed in another tab, offers Reload, and
+  says its next change replaces it; that change saves as usual, the
+  status goes back to "Saved on this device", and the other tab is the
+  one told. The notice is announced once, and looking around an
+  out-of-date tab writes nothing. A page back from the back-forward cache
+  reads the saved record to see whether another tab wrote it meanwhile.
   Damaged records cannot hide an intact saved copy, and an
   unreadable draft is left untouched until the customer makes a new edit.
   Export writes the whole project as editable JSON; Import takes it back.
@@ -201,8 +212,8 @@ status is separate from this source integration.
 - Shipping outside the contiguous US, and real carrier rates.
 - A shareable link for a design (images make the URL too long; it needs a
   saved-designs table).
-- Navigation in an unchanged tab leaves the shared saved project alone.
-  Making actual edits in two tabs can still overwrite each other's saved
-  project; conflict warnings and recovery of competing edits remain to be added.
+- Merging edits made in two tabs. Today the last save wins: the tab that
+  is behind says so and offers Reload, but its own unsaved view is not
+  combined with the other tab's changes.
 - The prices are placeholders, and `lib/site.mjs` is blank until the
   business fills it in.
