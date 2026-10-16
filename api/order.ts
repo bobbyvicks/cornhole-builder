@@ -74,10 +74,15 @@ const placed = {
   x: inches(-6, 30), y: inches(-6, 54),
   rotation: degrees,
 };
+/* Words may run over several lines, so a line break is allowed. No other
+   control character is: a tab or a carriage return prints as nothing, and
+   the page turns them into spaces before it sends anything. */
+const words = z.string().min(1).max(60)
+  .refine((s) => !/\p{Cc}/u.test(s.replaceAll("\n", "")), "text may hold line breaks but no other control characters");
 const textEl = z.object({
   type: z.literal("text"),
   ...placed,
-  text: z.string().min(1).max(60),
+  text: words,
   font: z.string().min(1).max(40),
   size: inches(0.5, 20),
   color: hex,

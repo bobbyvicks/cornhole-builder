@@ -59,7 +59,7 @@ test.describe('mobile touch and editing', () => {
     await expect(red).toHaveAttribute('aria-pressed', 'true');
     await page.evaluate(() => { cornhole.showTab('text'); cornhole.select('t1'); });
     await expectTouchTargets(page, '#texts button, #tab-text .btn, #tab-text summary');
-    const words = page.locator('#texts input.quick').first();
+    const words = page.locator('#texts textarea.quick').first();
     await words.fill('FAMILY GAME NIGHT');
     await expect(words).toBeFocused();
     expect(await page.evaluate(() => cornhole.activeBoard().elements[0].text)).toBe('FAMILY GAME NIGHT');

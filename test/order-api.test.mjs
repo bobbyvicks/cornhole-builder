@@ -205,6 +205,33 @@ test('bad orders are refused with the field named, before anything is stored', a
   }
 });
 
+test('words may break onto a new line, but no other control character is accepted, and 60 characters stays the limit', async () => {
+  const handler = await load({ SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'k' });
+  for (const words of ['THE SMITHS\nEST. 2020', 'A\n\nB', 'x'.repeat(29) + '\n' + 'x'.repeat(30)]) {
+    const calls = stub(), order = goodOrder(), res = fakeRes();
+    order.design.a.elements[0].text = words;
+    await handler(req(order), res);
+    assert.equal(res.code, 200, JSON.stringify(words) + ' ' + JSON.stringify(res.body));
+    const stored = JSON.parse(calls.find((c) => c.method === 'POST').body);
+    assert.equal(stored.design.a.elements[0].text, words, 'the line break is stored as it came');
+  }
+  const refused = ['THE SMITHS\tEST. 2020', 'THE SMITHS\r\nEST. 2020', 'THE SMITHS\rEST. 2020', 'NUL\x00', 'BELL\x07', 'ESC\x1b[31m', 'DEL\x7f', 'NEL\x85'];
+  for (const words of refused) {
+    const calls = stub(), order = goodOrder(), res = fakeRes();
+    order.design.a.elements[0].text = words;
+    await handler(req(order), res);
+    assert.equal(res.code, 400, 'expected 400 for ' + JSON.stringify(words) + ', got ' + res.code);
+    assert.match(res.body.message, /^design\.a\.elements\.0\.text: .*control characters/);
+    assert.equal(calls.length, 0, 'nothing was stored for ' + JSON.stringify(words));
+  }
+  const calls = stub(), order = goodOrder(), res = fakeRes();
+  order.design.a.elements[0].text = 'x'.repeat(30) + '\n' + 'x'.repeat(30);
+  await handler(req(order), res);
+  assert.equal(res.code, 400, 'a line break counts as a character: 61 is one too many');
+  assert.match(res.body.message, /design\.a\.elements\.0\.text/);
+  assert.equal(calls.length, 0);
+});
+
 test('GET by code answers status and amount, never the customer', async () => {
   const handler = await load({ SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'k' });
   const calls = stub();

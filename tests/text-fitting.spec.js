@@ -43,7 +43,7 @@ test('Garden vows fits both long names inside their original spaces within the b
   ]) {
     const line = original[sample];
     await selectLine(page, line.id);
-    const input = control === 'quick' ? page.locator('#texts input.quick[data-id="' + line.id + '"]') : page.locator('#ttext');
+    const input = control === 'quick' ? page.locator('#texts textarea.quick[data-id="' + line.id + '"]') : page.locator('#ttext');
     await input.fill(replacement);
     const fitted = await readLine(page, line.id);
     expect(fitted.text).toBe(replacement);
@@ -89,7 +89,7 @@ test('repeated edits and a reload keep the original name budget instead of progr
   await settled(page); await reloaded(page); await loadLocalFonts(page);
   await selectLine(page, line.id);
   expect((await readLine(page, line.id)).fitReference).toEqual(line.fitReference);
-  await page.locator('#texts input.quick[data-id="' + line.id + '"]').fill('AVA');
+  await page.locator('#texts textarea.quick[data-id="' + line.id + '"]').fill('AVA');
   expect((await readLine(page, line.id)).size).toBe(line.size);
   await page.locator('#ttext').fill('ALEXANDRIA');
   const restored = await readLine(page, line.id);

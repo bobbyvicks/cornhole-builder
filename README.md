@@ -7,7 +7,9 @@ A site where people design their own cornhole boards and order them.
   (weddings, engagements, anniversaries, birthdays, baby showers, graduations, family, cabins, camping, tailgates, golf, business, holidays).
   Painted, two-colour fade or stained-wood base, 40 swatches plus a custom
   colour, nineteen patterns, 35 fonts, curved text with spacing, outline and
-  shadow, 131 pieces of vector clip art in thirteen groups, any colour, uploaded pictures with
+  shadow, on one line or several (Enter in a words field starts a new line;
+  each line is centred, and bent and spaced on its own), 131 pieces of
+  vector clip art in thirteen groups, any colour, uploaded pictures with
   flip, circle crop and white-background removal. Drag, resize and rotate
   on the board with handles (a red x on the handles removes; so does the
   button on each list row, and the Delete key), snap to centre, layer order,

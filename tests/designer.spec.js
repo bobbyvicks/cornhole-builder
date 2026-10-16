@@ -953,7 +953,7 @@ test.describe('the audit: saving, keyboard, guidance, pricing, review and print 
   test('the words are changed straight from the list, and the focus stays in the row while typing', async ({ page }) => {
     await open(page); await reset(page);
     await page.evaluate(() => { cornhole.addClip('heart'); cornhole.select(null); cornhole.showTab('text'); });
-    const q = page.locator('#texts input.quick');
+    const q = page.locator('#texts textarea.quick');
     expect(await q.count()).toBe(1);
     await q.fill('');
     await q.type('SMITH FAMILY');
@@ -1236,7 +1236,7 @@ test.describe('the second audit round: saving as you type, focus that never fall
     expect(await page.evaluate(() => cornhole.activeBoard().elements[0].text)).toBe('SMITHS');
     expect(await page.getAttribute('#texts .itemdel', 'aria-label')).toBe('Remove "SMITHS"');
     expect(await page.getAttribute('#texts .item', 'aria-label')).toBe('Select "SMITHS"');
-    const q = page.locator('#texts input.quick');
+    const q = page.locator('#texts textarea.quick');
     await q.fill('JONES');
     expect(await page.getAttribute('#texts .itemdel', 'aria-label')).toBe('Remove "JONES"');
     /* An empty text is not sent with an order. */

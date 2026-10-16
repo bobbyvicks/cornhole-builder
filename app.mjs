@@ -95,9 +95,17 @@ const today = () => new Date().toISOString().slice(0, 10);
 const TEXT_DEFAULTS = { outline: '#111111', outlineWidth: 0, rotation: 0, arc: 0, spacing: 0, shadow: false };
 const IMAGE_DEFAULTS = { rotation: 0, opacity: 1, flipH: false, circleCrop: false, knockout: false };
 const CLIP_DEFAULTS = { color: '#f5f5f0', outline: '#111111', outlineWidth: 0, rotation: 0, opacity: 1, flipH: false, width: 8 };
+/* Words may run over several lines, so a line break stays. Any other
+   control character - a tab pasted in, the carriage return of a file
+   written elsewhere - prints as nothing and the order would refuse it, so
+   it becomes a space. A field's value never holds a carriage return, so
+   there the change is one character for one and the caret stays put. */
+const cleanWords = (text) => String(text).replace(/\r\n?/g, '\n').replace(/\p{Cc}/gu, (c) => (c === '\n' ? c : ' '));
 function withDefaults(el) {
   const d = el.type === 'text' ? TEXT_DEFAULTS : el.type === 'image' ? IMAGE_DEFAULTS : CLIP_DEFAULTS;
-  return { ...d, ...el, id: el.id || uid() };
+  const out = { ...d, ...el, id: el.id || uid() };
+  if (out.type === 'text' && typeof out.text === 'string') out.text = cleanWords(out.text);
+  return out;
 }
 const T = (text, o) => withDefaults({ type: 'text', text, font: 'Anton', size: 4, color: '#f5f5f0', x: 12, y: 30, ...o });
 const C = (name, o) => withDefaults({ type: 'clip', name, x: 12, y: 20, ...o });
@@ -125,9 +133,12 @@ const TEMPLATES = [
   ...makeCreativeTemplates({ T, C, freshBoard }),
 ];
 /* The words a template arrives with. A design that still carries one at
-   the checkout is almost always a mistake, so the review asks. */
+   the checkout is almost always a mistake, so the review asks.
+   Words compare with their spaces and line breaks evened out, so sample
+   words only broken onto two lines still count. */
+const sampleKey = (text) => text.trim().replace(/\s+/g, ' ').toLowerCase();
 const SAMPLE_WORDS = new Set(['your team', 'new text', 'your name', 'your words']);
-for (const t of TEMPLATES) for (const e of t.board().elements) if (e.type === 'text') SAMPLE_WORDS.add(e.text.trim().toLowerCase());
+for (const t of TEMPLATES) for (const e of t.board().elements) if (e.type === 'text') SAMPLE_WORDS.add(sampleKey(e.text));
 
 let design = freshDesign();
 let active = 'a';           // which board the panel edits
@@ -156,7 +167,7 @@ function isPristine() {
 }
 function sampleWordsIn() {
   const out = new Set();
-  for (const k of boardKeys()) for (const e of design[k].elements) if (e.type === 'text' && SAMPLE_WORDS.has(e.text.trim().toLowerCase())) out.add(e.text.trim());
+  for (const k of boardKeys()) for (const e of design[k].elements) if (e.type === 'text' && SAMPLE_WORDS.has(sampleKey(e.text))) out.add(e.text.trim());
   return [...out];
 }
 
@@ -326,8 +337,19 @@ function drawPattern(ctx, p) {
 
 const fontString = (el) => (FONT_WEIGHT[el.font] || 400) + ' ' + el.size + 'px "' + el.font + '", Impact, sans-serif';
 
-/* Text: straight, or bent along an arc. Each glyph is measured, so a bent
-   word keeps its spacing, and the hit box is the chord plus the sagitta. */
+/* Text: straight, or bent along an arc, on one line or several. The words
+   break into lines at each line break; every line is centred across the
+   element, the lines sit LINE_HEIGHT x the size apart, and the block of
+   lines is centred on the element's position. Each glyph is measured, so
+   a bent word keeps its spacing. Spacing and curve apply to every line on
+   its own: each line is spaced and bent through the same angle about its
+   own middle, exactly as a single line is, so a name over a date arches
+   both. The ascent and descent of the tallest line serve every line, so
+   the baselines stay evenly spaced. The hit box of a line is its ink (for
+   a bent line, the chord plus the sagitta); the box of several lines is
+   all of theirs together, and never shorter than lines x line height. */
+const LINE_HEIGHT = 1.15;
+const textLines = (text) => String(text).split('\n');
 function drawText(ctx, el) {
   ctx.save();
   ctx.translate(el.x, el.y);
@@ -335,12 +357,14 @@ function drawText(ctx, el) {
   ctx.font = fontString(el);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  const m = ctx.measureText(el.text);
-  const asc = m.actualBoundingBoxAscent || el.size * 0.7, desc = m.actualBoundingBoxDescent || el.size * 0.2;
+  const lines = textLines(el.text), n = lines.length, lh = LINE_HEIGHT * el.size;
+  const metrics = lines.map((line) => ctx.measureText(line));
+  /* An empty line has no ink to measure, but it still takes its place. */
+  const inked = metrics.filter((m, i) => n === 1 || lines[i]);
+  const most = (key) => (inked.length ? Math.max(...inked.map((m) => m[key])) : 0);
+  const asc = most('actualBoundingBoxAscent') || el.size * 0.7, desc = most('actualBoundingBoxDescent') || el.size * 0.2;
   const dy = (asc - desc) / 2;   // centre the ink, not the em box
   const ow = el.outlineWidth || 0, spacing = el.spacing || 0, arc = el.arc || 0;
-  const chars = [...el.text], widths = chars.map((c) => ctx.measureText(c).width);
-  const total = (spacing || arc) ? widths.reduce((n, w) => n + w, 0) + spacing * (chars.length - 1) : m.width;
   const draw = (str, x, y, rot) => {
     ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
     if (el.shadow) { ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 0.1 * curPpi; ctx.shadowOffsetX = 0.07 * curPpi; ctx.shadowOffsetY = 0.09 * curPpi; }
@@ -348,24 +372,37 @@ function drawText(ctx, el) {
     ctx.fillStyle = el.color; ctx.fillText(str, 0, dy);
     ctx.restore();
   };
-  if (!arc && !spacing) {
-    draw(el.text, 0, 0, 0);
-    boxes.set(el.id, { w: Math.max(0.5, total + 2 * ow), h: Math.max(0.5, asc + desc + 2 * ow), oy: 0 });
-  } else if (!arc) {
-    let x = -total / 2;
-    chars.forEach((c, i) => { draw(c, x + widths[i] / 2, 0, 0); x += widths[i] + spacing; });
-    boxes.set(el.id, { w: Math.max(0.5, total + 2 * ow), h: Math.max(0.5, asc + desc + 2 * ow), oy: 0 });
-  } else {
+  /* One line, its middle at `cy` below the element's centre; the box it
+     returns is centred `oy` below that middle. */
+  const drawLine = (line, m, cy) => {
+    const chars = [...line], widths = chars.map((c) => ctx.measureText(c).width);
+    const total = (spacing || arc) ? widths.reduce((s, w) => s + w, 0) + spacing * Math.max(0, chars.length - 1) : m.width;
+    if (!arc && !spacing) {
+      draw(line, 0, cy, 0);
+      return { w: total + 2 * ow, h: asc + desc + 2 * ow, oy: 0 };
+    }
+    if (!arc) {
+      let x = -total / 2;
+      chars.forEach((c, i) => { draw(c, x + widths[i] / 2, cy, 0); x += widths[i] + spacing; });
+      return { w: total + 2 * ow, h: asc + desc + 2 * ow, oy: 0 };
+    }
     const theta = rad(Math.abs(arc)), r = total / theta, up = arc > 0 ? 1 : -1;
     let s = -total / 2;
     chars.forEach((c, i) => {
       const phi = (s + widths[i] / 2) / r;
-      draw(c, r * Math.sin(phi), up * (r - r * Math.cos(phi)), up * phi);
+      draw(c, r * Math.sin(phi), cy + up * (r - r * Math.cos(phi)), up * phi);
       s += widths[i] + spacing;
     });
     const chord = 2 * r * Math.sin(Math.min(theta, Math.PI) / 2), sag = r * (1 - Math.cos(Math.min(theta, Math.PI) / 2));
-    boxes.set(el.id, { w: Math.max(0.5, chord + asc + desc + 2 * ow), h: Math.max(0.5, sag + asc + desc + 2 * ow), oy: up * sag / 2 });
+    return { w: chord + asc + desc + 2 * ow, h: sag + asc + desc + 2 * ow, oy: up * sag / 2 };
+  };
+  const parts = lines.map((line, i) => { const cy = (i - (n - 1) / 2) * lh; return { cy, ...drawLine(line, metrics[i], cy) }; });
+  let box = parts[0];
+  if (n > 1) {
+    const top = Math.min(...parts.map((p) => p.cy + p.oy - p.h / 2)), bottom = Math.max(...parts.map((p) => p.cy + p.oy + p.h / 2));
+    box = { w: Math.max(...parts.map((p) => p.w)), h: Math.max(bottom - top, n * lh), oy: (top + bottom) / 2 };
   }
+  boxes.set(el.id, { w: Math.max(0.5, box.w), h: Math.max(0.5, box.h), oy: box.oy });
   ctx.restore();
 }
 
@@ -1283,6 +1320,20 @@ $('addtext').addEventListener('click', () => {
   const el = addElement(T('NEW TEXT', { size: 3, y: 36, color: b.base.kind === 'wood' ? '#36393b' : '#f5f5f0' }), 'text');
   if (el) { $('ttext').focus(); $('ttext').select(); }
 });
+/* The words fields are textareas: a row for each line of the words, from
+   the field's own minimum up to four, past which it scrolls. What is read
+   out of one is cleaned as the design is (see cleanWords), and the field is
+   written back only when that changed something, with the caret kept. */
+function fitRows(area, min) {
+  const rows = Math.min(4, Math.max(min, area.value.split('\n').length));
+  if (area.rows !== rows) area.rows = rows;
+}
+function wordsFrom(area, min) {
+  const words = cleanWords(area.value);
+  if (words !== area.value) { const s = area.selectionStart, e = area.selectionEnd; area.value = words; try { area.setSelectionRange(s, e); } catch (_) {} }
+  fitRows(area, min);
+  return words;
+}
 const field = (id, key, map = (v) => v, label = null) => {
   $(id).addEventListener('input', () => {
     const el = selectedEl(); if (!el) return; el[key] = map($(id).value);
@@ -1301,7 +1352,7 @@ const toggle = (id, key) => {
   $(id).addEventListener('change', () => { const el = selectedEl(); if (!el) return; el[key] = $(id).checked; render(); commit(); });
 };
 const inch = (v) => v + '"', deg = (v) => v + '°';
-field('ttext', 'text');
+field('ttext', 'text', () => wordsFrom($('ttext'), 2));
 field('tfont', 'font');
 field('tsize', 'size', Number, inch);
 field('tcolor', 'color');
@@ -1577,10 +1628,11 @@ function itemRow(el, pressed, onClick) {
   b.appendChild(t);
   if (el.type === 'text') {
     b.classList.add('pick'); b.title = 'Select, to change the font, size and colour';
-    const q = document.createElement('input'); q.type = 'text'; q.className = 'quick'; q.value = el.text; q.maxLength = 60; q.dataset.id = el.id;
+    const q = document.createElement('textarea'); q.className = 'quick words'; q.setAttribute('wrap', 'off'); q.value = el.text; q.maxLength = 60; q.dataset.id = el.id;
+    fitRows(q, 1);
     q.setAttribute('aria-label', 'Words: ' + (el.fitReference?.text || el.text)); q.style.fontFamily = '"' + el.font + '", Impact, sans-serif';
     q.addEventListener('focus', () => { if (selected !== el.id) select(el.id); });
-    q.addEventListener('input', () => { const e = findEl(el.id); if (!e) return; e.text = q.value; fitTemplateText(e); render(); updateRow(row, e, selected === e.id); if (selected === e.id) syncProps(); saveSoon(); });
+    q.addEventListener('input', () => { const e = findEl(el.id); if (!e) return; e.text = wordsFrom(q, 1); fitTemplateText(e); render(); updateRow(row, e, selected === e.id); if (selected === e.id) syncProps(); saveSoon(); });
     q.addEventListener('change', commit);
     row.append(b, q);
   } else {
@@ -1617,7 +1669,7 @@ function updateRow(row, el, pressed) {
     t.style.background = el.color;
     const q = row.querySelector('.quick'); q.style.fontFamily = '"' + el.font + '", Impact, sans-serif';
     q.setAttribute('aria-label', 'Words: ' + (el.fitReference?.text || el.text));
-    if (document.activeElement !== q && q.value !== el.text) q.value = el.text;
+    if (document.activeElement !== q && q.value !== el.text) { q.value = el.text; fitRows(q, 1); }
   } else if (el.type === 'clip') {
     t.textContent = ''; const c = clipThumb(el.name, el.color); c.style.width = c.style.height = '28px'; t.appendChild(c);
   }
@@ -1662,7 +1714,7 @@ function syncProps() {
   const copyOk = !design.same && order.product === 'set';
   $('tcopy').hidden = $('icopy').hidden = !copyOk;
   if (el.type === 'text') {
-    if (document.activeElement !== $('ttext')) $('ttext').value = el.text;
+    if (document.activeElement !== $('ttext')) { $('ttext').value = el.text; fitRows($('ttext'), 2); }
     $('tfont').value = el.font;
     setRange('tsize', el.size, inch(el.size));
     $('tcolor').value = el.color; $('toutline').value = el.outline;

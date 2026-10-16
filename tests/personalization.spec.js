@@ -53,7 +53,7 @@ test('typing a draft saves without blur and survives reload', async ({ page }) =
   await reloaded(page);
   expect(await page.evaluate(() => cornhole.design.a.elements[0].text)).toBe('STILL TYPING');
   await page.evaluate(() => cornhole.showTab('text'));
-  await page.locator('#texts input.quick').fill('ROW DRAFT');
+  await page.locator('#texts textarea.quick').fill('ROW DRAFT');
   await settled(page); await reloaded(page);
   expect(await page.evaluate(() => cornhole.design.a.elements[0].text)).toBe('ROW DRAFT');
 });

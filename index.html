@@ -159,7 +159,12 @@
   .itemrow { display: flex; gap: 6px; align-items: stretch; }
   .itemrow .item { flex: 1; min-width: 0; }
   .itemrow .item.pick { flex: none; }
-  .itemrow input.quick { flex: 1; min-width: 0; min-height: 44px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: #fff; font-size: 16px; }
+  .itemrow .quick { flex: 1; min-width: 0; min-height: 44px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: #fff; font-size: 16px; }
+  /* The words fields are textareas, so Enter starts a new line on the
+     board. They do not wrap (each row of the field is a line of the
+     board), the script gives them a row for each line, up to four, and
+     they scroll sideways to the caret as a one-line field does. */
+  textarea.words { resize: none; overflow-x: hidden; line-height: 1.45; }
   .itemdel { flex: none; width: 44px; min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--bad); font-size: 20px; line-height: 1; cursor: pointer; padding: 0; }
   .itemdel:hover { border-color: var(--bad); background: #fbeae9; }
   .props { border-top: 1px dashed var(--line); padding-top: 8px; margin-top: 8px; }
@@ -423,7 +428,7 @@
         <summary>Help</summary>
         <p><b>Edit boards:</b> Choose matching boards or select Board A or B. Drag an item to move it; use its square handle to resize and round handle to rotate.</p>
         <p><b>Keyboard:</b> Focus the board, then use arrow keys to move the selection, + or - to resize, and Delete to remove it.</p>
-        <p><b>Text:</b> Replace a template's words in the Text tab. Auto-fit keeps a line within its original space; manual sizing switches it off.</p>
+        <p><b>Text:</b> Replace a template's words in the Text tab; Enter starts a new line. Auto-fit keeps the words within their original space; manual sizing switches it off.</p>
         <p><b>Pictures:</b> Add PNG, JPG, WebP or SVG files. Transparent PNGs work well for logos. Use Remove white background for a logo on white; full-size originals are kept for printing.</p>
         <p><b>Files:</b> Save editable copy keeps a project you can reopen. Share preview creates an image; Print file downloads full-size artwork.</p>
       </details>
@@ -482,7 +487,7 @@
         <div id="personalization" class="personalization" hidden></div>
         <button class="btn" id="addtext">+ Add text</button>
         <div class="props" id="textprops" hidden>
-          <div class="row"><label for="ttext">Text</label><input type="text" id="ttext" maxlength="60"></div>
+          <div class="row"><label for="ttext">Text</label><textarea id="ttext" class="words" rows="2" wrap="off" maxlength="60"></textarea></div>
           <div class="row"><label for="tfont">Font</label><select id="tfont"></select></div>
           <div class="row"><label for="tsize">Size</label><input type="range" id="tsize" min="0.5" max="16" step="0.25"><span class="val" id="tsizeval"></span></div>
           <div class="row"><label for="tcolor">Colour</label><input type="color" id="tcolor"><label for="toutline" class="auto">Outline</label><input type="color" id="toutline"><input type="range" id="toutlinew" min="0" max="0.5" step="0.025" style="min-width:70px" aria-label="Outline width"><span class="val" id="toutlinewval"></span></div>
