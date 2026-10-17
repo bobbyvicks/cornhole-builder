@@ -577,6 +577,74 @@ only while the board has the keyboard focus. No existing spec changed.
 Verified for that commit: 71 node tests, the TypeScript check, and the
 whole Chromium suite (382 specs) pass.
 
+## Two boards on a phone: opposite colours up front, the changed board in view
+
+From the customer-journey audits (a first-timer's wedding at 390 x 844,
+a team set at 360 x 780 and 820 x 1180), fixed in the commit after
+`70dfbed`:
+
+- `#boardactions` showed only once the boards were split, so with
+  matching boards, where every template starts, the classic
+  opposite-colours set could not be found. For a set with matching
+  boards the row now shows `#swapcolours` alone, reading "Make Board B
+  the opposite colours": the tap writes `oppositeColours(design.a)` to
+  B and splits the pair (`replaceOther`). Copy (`#copyother`) shows once
+  the boards are split, since before that there is nothing to copy
+  between. Split, the button reads "Make Board A (or B) the opposite
+  colours" and means what it did: it writes the other board from the
+  one being edited.
+- At 600 px and below only the board being edited is drawn
+  (`.board.inactive` is `display: none`), so Copy and opposite colours
+  changed a board out of sight, a second tap from A silently put B's
+  own edits back to a fresh opposite of A, and an Undo that changed only
+  the hidden board showed nothing. `revealBoard(key)` moves the panel to
+  the board that changed when that board's box is not displayed (its
+  computed display, read after `syncBoard` has set the classes). Copy and
+  opposite colours call it, and so does `restore` (Undo and Redo) when
+  the step changed exactly one board, compared with `sameHistoryState`,
+  whose shared strings make a picture cost nothing. Where both boards
+  show, the panel stays on the board it was editing, as before.
+- On a tablet the board not being edited was drawn at 70% opacity, so
+  gold read as pale yellow and navy as periwinkle beside the active
+  board. That rule is gone; the dashed outline and "- editing" still
+  mark the board being edited.
+- The Help text under "Edit boards" names the button.
+- Where this differs from the triage: it proposed `setActive('b')` after
+  the matching-boards tap at every width. That tap follows the same rule
+  as Copy and the split tap instead: on a phone it moves to B; from 601
+  px up, where B then shows beside A, editing stays on A. The triage
+  kept the split label "Board B in the opposite colours"; one wording,
+  with a verb, now serves both. No confirm is asked before a board is
+  overwritten: the change is on screen and one Undo away.
+- Limits: on a phone no more than 620 px tall the board is not pinned,
+  so after the tap the board that changed is above the Board tab, out
+  of view, as with every Board tab change there. Nothing is announced
+  to a screen reader when the panel moves to the other board; the
+  chips' pressed state, the board's label and its description change.
+
+`tests/board-pair.spec.js`, at 390 x 844 with touch: the Team template
+on the Board tab shows "Make Board B the opposite colours" (44 px tall)
+and no Copy; the tap splits the pair and shows Board B, gold with navy,
+with A untouched and the buttons now reading Board A; on A, a red board
+and the tap again show B with red on gold; on A, an Undo that changes
+only B shows B, and so does the Redo; on B, an Undo that changes only A
+shows A, and the first step undone goes back to matching boards. From B,
+Copy shows A, an Undo of the board on screen stays on it, and opposite
+colours from B shows A with B's own red kept. At 320, 375 and 390 px
+both buttons are at least 44 px tall and inside the screen, with no
+sideways scroll, before and after the split. At 820 x 1180 the tap
+keeps editing A with B beside it, and the board not being edited has
+opacity 1 either way round; at 1280 x 900, Enter on the button makes B,
+keeps the focus and stays on A, and Undo goes back to matching boards.
+`designer.spec.js` changed where it encoded the old behaviour: "two
+different boards" and "with two boards, one tap copies..." asserted
+`#boardactions` hidden with matching boards, and now assert
+`#swapcolours` shown and `#copyother` hidden there; the second still
+ends with Board A being edited at 1280 x 900.
+
+Verified for that commit: 71 node tests, the TypeScript check,
+and the whole Chromium suite (389 specs) pass.
+
 ## Verification
 
 At the tested implementation commit `f4d456a`, the final clean `npm test`

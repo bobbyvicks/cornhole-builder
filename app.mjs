@@ -729,10 +729,17 @@ function commit() {
   syncHistoryButtons();
 }
 function restore(s) {
+  const before = design;
   design = copyHistoryState(s);
   // A matching pair or a single board always edits A, including after
   // undoing a switch to B. Otherwise the controls edit an invisible board.
   if (design.same || order.product === 'single') active = 'a';
+  else {
+    // A step that changed one board only, and not the one on screen,
+    // moves to that board on a phone, so the Undo or Redo is seen.
+    const changed = ['a', 'b'].filter((k) => !sameHistoryState(boardFor(k, before), design[k]));
+    if (changed.length === 1) revealBoard(changed[0]);
+  }
   if (!findEl(selected)) selected = null;
   save(); syncAll();
 }
@@ -1405,7 +1412,27 @@ chips('boardmode', (v) => {
   }
 });
 const otherKey = () => (active === 'a' ? 'b' : 'a');
-$('copyother').addEventListener('click', () => { design[otherKey()] = withFreshIds(activeBoard()); syncAll(); commit(); });
+/* On a phone only the board being edited is drawn (.board.inactive is
+   display: none there), so a change made to the other board - Copy,
+   opposite colours, or an Undo or Redo that touched only that board -
+   would happen out of sight and look like nothing happened. The panel
+   moves to that board instead, so the change is on screen. Where both
+   boards show, it stays on the board it was editing. Call it with the
+   new design in place; the caller syncs the page afterwards. */
+function revealBoard(key) {
+  if (key === active) return;
+  syncBoard();
+  if (getComputedStyle($('board' + key.toUpperCase())).display === 'none') { active = key; selected = null; }
+}
+/* Copy and opposite colours write the other board. With matching boards
+   the other board is B, and writing it splits the pair: that is how a
+   set gets its opposite-colours board in one tap. */
+function replaceOther(board) {
+  const other = otherKey();
+  design[other] = board; design.same = false;
+  revealBoard(other); syncAll(); commit();
+}
+$('copyother').addEventListener('click', () => replaceOther(withFreshIds(activeBoard())));
 /* The classic set: the other board is this one with its two main colours
    exchanged - the board colour and the colour of the first text (or clip,
    or the pattern). Everything in either colour switches, and anything
@@ -1431,7 +1458,7 @@ function oppositeColours(src) {
   }
   return b;
 }
-$('swapcolours').addEventListener('click', () => { design[otherKey()] = oppositeColours(activeBoard()); syncAll(); commit(); });
+$('swapcolours').addEventListener('click', () => replaceOther(oppositeColours(activeBoard())));
 
 function syncBoard() {
   const b = activeBoard();
@@ -1456,9 +1483,13 @@ function syncBoard() {
   const twoBoards = order.product === 'set', split = twoBoards && !design.same, other = active === 'a' ? 'b' : 'a';
   setChip('boardmode', design.same ? 'same' : active);
   $('boardmode').hidden = !twoBoards;
-  $('boardactions').hidden = !split;
+  // A set offers the opposite-colours board from the start; with matching
+  // boards it makes B and splits the pair. Copy needs two designs to copy
+  // between, so it shows once they are split.
+  $('boardactions').hidden = !twoBoards;
+  $('copyother').hidden = !split;
   $('copyother').textContent = 'Copy to Board ' + other.toUpperCase();
-  $('swapcolours').textContent = 'Board ' + other.toUpperCase() + ' in the opposite colours';
+  $('swapcolours').textContent = 'Make Board ' + other.toUpperCase() + ' the opposite colours';
   $('boardB').classList.toggle('hidden', !twoBoards);
   $('boardB').classList.toggle('same', design.same);
   for (const k of ['a', 'b']) {

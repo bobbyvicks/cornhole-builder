@@ -26,7 +26,11 @@ A site where people design their own cornhole boards and order them.
   duplicate, undo/redo, and the design is kept in the browser across
   reloads. One design for both boards, or a different one each: switch
   boards above the preview or by tapping one, copy one board to the other,
-  or make the other its colour opposite. On a phone the board pins under the
+  or make the other its colour opposite (offered with matching boards too,
+  where it makes Board B). On a phone, where one board shows at a time, a
+  change to the other board (Copy, opposite colours, or an Undo or Redo
+  that touched only that board) moves the preview to it; where both show,
+  neither is dimmed. On a phone the board pins under the
   header, the handles grow to finger size, picking something up opens the
   tab that edits it, and a bar at the foot carries the total and Review
   order; while ordering, the board scrolls away with the page instead.

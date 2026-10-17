@@ -193,9 +193,12 @@ test.describe('the designer', () => {
 
   test('two different boards: B starts as a copy of A, edits to B leave A alone, and a single board hides B', async ({ page }) => {
     await open(page); await reset(page);
-    expect(await page.isHidden('#boardactions')).toBe(true);
+    /* Matching boards offer the opposite-colours board, but not Copy. */
+    expect(await page.isVisible('#swapcolours')).toBe(true);
+    expect(await page.isHidden('#copyother')).toBe(true);
     await page.click('#boardmode .chip[data-v="b"]');
     expect(await page.isHidden('#boardactions')).toBe(false);
+    expect(await page.isHidden('#copyother')).toBe(false);
     expect(await page.evaluate(() => cornhole.design.b.elements.length), 'B copied A').toBe(1);
     expect(await page.evaluate(() => cornhole.design.b.elements[0].id)).not.toBe('t1');
     expect(await page.evaluate(() => cornhole.active)).toBe('b');
@@ -726,7 +729,10 @@ test.describe('removing, two boards, the order steps and the phone layout', () =
     expect(await pixelAt(page, 'b', 2, 40)).toEqual([...RED, 255]);
     await page.click('#boardmode .chip[data-v="same"]');
     expect(await page.evaluate(() => cornhole.design.same)).toBe(true);
-    expect(await page.isHidden('#boardactions')).toBe(true);
+    /* Matching again: opposite colours stays on offer, Copy goes. */
+    expect(await page.isVisible('#boardactions')).toBe(true);
+    expect(await page.isHidden('#copyother')).toBe(true);
+    expect(await page.textContent('#swapcolours')).toBe('Make Board B the opposite colours');
   });
 
   test('the order tab is three screens the height of the other tabs: options and price, review, then the address', async ({ page }) => {

@@ -83,11 +83,13 @@
   .board canvas { width: 100%; aspect-ratio: 1 / 2; display: block; border-radius: 6px; box-shadow: 0 14px 28px rgba(30, 20, 5, .25), 0 2px 4px rgba(0,0,0,.2); cursor: grab; touch-action: pan-y pinch-zoom; background: #ccc; }
   .board canvas.grabbable { touch-action: none; }
   .board canvas.dragging { cursor: grabbing; }
+  /* The board being edited has a dashed outline and "- editing" under
+     it. The other is drawn in its true colours, not dimmed, so the two
+     boards of a set can be judged side by side. */
   .board canvas.active { outline: 3px dashed var(--accent); outline-offset: 4px; }
   .board canvas.active:focus-visible { outline-style: solid; }
   .board .label { font-size: 13px; color: var(--muted); font-weight: 600; }
   .board.hidden { display: none; }
-  .board.inactive canvas { opacity: .7; }
   .stagebar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 8px; }
   .stagebar .group { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   #download .short { display: none; }
@@ -479,7 +481,7 @@
 
       <details class="builder-help" id="builderhelp">
         <summary>Help</summary>
-        <p><b>Edit boards:</b> Choose matching boards or select Board A or B. Drag an item to move it; use its square handle to resize and round handle to rotate.</p>
+        <p><b>Edit boards:</b> Choose matching boards or select Board A or B. For a set, Make Board B the opposite colours, on the Board tab, gives Board B this design with the board and word colours switched. Drag an item to move it; use its square handle to resize and round handle to rotate.</p>
         <p><b>Keyboard:</b> Focus the board, then use arrow keys to move the selection, + or - to resize, and Delete to remove it.</p>
         <p><b>Text:</b> Tap a template's words in the Text tab and type to replace them; Enter starts a new line. Auto-fit keeps the words within their original space; manual sizing switches it off. Pick colours that stand apart from the board: the review names words or art that will hardly show, and lines shrunk hard to fit.</p>
         <p><b>Pictures:</b> Add PNG, JPG, WebP or SVG files. Transparent PNGs work well for logos. Use Remove white background for a logo on white; full-size originals are kept for printing. Fill the board puts one picture edge to edge behind everything, trimmed to fit; select it from an empty spot on the board or its row in the Art list, and untick it to put it back.</p>
