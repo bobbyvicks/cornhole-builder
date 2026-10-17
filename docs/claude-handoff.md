@@ -487,6 +487,96 @@ unbroken name with no sideways scroll. No existing spec changed.
 Verified for that commit: 71 node tests, the TypeScript check, and the
 whole Chromium suite (371 specs) pass.
 
+## Checkout on phones: the board scrolls away, the review is bigger and lists the words
+
+From the customer-journey audits (a first-timer's wedding at 390 x 844,
+visual polish at 375 x 667 and 768 x 1024, a team set), fixed in the
+commit after `80ef826`:
+
+- At 940 px and below the editing stage stayed pinned through the
+  review and the address form: y 60 to 418 of 844, 47% of a 375 x 667
+  screen, with the selected words' handles, a red x, Undo and Start
+  over above the Name field. `body.ordering .stage` is now
+  `position: relative` there, so the board scrolls away with the page
+  on the Order tab (Options, Review and Your details). `showTab` now
+  sets the scroll padding at once (`syncScrollPadding`) rather than at
+  the next paint: Chromium picks the element it keeps steady from the
+  part of the screen the padding leaves, so a padding still sized for
+  the pinned board made the review list that element, and the review
+  boards drawn above it pushed the focused heading off the top (with
+  reduced motion; a smooth scroll hid it). The typing shrink of the
+  board is left out while ordering: the board is not in view to make
+  room for, and shrinking it would move the field being typed in.
+- On the Order tab, at any width, `paint` draws no selection outline
+  and no handles (`showsSelection`); `selected` is left alone, so
+  editing goes on where it was. The handles that are not drawn cannot
+  be hit either: the pointer handler checks whether they showed when
+  the finger came down, since a tap where the red x would be otherwise
+  removed the words unseen. The board is not grabbable then, so a
+  swipe on it scrolls. A board with the keyboard focus still outlines
+  its selection, since the arrows and Delete act on it; focus and blur
+  redraw the board.
+- The review boards were 76 x 152 px, so the names on them were about
+  8 px tall. On phones each review figure is now up to 160 px wide
+  (`flex: 0 1 160px`, the image at 100% and `aspect-ratio: 1 / 2`):
+  160 px for one board, and for two boards 160 px at 390, 153 at 375
+  and 125 at 320, without sideways scroll. The pictures are drawn at
+  12 pixels per inch rather than 8, so they stay sharp at that size.
+  The desktop size is unchanged.
+- The review listed every option but no words, so WILDKATS on one
+  board and WILDCATS on the other went through. `#reviewlist` now has
+  a "Words" row, or "Board A words" and "Board B words" when the two
+  boards differ: each board's texts in layer order (the Text list's
+  order), joined with " · ", a line break shown as " / ", empty texts
+  left out, or "None". A long value wraps under itself at the right
+  (`overflow-wrap: anywhere`) and the label keeps its width.
+- The review's price note said "Bags are not included: add them
+  above.", but the bags are on the Options step. `priceNote(q,
+  { review: true })` says "add them under Options."; the Options step
+  keeps "above", where they are.
+- With the toolbar under the board scrolling away while ordering, the
+  other-tab notice and its Reload go to the line under the tabs
+  (`#tabnotice`), pinned under the header as on a wide screen, and the
+  toolbar leaves that notice out, so it stays in view through the
+  review and the address. The other save notices stay in the toolbar,
+  as they do on a short phone.
+- Where this differs from the triage: it proposed `width: min(42vw,
+  160px)` on the images, which overflows with two boards at 375 and
+  320 px (2 x 157 + 12 against about 317 px, and 2 x 134 + 12 against
+  262); a shrinking figure keeps 160 px where it fits. It proposed
+  hiding the handles only; the outline goes too, the hidden handles
+  are not hit, and a focused board keeps its selection, for the
+  reasons above. The scroll padding set at once, the notice, the
+  typing shrink and the sharper review pictures were not in it.
+- Not done: tapping a review board to see it full size, marking the
+  lines that differ between the two boards, and a link from "under
+  Options" to that step. Limits: a swipe that starts on a word on the
+  board still picks it and opens the Text tab, as it did with the board
+  pinned.
+
+`tests/checkout-phone.spec.js`, at 390 x 844 and 375 x 667 with touch:
+Wedding, Review order in the bar at the foot, the review heading
+focused and in view once its boards are drawn (reduced motion), the
+stage not sticky, the words still selected and the board the same as
+one drawn with nothing selected, a tap where the red x would be
+removing nothing, the review
+board at least 150 px wide and twice as tall, the Words row, the note
+saying "under Options" and not "above", then Your details with Name
+focused in view and not under the stage, no sideways scroll, and back
+to editing the stage pinned and the selection drawn again. Two
+different boards with SMITH changed to SMYTHE on Board A list both
+boards' words in rows of their own, both pictures at least 150 px. A
+save in another tab during the review shows the notice and a 44 px
+Reload in view at the foot of the review and with Name focused. At
+320, 375 and 390 px a long unbroken name wraps in its row; line breaks
+show as slashes, empty texts are left out and a board with no words
+says None; at 1280 x 900 the stage stays sticky, the review boards are
+76 x 152, the Options note still says "above", and the selection shows
+only while the board has the keyboard focus. No existing spec changed.
+
+Verified for that commit: 71 node tests, the TypeScript check, and the
+whole Chromium suite (382 specs) pass.
+
 ## Verification
 
 At the tested implementation commit `f4d456a`, the final clean `npm test`

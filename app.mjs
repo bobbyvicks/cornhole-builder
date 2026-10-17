@@ -563,6 +563,12 @@ function handleSpots(el) {
   const rx = box.w / 2 + 0.15, top = -box.h / 2 - 0.15 + box.oy, bottom = box.h / 2 + 0.15 + box.oy;
   return { resize: [rx, bottom], delete: [rx, top], rotate: [0, top - HANDLE.rotateGap] };
 }
+/* While the Order tab is open the board shows the design as it will
+   print, with no selection outline and no handles, so a tap cannot reach
+   a handle nobody can see either. The selection itself is kept for when
+   editing goes on. A board with the keyboard focus still outlines what
+   its keys would move or remove. */
+const showsSelection = (c) => !document.body.classList.contains('ordering') || document.activeElement === c;
 /* The same in board inches, for the tests. */
 function handlePoints(id) {
   const el = findEl(id), spots = el && handleSpots(el); if (!spots) return null;
@@ -630,7 +636,7 @@ function paint() {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, W, H);
     renderBoard(ctx, boardFor(key), ppi);
-    const el = selectedEl();
+    const el = showsSelection(c) ? selectedEl() : null;
     const editingHere = design.same ? key === 'a' : key === active;
     // Keyboard navigation reaches the canvas whose selection the controls
     // edit. A second preview must not receive keys intended for that selection.
@@ -1035,18 +1041,24 @@ const TAP_SLOP = 10;
 for (const c of [$('canvasA'), $('canvasB')]) {
   /* With two different boards, the board that has the keyboard focus is
      the one the keys edit - so tabbing to Board A makes it the active one. */
-  c.addEventListener('focus', () => { const key = c.dataset.board; if (!design.same && order.product === 'set' && key !== active) setActive(key); });
+  /* While ordering, the focus decides whether the selection shows (see
+     showsSelection), so the board is drawn again as it comes and goes. */
+  c.addEventListener('focus', () => { const key = c.dataset.board; if (!design.same && order.product === 'set' && key !== active) setActive(key); render(); });
+  c.addEventListener('blur', () => render());
   c.addEventListener('pointerdown', (ev) => {
     coverTap = null;
     if (drag || !ev.isPrimary || ev.button !== 0) return;
     const key = c.dataset.board;
+    // Whether the handles were on screen when the finger came down: taking
+    // the focus below would show them.
+    const shown = showsSelection(c);
     if (!design.same && order.product === 'set' && key !== active) setActive(key);
     /* The board takes the focus, so the arrow keys and Delete that follow
        are meant for it - and not when a slider or a tab had the focus. */
     $(design.same ? 'canvasA' : c.id).focus({ preventScroll: true });
     const p = toInches(c, ev);
     const sel = selectedEl();
-    const handle = sel && (design.same ? key === 'a' : key === active) ? handleAt(sel, p.x, p.y) : null;
+    const handle = sel && shown && (design.same ? key === 'a' : key === active) ? handleAt(sel, p.x, p.y) : null;
     if (handle === 'delete') { removeElement(sel.id); ev.preventDefault(); return; }
     let el = sel;
     if (!handle) {
@@ -1189,6 +1201,13 @@ function showTab(name) {
   for (const p of document.querySelectorAll('.pane')) p.dataset.open = String(p.id === 'tab-' + name);
   if (name !== 'order') lastEditTab = name;
   document.body.classList.toggle('ordering', name === 'order');
+  /* The selection shows or goes with it (see showsSelection), and on a
+     phone the board is pinned or not. The scroll padding follows at
+     once: the browser keeps the page steady by whatever is in view below
+     it, so a padding left over from the pinned board for a frame let the
+     review boards, drawn below the heading, push the heading off the top. */
+  syncScrollPadding();
+  render();
   if (name === 'order') reviewIfChanged();
 }
 document.querySelector('.tabs').addEventListener('click', (ev) => { const b = ev.target.closest('[role=tab]'); if (b) showTab(b.dataset.tab); });
@@ -1221,7 +1240,8 @@ function syncScrollPadding() {
   if (window.matchMedia('(max-width: 940px)').matches && getComputedStyle(st).position === 'sticky') pad = (parseFloat(getComputedStyle(st).top) || 0) + st.offsetHeight + 8 + 'px';
   else if (notice.offsetHeight) {
     /* The other-tab notice pins at the top of the panel: on its own on a
-       wide screen, with the tabs on a short phone. */
+       wide screen and on a phone while ordering, with the tabs on a
+       short phone. */
     const pinned = getComputedStyle(notice).position === 'sticky' ? notice : notice.parentElement;
     pad = (parseFloat(getComputedStyle(pinned).top) || 0) + pinned.offsetHeight + 16 + 'px';
   }
@@ -2264,10 +2284,12 @@ function fillQuote(table, q) {
   for (const l of q.lines) { const tr = table.insertRow(); tr.insertCell().textContent = (l.qty > 1 ? l.qty + ' x ' : '') + l.label; tr.insertCell().textContent = money(l.cents); }
   const tr = table.insertRow(); tr.className = 'total'; tr.insertCell().textContent = 'Estimated total (USD, before tax)'; tr.insertCell().textContent = money(q.total);
 }
-function priceNote(q) {
+/* What the price covers. The bags are chosen on the Options step, above
+   this note there; the review says where to find them instead. */
+function priceNote(q, { review = false } = {}) {
   const boards = PRICING.products[order.product].boards * order.quantity;
   return 'Includes ' + boards + ' regulation board' + (boards === 1 ? '' : 's') + ' with folding legs, your design printed and sealed under the ' + PRICING.finishes[order.finish].label.toLowerCase() + ', and freight to ' + PRICING.shipping.region + ' (not Alaska, Hawaii or overseas). '
-    + (order.bags === 'regulation' ? 'Bags are included. ' : 'Bags are not included: add them above. ')
+    + (order.bags === 'regulation' ? 'Bags are included. ' : 'Bags are not included: add them ' + (review ? 'under Options. ' : 'above. '))
     + 'US dollars, before sales tax, which is added at checkout.';
 }
 function syncOrder() {
@@ -2305,6 +2327,14 @@ async function renderReview() {
   const dot = (hex) => { const s = document.createElement('span'); s.className = 'swatchdot'; s.style.background = hex; s.setAttribute('aria-hidden', 'true'); return s; };
   li('Product', order.quantity + ' x ' + PRICING.products[order.product].label);
   li('Design', order.product === 'single' ? 'One board' : design.same ? 'The same on both boards' : 'Two different boards');
+  /* The words on each board as text, in the order the Text list has them,
+     a line break shown as a slash: a misspelling, or a name corrected on
+     one board and not on the other, is easier to catch here than on a
+     picture of the board. */
+  const wordsOn = (k) => design[k].elements.filter((e) => e.type === 'text')
+    .map((e) => String(e.text || '').split('\n').map((s) => s.trim()).filter(Boolean).join(' / '))
+    .filter(Boolean).join(' · ') || 'None';
+  for (const k of keys) li(keys.length > 1 ? 'Board ' + k.toUpperCase() + ' words' : 'Words', wordsOn(k));
   li('Finish', PRICING.finishes[order.finish].label);
   li('Bags', order.bags === 'regulation'
     ? [PRICING.bags.regulation.label + ': 4 ', dot(order.bagColors[0]), colourName(order.bagColors[0]) + ' and 4 ', dot(order.bagColors[1]), colourName(order.bagColors[1])]
@@ -2315,7 +2345,7 @@ async function renderReview() {
   if (order.needBy) li('Needed by', order.needBy);
   if (order.giftNote.trim()) li('Gift note', order.giftNote.trim());
   fillQuote($('reviewquote'), q);
-  $('reviewnote').textContent = priceNote(q) + ' Freight transit is on top of dispatch and depends on your address; we confirm an estimate with your order. Dates are estimates, not guarantees.';
+  $('reviewnote').textContent = priceNote(q, { review: true }) + ' Freight transit is on top of dispatch and depends on your address; we confirm an estimate with your order. Dates are estimates, not guarantees.';
   const samples = sampleWordsIn();
   $('samplewarn').hidden = !samples.length;
   $('sampletext').textContent = samples.length ? 'These look like the sample words a template came with: ' + samples.map((s) => '“' + s + '”').join(', ') + '. They would be printed exactly like that. Go back to editing to change them, or confirm that you want them.' : '';
@@ -2336,9 +2366,11 @@ async function renderReview() {
     if (revision !== orderRevision() || hasPendingImageUploads()) return renderReview();
     $('assetwarn').hidden = payload.options.assets !== 'pending';
     rb.textContent = '';
+    /* 12 pixels per inch: on a phone the review boards are 160 px wide,
+       and a sharper picture helps the names be read there. */
     for (const k of keys) {
       const f = document.createElement('figure'), img = new Image(), cap = document.createElement('figcaption');
-      img.src = previewDataUrl(k, 8, source); img.alt = 'Board ' + k.toUpperCase() + ' as it will print';
+      img.src = previewDataUrl(k, 12, source); img.alt = 'Board ' + k.toUpperCase() + ' as it will print';
       cap.textContent = keys.length > 1 ? 'Board ' + k.toUpperCase() : order.product === 'set' ? 'Both boards' : 'Your board';
       f.append(img, cap); rb.appendChild(f);
     }

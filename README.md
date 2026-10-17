@@ -29,7 +29,10 @@ A site where people design their own cornhole boards and order them.
   or make the other its colour opposite. On a phone the board pins under the
   header, the handles grow to finger size, picking something up opens the
   tab that edits it, and a bar at the foot carries the total and Review
-  order. Templates are grouped by occasion with a blank start; a template
+  order; while ordering, the board scrolls away with the page instead.
+  On the Order tab, at any width, the board shows the design without its
+  selection outline or handles, unless it has the keyboard focus.
+  Templates are grouped by occasion with a blank start; a template
   hands over its first words selected and ready to type over, and each
   text has a field right in the list, named by its place in it (Words 1,
   Words 2). A field whose words are still a sample selects them when it
@@ -96,8 +99,9 @@ A site where people design their own cornhole boards and order them.
   the server even so leaves the masters out, then shrinks the previews,
   and says the full-size files will need to be supplied separately (there
   is no email follow-up yet, so none is promised).
-- **Review.** Before the address: both boards as they will print, every
-  choice, the price breakdown in USD before tax with what is and is not
+- **Review.** Before the address: both boards as they will print (160 px
+  wide on a phone), the words on each board as text (a row for each board
+  when the two differ), every choice, the price breakdown in USD before tax with what is and is not
   included, a check on sample words (the page's own placeholders, such
   as YOUR TEAM or NEW TEXT, and a template's words still unchanged on
   the texts it put there, but not the same words typed by the customer),

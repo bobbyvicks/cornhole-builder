@@ -258,6 +258,10 @@
   .reviewlist { list-style: none; padding: 0; margin: 0 0 8px; font-size: 14px; }
   .reviewlist li { padding: 3px 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 10px; }
   .reviewlist li span:first-child { color: var(--muted); }
+  /* A long value, such as the words on a board, wraps under itself at the
+     right instead of pushing the row wider than a phone. */
+  .reviewlist li > span:first-child { flex: none; }
+  .reviewlist li > span:last-child { min-width: 0; overflow-wrap: anywhere; text-align: right; }
   .status { margin-top: 10px; padding: 10px 12px; border-radius: 8px; font-size: 14px; display: none; }
   .status[data-kind="info"] { display: block; background: #eef2ff; color: #1c2f6e; }
   .status[data-kind="ok"] { display: block; background: #e8f5ec; color: #145a2a; }
@@ -326,6 +330,20 @@
     #mobilebar .total b { display: block; font-size: 17px; color: var(--ink); }
     body.ordering #mobilebar { display: none; }
     body.typing #mobilebar { display: none; }
+    /* While ordering (the options, the review and the address) nothing is
+       edited on the board, so it scrolls away with the page instead of
+       covering half the screen above the form. It keeps its size while a
+       field has focus, since shrinking it would move the field. The
+       review shows the boards about twice as big in its place. The toolbar
+       scrolls away too, so the other-tab notice and its Reload go to the
+       line under the tabs, as they do on a short phone. */
+    body.ordering .stage { position: relative; top: auto; z-index: auto; }
+    body.ordering.typing .board canvas { height: min(26vh, 280px); }
+    body.ordering.typing .board canvas { height: min(26svh, 280px); }
+    body.ordering .tabnotice { display: flex; }
+    body.ordering .stagebar .savestatus[data-state="elsewhere"], body.ordering #reloadlatest { display: none; }
+    .reviewboards figure { flex: 0 1 160px; min-width: 0; }
+    .reviewboards img { width: 100%; height: auto; aspect-ratio: 1 / 2; }
     /* The script measures the sticky stage for scroll-padding; these are
        only the small gaps around the focused control, not another header. */
     .pane :is(input, select, textarea, button, summary) { scroll-margin-block: 12px 16px; }
