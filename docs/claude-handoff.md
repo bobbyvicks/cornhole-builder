@@ -417,6 +417,76 @@ The existing NEW TEXT and YOUR TEAM specs in `designer.spec.js`,
 Verified for that commit: 71 node tests, the TypeScript check, and the
 whole Chromium suite (361 specs) pass.
 
+## Review: words and art that will hardly show
+
+From the customer-journey audits (a first-timer's wedding at 390 x 844,
+visual polish, a team set), fixed in the commit after `c618885`:
+
+- A board colour picked by hand could leave every line of words as dark
+  as the board: Wedding on navy put the burgundy names at 1.17:1 and the
+  charcoal SMITH and date at 1.15:1, and Board B in burgundy put "Emma &
+  James" at 1.00:1. The review checked only for sample words and let the
+  customer carry on. Auto-fit could also take a long surname to 23% of
+  its size (Fairweather-Worthington at 0.57") and say nothing there.
+- `readabilityIssues(keys, source)` in `app.mjs` runs in `renderReview`
+  once the board previews are ready, and `#readwarn`, beside `#reswarn`,
+  holds one line per item: '"Mr & Mrs" on Board B will hardly show
+  against what is behind it.' or '"Fairweather-Worthington" on your board
+  was shrunk to fit and will print very small (0.6 in).' ("your board"
+  when there is one design). It warns; Continue is not held. The Help
+  text under Text says to pick colours that stand apart from the board.
+- How it reads: each board in `boardKeys()` is drawn at 8 pixels per
+  inch, an item at a time in layer order (the base, the pattern, a
+  picture filling the board, then the items), so each text and clip art
+  is compared with what is really under it. The item is also drawn alone;
+  over its own ink (alpha above 128, not in the hole, which is cut out) a
+  spot is lost when the item's colour is under 1.35:1 from the board
+  there, the CIELAB a*b* distance between the two scaled by their mean
+  lightness (x L/100) is under 30, and its outline, if it has one, is
+  under 3:1. An item with 80% of its ink lost is named. Pictures are not
+  checked. A text with Auto-fit and a `fitReference` below 0.6 of the
+  reference size is named for its size, unless it is already named as
+  hidden. The live hit boxes, `curPpi` and `printing` are put back after,
+  as `renderOutput` does. A template's board takes a few milliseconds.
+- Where this differs from the triage: it proposed the contrast ratio
+  alone. That called the gold sun of the Lake and beach template hidden
+  (1.04 to 1.15:1 against the sky at its height, and plain to see), and
+  would have named red words on a forest green board (1.15:1) or an
+  orange ball on sky blue (1.11:1) too. The colour gap keeps those (47,
+  73, the sun 77 to 81) and still names burgundy (18), charcoal (14),
+  purple (5) or hunter green (23) on navy, and green on teal (19).
+  Yellow on white (1.28:1, gap 70) is not named. It reads at 8 pixels
+  per inch rather than the 4 suggested, so a 1.1" line still has ink to
+  read, and it says "will hardly show against what is behind it" rather
+  than "is the same colour as", since burgundy on navy is not.
+- The Business template's LOGO was charcoal on the charcoal board, in the
+  badge's open middle, and the review listed it as sample words though
+  nothing showed. It is antique gold (`#d8b25c`) in `lib/templates.mjs`.
+  A design saved from the old Business template no longer counts as the
+  untouched template, so a template click asks before replacing it.
+- Limits: a difference of hue is judged for full colour vision, so red
+  on green is not named though some colour-blind viewers would lose it.
+  Only the colour of the item is compared, so a shadow does not save
+  words that are lost, and an outline is judged by contrast alone. An
+  item half on a pattern band of its own colour (the Nautical disc on
+  its stripes) is not named.
+
+`tests/readability.spec.js` reviews all 32 templates as they come (each
+clear, Continue enabled once the sample words are confirmed, LOGO gold),
+Wedding on navy (Mr & Mrs, SMITH and the date named, one line each, no
+artwork, Continue enabled once the sample words are confirmed, clear
+again on ivory), Board B painted the colour of its first words (named
+for Board B only), SMITHS left alone and Fairweather-Worthington named
+with its size, red on green and orange on sky blue left alone while
+burgundy and purple on navy, green on teal and white on white are named
+and an outline saves white on white, words read against a picture
+filling the board rather than the paint, the hit boxes the same after
+the check, and the warning at 320, 375 and 390 px wrapping a long
+unbroken name with no sideways scroll. No existing spec changed.
+
+Verified for that commit: 71 node tests, the TypeScript check, and the
+whole Chromium suite (371 specs) pass.
+
 ## Verification
 
 At the tested implementation commit `f4d456a`, the final clean `npm test`

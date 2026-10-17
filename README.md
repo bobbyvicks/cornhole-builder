@@ -101,8 +101,12 @@ A site where people design their own cornhole boards and order them.
   included, a check on sample words (the page's own placeholders, such
   as YOUR TEAM or NEW TEXT, and a template's words still unchanged on
   the texts it put there, but not the same words typed by the customer),
-  and the resolution warnings. Dispatch time (from the price list) is kept apart
-  from delivery time, which is never promised.
+  a line for each text or clip art that will hardly show against what is
+  behind it (as light or as dark as the board there, with no strong
+  difference of colour to set it apart) and for each line Auto-fit shrank
+  below 60% of its template size, which warns but does not hold the
+  order, and the resolution warnings. Dispatch time (from the price list)
+  is kept apart from delivery time, which is never promised.
 - **Print file.** The same drawing code renders a 2400 x 4800 PNG at 100
   pixels per inch, with the hole marked as a hairline for the shop.
 - **Order.** Options (set or single, satin, gloss or a matte guest-book

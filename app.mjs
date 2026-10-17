@@ -1391,7 +1391,8 @@ $('copyother').addEventListener('click', () => { design[otherKey()] = withFreshI
    or the pattern). Everything in either colour switches, and anything
    left that no longer reads against the new board (a second shade of the
    old board colour, say) takes the old board colour instead. */
-const lumOf = (channels) => { const [r, g, b] = channels.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+const linear = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+const lumOf = (channels) => { const [r, g, b] = channels.map(linear); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
 const lum = (hex) => lumOf(rgb(hex));
 const ratio = (la, lb) => (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 const contrast = (a, b) => ratio(lum(a), lum(b));
@@ -1540,6 +1541,112 @@ function defaultInk(b, el) {
   if (!spot.length) return INKS[0];
   const score = (ink) => { const l = lum(ink), c = spot.map((s) => ratio(l, s)).sort((p, q) => p - q); return c[Math.floor(c.length / 10)]; };
   return score(INKS[1]) > score(INKS[0]) ? INKS[1] : INKS[0];
+}
+/* Words and art that will not show. A board colour picked by hand can
+   leave a line of words as light or as dark as the board, and the small
+   preview on a phone hides it, so the review says so, one line for each
+   item. Each board is drawn small, an item at a time in layer order, so
+   that every word and every piece of clip art is read against what is
+   really behind it: the base, the pattern, a picture filling the board
+   and the items under it. Each item is also drawn alone, and where its
+   own ink lands (not in the hole, which is cut out) the board there is
+   compared with its colour. A spot of ink is lost when it is close to
+   the board in lightness (a contrast under HIDDEN_CONTRAST) and no
+   strong difference of colour sets it apart either; an outline that
+   stands out (OUTLINE_CONTRAST) keeps it. The colour difference is the
+   distance across CIELAB's a* and b*, the hue and colourfulness, scaled
+   by the lightness of the two, since the same difference counts for less
+   in dark colours: a red line on a green board, an orange ball on sky
+   blue or the gold sun on the Lake and beach sky are as light as what is
+   behind them and still plain to see, while burgundy or charcoal words
+   on navy are not. An item is called hidden when HIDDEN_SHARE of its
+   ink is lost. Comparing with the base colour alone would call items
+   hidden that sit on a band of the pattern or on a shape of another
+   colour, as several templates do. Pictures are not checked. A line
+   that Auto-fit took below SHRUNK of its template size is named as
+   well, with the size it prints at. The review only warns: Continue
+   stays open. */
+const READ_PPI = 8, HIDDEN_CONTRAST = 1.35, HIDDEN_COLOUR = 30, HIDDEN_SHARE = 0.8, OUTLINE_CONTRAST = 3, SHRUNK = 0.6;
+let readCanvases = null;
+const quoted = (el) => '“' + el.text.trim().replace(/\s+/g, ' ') + '”';
+/* Lightness for the contrast ratio, and CIELAB (D65) for the colour. */
+function colourOf([r, g, b]) {
+  const [R, G, B] = [r, g, b].map(linear);
+  const f = (t) => (t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116);
+  const Y = 0.2126 * R + 0.7152 * G + 0.0722 * B;
+  const fx = f((0.4124 * R + 0.3576 * G + 0.1805 * B) / 0.95047), fy = f(Y), fz = f((0.0193 * R + 0.1192 * G + 0.9505 * B) / 1.08883);
+  return { lum: Y, L: 116 * fy - 16, a: 500 * (fx - fy), b: 200 * (fy - fz) };
+}
+const colourGap = (p, q) => Math.hypot(p.a - q.a, p.b - q.b) * (p.L + q.L) / 200;
+function hiddenShare(under, alone, el, seen) {
+  const box = boxes.get(el.id);
+  if (!box || !isHex(el.color)) return 0;
+  /* Only the part of the board around the item is read. */
+  const a = rad(el.rotation || 0), cos = Math.abs(Math.cos(a)), sin = Math.abs(Math.sin(a)), pad = 1;
+  const cx = el.x - box.oy * Math.sin(a), cy = el.y + box.oy * Math.cos(a);
+  const hw = (cos * box.w + sin * box.h) / 2 + pad, hh = (sin * box.w + cos * box.h) / 2 + pad;
+  const W = alone.canvas.width, H = alone.canvas.height;
+  const x0 = clamp(Math.floor((cx - hw) * READ_PPI), 0, W), x1 = clamp(Math.ceil((cx + hw) * READ_PPI), 0, W);
+  const y0 = clamp(Math.floor((cy - hh) * READ_PPI), 0, H), y1 = clamp(Math.ceil((cy + hh) * READ_PPI), 0, H);
+  if (x1 <= x0 || y1 <= y0) return 0;
+  const ink = alone.getImageData(x0, y0, x1 - x0, y1 - y0).data, back = under.getImageData(x0, y0, x1 - x0, y1 - y0).data;
+  /* A clip art drawn as a line has no outline (see drawClip). */
+  const outlined = el.outlineWidth > 0 && isHex(el.outline) && !(el.type === 'clip' && (CLIPS[el.name] || {}).mode === 'stroke');
+  const fill = colourOf(rgb(el.color)), edge = outlined ? lum(el.outline) : null;
+  let n = 0, lost = 0;
+  for (let i = 0; i < ink.length; i += 4) {
+    if (ink[i + 3] <= 128 || back[i + 3] === 0) continue;
+    const key = (back[i] << 16) | (back[i + 1] << 8) | back[i + 2];
+    let spot = seen.get(key);
+    if (!spot) { spot = colourOf([back[i], back[i + 1], back[i + 2]]); seen.set(key, spot); }
+    n++;
+    if (ratio(fill.lum, spot.lum) < HIDDEN_CONTRAST && colourGap(fill, spot) < HIDDEN_COLOUR && (edge === null || ratio(edge, spot.lum) < OUTLINE_CONTRAST)) lost++;
+  }
+  return n ? lost / n : 0;
+}
+function readabilityIssues(keys = boardKeys(), source = design) {
+  const W = BOARD.w * READ_PPI, H = BOARD.h * READ_PPI;
+  if (!readCanvases) readCanvases = [0, 1].map(() => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; });
+  const [under, alone] = readCanvases.map((c) => c.getContext('2d', { willReadFrequently: true }));
+  if (!under || !alone) return [];
+  const out = [], seen = new Map();
+  /* Drawing sets the hit boxes and the scale the shadows use; the live
+     board's are put back after, as renderOutput does. */
+  const liveBoxes = new Map(boxes), livePpi = curPpi, livePrinting = printing;
+  curPpi = READ_PPI; printing = false;
+  try {
+    for (const k of keys) {
+      const b = boardFor(k, source), where = keys.length > 1 ? ' on Board ' + k.toUpperCase() : ' on your board';
+      under.setTransform(1, 0, 0, 1, 0, 0); under.clearRect(0, 0, W, H);
+      under.save(); under.scale(READ_PPI, READ_PPI); boardPath(under); under.clip();
+      drawBase(under, b.base); drawPattern(under, b.pattern);
+      const cover = coverOf(b);
+      if (cover) drawImage(under, cover);
+      for (const el of b.elements) {
+        if (el === cover) continue;
+        const draw = DRAWERS[el.type];
+        if (!draw) continue;
+        if ((el.type === 'text' && el.text.trim()) || el.type === 'clip') {
+          alone.setTransform(1, 0, 0, 1, 0, 0); alone.clearRect(0, 0, W, H);
+          alone.save(); alone.scale(READ_PPI, READ_PPI); boardPath(alone); alone.clip();
+          draw(alone, el);
+          alone.globalCompositeOperation = 'destination-out';
+          alone.beginPath(); alone.arc(BOARD.w / 2, BOARD.hole.cy, BOARD.hole.d / 2, 0, Math.PI * 2); alone.fill();
+          alone.restore();
+          const name = el.type === 'text' ? quoted(el) : 'The ' + ((CLIPS[el.name] || {}).label || 'clip art').toLowerCase() + ' artwork';
+          if (hiddenShare(under, alone, el, seen) >= HIDDEN_SHARE) out.push(name + where + ' will hardly show against what is behind it.');
+          else if (el.type === 'text' && el.autoFit && el.fitReference && el.size < SHRUNK * fittingReference(el).size) out.push(name + where + ' was shrunk to fit and will print very small (' + r1(el.size) + ' in).');
+        }
+        draw(under, el);
+      }
+      under.restore();
+    }
+  } finally {
+    boxes.clear();
+    for (const [id, box] of liveBoxes) boxes.set(id, box);
+    curPpi = livePpi; printing = livePrinting;
+  }
+  return out;
 }
 function addElement(el, tab) {
   const b = activeBoard();
@@ -2217,6 +2324,7 @@ async function renderReview() {
   const low = lowResImages(keys);
   $('reswarn').hidden = !low.length; $('reswarn').textContent = low.join(' ');
   $('assetwarn').hidden = true;
+  $('readwarn').hidden = true;
   if (hasPendingImageUploads()) return;
   try {
     await prepareOutputFonts(source);
@@ -2234,6 +2342,12 @@ async function renderReview() {
       cap.textContent = keys.length > 1 ? 'Board ' + k.toUpperCase() : order.product === 'set' ? 'Both boards' : 'Your board';
       f.append(img, cap); rb.appendChild(f);
     }
+    /* Words or art that will not show, and lines shrunk hard to fit: one
+       line each, with the other notes. It warns; it does not hold. */
+    const unread = readabilityIssues(keys, source), rw = $('readwarn');
+    rw.textContent = '';
+    for (const line of unread) { const p = document.createElement('p'); p.textContent = line; rw.appendChild(p); }
+    rw.hidden = !unread.length;
     reviewedRevision = orderReviewRevision();
     reviewReady = true;
     syncReviewContinue();
@@ -2733,5 +2847,5 @@ window.cornhole = {
   setOrder(o) { Object.assign(order, o); syncAll(); },
   select, commit, undo, redo, render, paint, showTab, printCanvas, previewDataUrl, orderPayload, preloadImages,
   activeBoard, addClip, applyTemplate, applyBlank, migrate, showOrderStep, renderReview, handlePoints, setMode,
-  isPristine, sampleWordsIn, exportProject, importProject, projectRecord, colourName,
+  isPristine, sampleWordsIn, readabilityIssues, exportProject, importProject, projectRecord, colourName,
 };

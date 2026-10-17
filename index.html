@@ -151,6 +151,8 @@
   details.more[open] summary { border-bottom: 1px dashed var(--line); margin-bottom: 4px; }
   .warn { background: #fff2e3; color: #7a3d05; border-radius: 8px; padding: 10px 12px; font-size: 13.5px; margin: 8px 0; }
   .warn p { margin: 0 0 6px; }
+  #readwarn { overflow-wrap: anywhere; }
+  #readwarn p:last-child { margin-bottom: 0; }
   .warn label { font-weight: 600; }
 
   .chips { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -461,7 +463,7 @@
         <summary>Help</summary>
         <p><b>Edit boards:</b> Choose matching boards or select Board A or B. Drag an item to move it; use its square handle to resize and round handle to rotate.</p>
         <p><b>Keyboard:</b> Focus the board, then use arrow keys to move the selection, + or - to resize, and Delete to remove it.</p>
-        <p><b>Text:</b> Tap a template's words in the Text tab and type to replace them; Enter starts a new line. Auto-fit keeps the words within their original space; manual sizing switches it off.</p>
+        <p><b>Text:</b> Tap a template's words in the Text tab and type to replace them; Enter starts a new line. Auto-fit keeps the words within their original space; manual sizing switches it off. Pick colours that stand apart from the board: the review names words or art that will hardly show, and lines shrunk hard to fit.</p>
         <p><b>Pictures:</b> Add PNG, JPG, WebP or SVG files. Transparent PNGs work well for logos. Use Remove white background for a logo on white; full-size originals are kept for printing. Fill the board puts one picture edge to edge behind everything, trimmed to fit; select it from an empty spot on the board or its row in the Art list, and untick it to put it back.</p>
         <p><b>Files:</b> Save editable copy keeps a project you can reopen. Share preview creates an image; Print file downloads full-size artwork.</p>
         <p><b>Two tabs:</b> This browser keeps one design, saved after every change. If it is open in two tabs, the last change saved wins; the other tab says so and offers Reload.</p>
@@ -641,6 +643,7 @@
             <label><input type="checkbox" id="keepsamples"> Print these words exactly as they are</label>
           </div>
           <div class="warn" id="reswarn" hidden></div>
+          <div class="warn" id="readwarn" hidden></div>
           <div class="warn" id="assetwarn" hidden>Some full-size picture files are too large to include in checkout. Your previews will be sent with the order; the full-size files will need to be supplied separately. Keep your originals or export this project before leaving.</div>
           <div class="row">
             <button class="btn" type="button" id="backtoedit">&larr; Back to editing</button>
