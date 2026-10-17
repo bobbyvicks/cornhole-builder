@@ -645,6 +645,77 @@ ends with Board A being edited at 1280 x 900.
 Verified for that commit: 71 node tests, the TypeScript check,
 and the whole Chromium suite (389 specs) pass.
 
+## Adding a picture on a phone: working where the finger is, controls in view
+
+From the customer-journey audits (a slow phone and a business owner's
+logo at 375 x 812, visual polish), fixed in the commit after `7cba816`:
+
+- A 12 MP photo holds the page for two to three seconds while it is
+  read. With a picture already on the board the page is scrolled down,
+  so "Preparing your picture" (`#uploadstatus`, above the tabs) sat
+  under the header, nothing near the finger changed, and a second tap
+  on "+ Add a picture or logo" opened the picker again just as the
+  first photo landed. While a picture for the board being edited is on
+  its way (`pendingImageUploads` has that board), `syncPictureButton`
+  gives `#addimagebtn` `aria-disabled` and `aria-busy` (`busyButton`,
+  as Share preview and Print file use) and the label "Preparing
+  picture…"; its click handler turns a tap or a key away, and the focus
+  stays on it. The upload's `finally` and `syncLists` (a board switch,
+  a new design) put it back, so it is busy only on the board its
+  picture is for. A file given to `#addimage` some other way still
+  meets the limit checks, so the overlapping-upload and limit specs
+  are unchanged.
+- Once a picture lands and is picked up, `showPictureControls` brings
+  `#imageprops` up with `scrollIntoView({ block: 'start' })` at 940 px
+  and below. The scroll padding that `syncScrollPadding` keeps for the
+  pinned board (or the 124 px of a short phone, where the tabs pin
+  instead) puts its top just under the board. Before, the first
+  picture's Fill the board and Remove white background were under the
+  bar at the foot, and the second's behind the pinned board. It runs
+  after "Picture added" is written, so nothing above moves them after,
+  and the focus stays on the button.
+- At 600 px and below the four switches (`#imageonly`: Flip, Circle
+  crop, Fill the board, Remove white background) sit in two even
+  columns instead of three ragged rows, 56 px shorter at 375 px, so
+  they fit between the board and the bar at 375 x 812 even with a
+  print-size warning above them.
+- "Picture added to Board A." stayed above every tab for the rest of
+  the visit, Review and Your details included. `uploadStatus(message,
+  { done: true })` marks it, and `showTab` hides it when the tab
+  changes. A picture that could not be read, was not added because its
+  board changed, or would pass the four-picture limit keeps its
+  message until the next picture is chosen.
+- Where this differs from the triage: it scrolled with `scrollToPanel`'s
+  arithmetic; `scrollIntoView` with the scroll padding is the same sum
+  for the pinned board, and also allows for the tabs pinned on a short
+  phone. The two columns were not in it: without them Remove white
+  background still reached under the bar at 375 x 812 with a
+  print-size warning showing.
+- Limits: on a 375 x 667 screen with a print-size warning above them,
+  Fill the board and Remove white background still end partly under
+  the bar (there are 230 px between the board and the bar). The freeze
+  itself is unchanged: encoding a 12 MP photo once, or off the main
+  thread, is a separate job.
+
+`tests/picture-phone.spec.js`, at 375 x 812 with touch: the first
+picture, tapped in from the top of the Art tab, has Fill the board and
+Remove white background (box and words) between the pinned board and
+the bar, uncovered, with the focus on the button and its label back.
+With one picture on the board and the page scrolled until its controls
+are behind the board, a second picture, held, leaves the button reading
+"Preparing picture…" with `aria-disabled` and the focus, and a tap and
+Enter on it open no picker; once it lands, its controls are in view
+under the board, and a tap opens the picker again. "Picture added" goes
+when Order opens and does not come back; "Could not read that image"
+stays on Text, Order and Art; a full board's message stays on the Board
+tab. With two boards at 390 x 844 the button is busy only on Board A,
+whose picture is on its way. At 1280 x 900, Enter and Space on the busy
+button open nothing, the focus stays, and the page does not scroll when
+the picture lands. No existing spec changed.
+
+Verified for that commit: 71 node tests, the TypeScript check, and the
+whole Chromium suite (394 specs) pass.
+
 ## Verification
 
 At the tested implementation commit `f4d456a`, the final clean `npm test`

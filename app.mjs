@@ -1204,6 +1204,12 @@ function select(id) { selected = id; render(); syncLists(); syncProps(); }
 const TAB_ORDER = ['templates', 'board', 'text', 'art', 'order'];
 const tabButtons = [...document.querySelectorAll('.tabs [role=tab]')];
 function showTab(name) {
+  /* "Picture added" has done its job once the customer moves to another
+     tab; it would otherwise sit above every tab, the review and the
+     address included. A picture that was not added keeps its message
+     until the next one is chosen (see uploadStatus). */
+  const was = tabButtons.find((b) => b.getAttribute('aria-selected') === 'true')?.dataset.tab;
+  if (name !== was && $('uploadstatus').dataset.done === 'true') $('uploadstatus').hidden = true;
   for (const b of tabButtons) { const on = b.dataset.tab === name; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; }
   for (const p of document.querySelectorAll('.pane')) p.dataset.open = String(p.id === 'tab-' + name);
   if (name !== 'order') lastEditTab = name;
@@ -1782,13 +1788,44 @@ $('tforward').addEventListener('click', () => moveLayer(1));
 $('tback').addEventListener('click', () => moveLayer(-1));
 
 // -- art tab: pictures and clip art
-$('addimagebtn').addEventListener('click', () => $('addimage').click());
 const pendingImageUploads = new WeakMap();
 function hasPendingImageUploads(keys = boardKeys()) {
   return keys.some(key => (pendingImageUploads.get(boardFor(key)) || 0) > 0);
 }
-function uploadStatus(message) {
+/* Reading a big phone photo holds the page for seconds, and the line
+   that says so sits above the tabs, often scrolled away under the header.
+   So the button that chose the picture says so itself while a picture for
+   the board being edited is on its way, and turns a second tap away: that
+   tap used to open the picker again just as the first picture landed.
+   aria-disabled, not disabled, so the keyboard focus stays on it. A file
+   handed to the input some other way still meets the limit check below. */
+const ADD_PICTURE = $('addimagebtn').textContent;
+function syncPictureButton() {
+  const btn = $('addimagebtn'), busy = (pendingImageUploads.get(activeBoard()) || 0) > 0;
+  busyButton(btn, busy);
+  const label = busy ? 'Preparing picture…' : ADD_PICTURE;
+  if (btn.textContent !== label) btn.textContent = label;
+}
+$('addimagebtn').addEventListener('click', () => {
+  if ($('addimagebtn').getAttribute('aria-disabled') === 'true') return;
+  $('addimage').click();
+});
+/* done marks "Picture added": showTab takes that line down when the
+   customer moves to another tab. Every other message stays up until the
+   next picture is chosen. */
+function uploadStatus(message, { done = false } = {}) {
   const status = $('uploadstatus'); status.hidden = false; status.textContent = message;
+  status.dataset.done = String(done);
+}
+/* On a phone a new picture's own controls (Fill the board, Remove white
+   background) landed under the bar at the foot, or behind the pinned
+   board once the page had been scrolled: they are brought up to sit just
+   under the board, by the scroll padding that already allows for it. The
+   focus stays where it was. */
+function showPictureControls() {
+  if (!window.matchMedia('(max-width: 940px)').matches) return;
+  syncScrollPadding();
+  $('imageprops').scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
 }
 $('addimage').addEventListener('change', async () => {
   const f = $('addimage').files[0]; $('addimage').value = '';
@@ -1801,6 +1838,7 @@ $('addimage').addEventListener('change', async () => {
     return;
   }
   pendingImageUploads.set(target, pending + 1);
+  syncPictureButton();
   uploadStatus('Preparing your picture for Board ' + key.toUpperCase() + '.');
   if (!$('orderstep2').hidden && $('tab-order').dataset.open === 'true') renderReview();
   try {
@@ -1818,15 +1856,18 @@ $('addimage').addEventListener('change', async () => {
     const currentTab = document.querySelector('.tabs [aria-selected="true"]')?.dataset.tab;
     const focused = document.activeElement;
     const editingControl = focused?.closest('#textprops, #imageprops') || focused?.matches('input:not([type="file"]), textarea, select');
-    if (activeBoard() === target && selected === originalSelection && currentTab === originalTab && !editingControl && !drag) {
-      select(el.id); showTab('art');
-    } else { render(); syncLists(); syncProps(); }
+    const pickUp = activeBoard() === target && selected === originalSelection && currentTab === originalTab && !editingControl && !drag;
+    if (pickUp) { select(el.id); showTab('art'); }
+    else { render(); syncLists(); syncProps(); }
     commit();
-    uploadStatus('Picture added to Board ' + key.toUpperCase() + '.');
+    uploadStatus('Picture added to Board ' + key.toUpperCase() + '.', { done: true });
+    // Last, so nothing written above the controls moves them after.
+    if (pickUp) showPictureControls();
   } catch (e) { uploadStatus('Could not read that image: ' + (e && e.message ? e.message : e) + '. Choose another picture and try again.'); }
   finally {
     const remaining = (pendingImageUploads.get(target) || 1) - 1;
     if (remaining) pendingImageUploads.set(target, remaining); else pendingImageUploads.delete(target);
+    syncPictureButton();
     if (!$('orderstep2').hidden && $('tab-order').dataset.open === 'true') renderReview();
   }
 });
@@ -2142,6 +2183,8 @@ function syncLists() {
     els.forEach((el, i) => list.appendChild(itemRow(el, el.id === selected, () => select(el.id), i + 1)));
   }
   $('addtext').disabled = countOf(b, 'text') >= MAX_TEXTS;
+  // Busy only while a picture for this board is on its way.
+  syncPictureButton();
   if (keep && lostFocus) {
     /* The row is gone (its own x was pressed): the focus goes to the Select
        button of the row now in its place, or of the last row - never to

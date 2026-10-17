@@ -103,6 +103,13 @@ A site where people design their own cornhole boards and order them.
   the server even so leaves the masters out, then shrinks the previews,
   and says the full-size files will need to be supplied separately (there
   is no email follow-up yet, so none is promised).
+  While a picture is being read, which takes seconds for a big photo on
+  a phone, its button reads "Preparing picture…" and turns a second tap
+  away, keeping the keyboard focus. Once it lands, on a phone its
+  controls are brought up just under the pinned board, with the four
+  switches in two columns so they fit above the bar at the foot.
+  "Picture added" goes when another tab is opened; a message about a
+  picture that was not added stays until the next one is chosen.
 - **Review.** Before the address: both boards as they will print (160 px
   wide on a phone), the words on each board as text (a row for each board
   when the two differ), every choice, the price breakdown in USD before tax with what is and is not
