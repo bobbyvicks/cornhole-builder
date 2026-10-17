@@ -48,7 +48,11 @@ A site where people design their own cornhole boards and order them.
   is tapped, clicked or tabbed to, so typing replaces them; words the
   customer has changed keep the caret where it lands. Curve, spacing,
   rotation and layers sit under "Advanced text" and "Advanced artwork".
-  Each board carries a
+  An outline's colour, width slider and width go onto a new line
+  together, so the width stays beside its slider. The swatch whose colour
+  is on the board has a white frame inside a solid ring, and the one the
+  keyboard is on a dashed ring. The total in the header is named for a
+  screen reader ("Estimated total, before tax"). Each board carries a
   hidden description for a screen reader, made again at every redraw: the
   base, the pattern, every text with its words and font, the clip art by
   name, the pictures by count, and which board is being edited when the

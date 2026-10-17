@@ -159,6 +159,13 @@
   .row label.auto { min-width: 0; }
   .row input[type=range] { flex: 1; min-width: 90px; min-height: 44px; margin: 0; }
   .row .val { width: 54px; text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); }
+  /* An outline's colour, its width slider and the width it is set to go
+     onto a new line together when they do not fit beside the fill colour,
+     so the width never sits on a line of its own away from its slider.
+     Its label is as wide as the others, so on a line of its own its
+     colour lines up with the fill colour above. */
+  .row .outlineset { display: flex; align-items: center; gap: 10px; flex: 1 1 300px; min-width: 0; }
+  .row .outlineset input[type=range] { min-width: 0; }
   .row input[type=text], .row input[type=number], .row input[type=date], .row select, .row textarea { flex: 1; min-width: 100px; min-height: 44px; font-size: 16px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #fff; }
   input[type=color] { flex: none; width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 8px; padding: 3px; background: #fff; cursor: pointer; }
   input[type=checkbox] { width: 18px; height: 18px; flex: none; }
@@ -183,7 +190,12 @@
   .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 8px; }
   .swlabel { font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
   .sw { aspect-ratio: 1; border-radius: 7px; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
-  .sw[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--accent); }
+  /* The colour on the board has a wide white frame inside a solid ring;
+     the swatch the keyboard is on has a dashed ring standing off it. With
+     the same ring for both, tabbing along the row left two swatches
+     looking chosen. */
+  .sw[aria-pressed="true"] { box-shadow: inset 0 0 0 3px #fff, 0 0 0 3px var(--accent); }
+  .sw:focus-visible { outline-style: dashed; outline-offset: 3px; }
   .stain { background-image: repeating-linear-gradient(100deg, rgba(0,0,0,.08) 0 2px, transparent 2px 7px); }
   .stains { grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); }
 
@@ -323,14 +335,18 @@
     .builder { gap: 10px; padding: 6px 0 40px; }
     .stage { position: sticky; top: 60px; z-index: 4; padding: 8px 10px 6px; }
     .stagehead { margin-bottom: 2px; }
-    .boards { gap: 14px; padding: 2px 0 0; }
+    /* 9 px above the board, not 2, so its outline (see the label below)
+       does not run into the board choices over it either. */
+    .boards { gap: 14px; padding: 9px 0 0; }
     .board { width: auto; flex: 0 0 auto; max-width: none; gap: 3px; }
     .board canvas { width: auto; height: min(26vh, 280px); }
     .board canvas { height: min(26svh, 280px); }
     body.typing .board canvas { height: min(20vh, 200px); }
     body.typing .board canvas { height: min(20svh, 200px); }
     .board.same { display: none; }
-    .board .label { font-size: 11.5px; }
+    /* The board's dashed or focus outline reaches 7 px out from it; the
+       gap here is 3 px, so the label stands off a further 7 px to clear it. */
+    .board .label { font-size: 11.5px; margin-top: 7px; }
     .stagebar { padding-top: 6px; margin-top: 4px; gap: 6px; }
     /* Only the notices show in the pinned toolbar on a phone: the same
        four states as NOTICE_STATES in app.mjs. The other-tab notice and
@@ -372,11 +388,13 @@
     .pane :is(input, select, textarea, button, summary) { scroll-margin-block: 12px 16px; }
   }
   /* The narrowest phones: a template card and the bottom bar both shrink a
-     step, so a whole card fits between the pinned preview and the bar. */
+     step, so a whole card fits between the pinned preview and the bar, and
+     the Outline label gives its width to the slider beside it. */
   @media (max-width: 360px) {
     #mobilebar .total { font-size: 11.5px; }
     .tpl { padding: 8px 6px; gap: 8px; }
     .tpl canvas, .tpl .blankthumb { width: min(100%, 80px); }
+    .row .outlineset label { min-width: 0; }
   }
   @media (max-width: 600px) {
     header.top .wrap { gap: 8px; }
@@ -424,6 +442,10 @@
     <nav class="site" aria-label="Main navigation">
       <a href="#builder">Design</a>
       <a href="#how">How it works</a>
+      <!-- The words a screen reader hears before the amount; a title on a
+           plain span is not read out. They sit outside the chip, which
+           holds the amount alone. -->
+      <span class="sr">Estimated total, before tax</span>
       <span class="totalchip" id="headtotal" title="Estimated total in US dollars, before sales tax"></span>
     </nav>
   </div>
@@ -577,7 +599,7 @@
           <div class="row"><label for="ttext">Text</label><textarea id="ttext" class="words" rows="2" wrap="off" maxlength="60"></textarea></div>
           <div class="row"><label for="tfont">Font</label><select id="tfont"></select></div>
           <div class="row"><label for="tsize">Size</label><input type="range" id="tsize" min="0.5" max="16" step="0.25"><span class="val" id="tsizeval"></span></div>
-          <div class="row"><label for="tcolor">Colour</label><input type="color" id="tcolor"><label for="toutline" class="auto">Outline</label><input type="color" id="toutline"><input type="range" id="toutlinew" min="0" max="0.5" step="0.025" style="min-width:70px" aria-label="Outline width"><span class="val" id="toutlinewval"></span></div>
+          <div class="row"><label for="tcolor">Colour</label><input type="color" id="tcolor"><div class="outlineset"><label for="toutline">Outline</label><input type="color" id="toutline"><input type="range" id="toutlinew" min="0" max="0.5" step="0.025" aria-label="Outline width"><span class="val" id="toutlinewval"></span></div></div>
           <div class="row">
             <button class="btn small" id="tdup">Duplicate</button>
             <button class="btn small danger" id="tdel">Remove</button>
@@ -611,10 +633,12 @@
             <label><input type="checkbox" id="icover"> Fill the board</label>
             <label><input type="checkbox" id="iknockout"> Remove white background</label>
           </div>
-          <div class="row" id="cliponly">
-            <label for="ccolor">Colour</label><input type="color" id="ccolor">
-            <label for="coutline" class="auto">Outline</label><input type="color" id="coutline"><input type="range" id="coutlinew" min="0" max="0.5" step="0.025" style="min-width:70px" aria-label="Outline width"><span class="val" id="coutlinewval"></span>
-            <label class="auto toggle"><input type="checkbox" id="cflip"> Flip</label>
+          <div id="cliponly">
+            <div class="row">
+              <label for="ccolor">Colour</label><input type="color" id="ccolor">
+              <div class="outlineset"><label for="coutline">Outline</label><input type="color" id="coutline"><input type="range" id="coutlinew" min="0" max="0.5" step="0.025" aria-label="Outline width"><span class="val" id="coutlinewval"></span></div>
+            </div>
+            <div class="row"><label class="auto toggle"><input type="checkbox" id="cflip"> Flip</label></div>
           </div>
           <div class="row">
             <button class="btn small" id="idup">Duplicate</button>

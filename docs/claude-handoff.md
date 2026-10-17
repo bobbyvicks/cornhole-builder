@@ -882,6 +882,84 @@ now keeps the picture away; it reads at the picture's own place.
 Verified for that commit: 74 node tests, the TypeScript check,
 and the whole Chromium suite (403 specs) pass.
 
+## Small polish: the chosen swatch, the outline width, the board label, the header total
+
+From the customer-journey audits (keyboard and screen reader at
+1280 x 900, visual polish at 320, 390 and 1280 px), fixed in the commit
+after `2277320`:
+
+- The swatch whose colour is on the board had a 3 px navy ring (a
+  box-shadow), and the swatch the keyboard was on had a 3 px navy
+  outline: after Enter on teal and Tab to green, both looked chosen.
+  The chosen swatch now has a 3 px white frame inside its ring
+  (`inset 0 0 0 3px #fff`), and a focused swatch's ring is dashed and
+  stands 3 px off it. A swatch both chosen and focused shows both.
+- The outline width ('0"') wrapped onto a line of its own at the left,
+  under Colour, at 1280, 390 and 320 px, and in the clip-art row Flip
+  went with it. In the Text and clip-art rows, the Outline label, its
+  colour, the width slider and the width are one `.outlineset` group,
+  `flex: 1 1 300px`. It sits beside the fill colour where that leaves
+  the slider about 90 px (on a tablet), and otherwise moves onto the
+  next line whole. Its label is as wide as Colour's, so the two colours
+  line up; at 360 px and under it takes only its own width, which
+  leaves the slider 87 px at 320. Clip-art Flip has a row of its own.
+- On phones and tablets the board's dashed outline, and the keyboard's
+  focus ring, reach 7 px out from the canvas. They ran through "Board B -
+  editing", 3 px under it, and into the board choices, 4 px above it.
+  At 940 px and under, the label stands 7 px further off (10 px under
+  the canvas) and the board 7 px further from the chips. The pinned
+  stage is 14 px taller; at 320 x 740 a whole template card still fits
+  between it and the bar, with 56 px to spare.
+- The header total was read as a bare "$308.00" inside the navigation.
+  Its explanation was a title on a plain span, which is not read out. A
+  visually hidden "Estimated total, before tax" (the words on the bar at
+  the foot) now comes just before the chip, outside it, so `#headtotal`
+  still holds the amount alone.
+- In Stars and stripes the middle star's tip was 14.45" down, 2" above
+  the top of the blue square (16.44"), white on a white stripe. The
+  three stars are 14" wide and 22.5" down, where they were 15" and 20".
+  The tip is at 17.3", the stars run from 5.4" to 18.6" across inside
+  the square's 4.4" to 19.6", and they end at 25.6", above USA.
+- Where this differs from the triage: it proposed 15" to 14" wide and
+  nothing else. That puts the stars' box (0.7 of the width tall) inside
+  the square's box, but the box is not the ink: the middle star is drawn
+  from 13 to 62 of the clip's 100, and at 14" wide and 20" down its tip
+  would still be 1.6" above the square, so the stars moved down 2.5"
+  too. The label stands off 7 px, not 6, so that it starts 10 px under
+  the canvas as the acceptance asks (the gap was 3 px). The space above
+  the board was not in the triage; it is the same outline. The Outline
+  label lost its `auto` width so the colours line up. Flip moved to a row
+  of its own rather than relying on the group to fill the line, since on
+  a tablet the group shares the line with Colour and Flip would follow.
+- Limits: on the white, off-white, ivory and cream swatches the white
+  frame hardly shows against the swatch itself, so there it is the solid
+  ring and the dashed ring that tell the two apart. On a wide screen the
+  outline still clears the label by 1 px, as before. The hidden words are
+  in the markup before the script runs, while the chip is still empty and
+  hidden. A design saved with the old Stars and stripes no longer matches
+  the template, so a template tap on it asks first.
+
+`tests/editor-polish.spec.js`: at 1280 x 900, 390 x 844 and 320 x 568,
+with words selected and then a clip, each outline width lies within its
+slider's line and to its right, the outline colour is on that line
+before the slider, the slider is 80 px or more, Flip is on a line below
+and 44 px tall, and nothing scrolls sideways. At 1280 and 390 the
+banner's accessibility snapshot reads "Estimated total, before tax"
+and the amount, which `#headtotal` holds alone. At 1280, Enter on teal
+and Tab: teal has the white inset frame and the navy ring and no
+outline, green has the focus, a dashed outline and no frame, and
+Shift+Tab back to teal shows both. At 390 x 844 with touch, after a tap
+on Board B, the label starts 10 px or more under the canvas and 3 px
+past the outline's reach (its offset and width), and the outline's top
+is under the board choices. In Stars and stripes the stars' box lies in
+the square's; each piece drawn by the page alone on a black board,
+every pixel of the stars is on a pixel of the square, the tip 0.5" or
+more inside its top, and the stars end 0.5" or more above USA. All eight
+fail before this change. No existing spec changed.
+
+Verified for that commit: 74 node tests, the TypeScript check,
+and the whole Chromium suite (411 specs) pass.
+
 ## Verification
 
 At the tested implementation commit `f4d456a`, the final clean `npm test`
