@@ -98,17 +98,23 @@ test('on wood the stain decides: off-white on the walnut cabin, charcoal on rust
 test('a fade is read at the height where the new item lands, not by its two ends alone', async ({ page }) => {
   await open(page); await reset(page);
   /* Top to bottom: navy fading to ivory puts the new item low down, on
-     the pale end; ivory fading to navy puts it on the dark end. */
+     the pale end; ivory fading to navy puts it on the dark end. Each
+     item goes on a board with HELLO alone, the words taken off again
+     before the Heart is added, since a new item steers clear of one
+     already there (new-item-place.spec.js) and could land high up. */
   const fade = (color, color2) => page.evaluate(([color, color2]) => {
     const d = cornhole.design;
-    cornhole.setDesign({ ...d, a: { ...d.a, base: { kind: 'gradient', color, color2, angle: 180, stain: 'walnut' } } });
+    cornhole.setDesign({ ...d, a: { ...d.a, elements: d.a.elements.slice(0, 1), base: { kind: 'gradient', color, color2, angle: 180, stain: 'walnut' } } });
   }, [color, color2]);
+  const low = (el) => { expect(el.y, 'the new ' + el.type + ' lands low down').toBeGreaterThan(30); return el; };
   await fade('#1f3a93', '#fffaf0');
-  expect((await addText(page)).color).toBe(CHARCOAL);
-  expect((await addHeart(page)).color).toBe(CHARCOAL);
+  expect(low(await addText(page)).color).toBe(CHARCOAL);
+  await page.click('#undo');
+  expect(low(await addHeart(page)).color).toBe(CHARCOAL);
   await fade('#fffaf0', '#1f3a93');
-  expect((await addText(page)).color).toBe(OFFWHITE);
-  expect((await addHeart(page)).color).toBe(OFFWHITE);
+  expect(low(await addText(page)).color).toBe(OFFWHITE);
+  await page.click('#undo');
+  expect(low(await addHeart(page)).color).toBe(OFFWHITE);
 });
 
 test('a light picture filling a navy board takes charcoal words, and a colour asked for is kept', async ({ page }) => {

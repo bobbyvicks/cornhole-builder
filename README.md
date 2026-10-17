@@ -20,7 +20,12 @@ A site where people design their own cornhole boards and order them.
   100 dots per inch. New words and new clip art come in charcoal or
   off-white, whichever stands out more from the board where they land
   (the paint, a fade at that height, the stain, the pattern or a picture
-  filling the board). Drag, resize and rotate
+  filling the board). New words, clip art and pictures land where they
+  always have, 12" across and 36" down (a picture 30" down), when that
+  spot is clear; otherwise they go into free room below the hole,
+  centred where they fit, and a clip art or a picture is made smaller,
+  to 4" wide at the least, to fit it, so a new item does not land on
+  the words already there. Drag, resize and rotate
   on the board with handles (a red x on the handles removes; so does the
   button on each list row, and the Delete key), snap to centre, layer order,
   duplicate, undo/redo, and the design is kept in the browser across

@@ -1717,6 +1717,105 @@ function readabilityIssues(keys = boardKeys(), source = design) {
   }
   return out;
 }
+/* Where a new item lands. Words, clip art and pictures added by hand all
+   landed on one spot, 12" across and 36" down (a picture 30" down), on
+   top of whatever was there: on most templates a new picture hid the
+   names, and new words typed into a ball that was already there could
+   not be seen. That spot is still where a new item goes whenever nothing
+   is in the way of it, a blank board included. When something is, the
+   item goes into the free room below the hole: centred across the board
+   where it fits, as near its usual height as it can while keeping up to
+   NEW_ROOM clear of its neighbours (enough for new words to take a
+   second line without running into them), with a clip art or a picture
+   made smaller, down to NEW_MIN_WIDTH, to fit the room there is. Only
+   then does it move off to one side. A board with no free room left
+   takes it where it covers the fewest words, and then the least
+   artwork. Each item counts as the upright box around the box the board
+   picks it up by, turned as the item is, and the hole as a box around
+   it; a picture filling the board lies under everything and takes no
+   room. */
+const NEW_AREA = { x0: 1, x1: BOARD.w - 1, y0: 13, y1: 46 }, NEW_GAP = 0.25, NEW_ROOM = 2.5, NEW_MIN_WIDTH = 4;
+const HOLE_BOX = { x0: BOARD.w / 2 - BOARD.hole.d / 2 - 0.5, x1: BOARD.w / 2 + BOARD.hole.d / 2 + 0.5, y0: BOARD.hole.cy - BOARD.hole.d / 2 - 0.5, y1: BOARD.hole.cy + BOARD.hole.d / 2 + 0.5 };
+/* An item's size before it is turned, as drawing it would make its box. */
+function inkSize(el) {
+  if (el.type === 'text') {
+    const id = '__place_measure__';
+    drawText(fitContext, { ...el, id, shadow: false });
+    const box = boxes.get(id); boxes.delete(id);
+    return box;
+  }
+  if (el.type === 'clip') return { w: el.width, h: el.width * ((CLIPS[el.name] || {}).aspect || 1), oy: 0 };
+  const img = imageFor(el.src), [iw, ih] = img ? [img.naturalWidth, img.naturalHeight] : el.px || [1, 1];
+  const h = el.width * ih / iw, d = Math.min(el.width, h);
+  return el.circleCrop ? { w: d, h: d, oy: 0 } : { w: el.width, h, oy: 0 };
+}
+/* The upright box around an item, turned or not, in board inches. */
+function boxAround(el, { w, h, oy = 0 }) {
+  const a = rad(el.rotation || 0), cos = Math.abs(Math.cos(a)), sin = Math.abs(Math.sin(a));
+  const cx = el.x - oy * Math.sin(a), cy = el.y + oy * Math.cos(a), hw = (cos * w + sin * h) / 2, hh = (sin * w + cos * h) / 2;
+  return { x0: cx - hw, x1: cx + hw, y0: cy - hh, y1: cy + hh };
+}
+/* How far apart two boxes are: below zero when they overlap. */
+const apart = (p, q) => Math.max(q.x0 - p.x1, p.x0 - q.x1, q.y0 - p.y1, p.y0 - q.y1);
+const overlap = (p, q) => Math.max(0, Math.min(p.x1, q.x1) - Math.max(p.x0, q.x0)) * Math.max(0, Math.min(p.y1, q.y1) - Math.max(p.y0, q.y0));
+/* Returns { x, y } for words, and { x, y, width } for clip art or a
+   picture; shrink: false keeps the width asked for. */
+function placeNew(b, el, { shrink = el.type !== 'text' } = {}) {
+  const taken = b.elements.filter((e) => e !== el && !fills(e)).map((e) => ({ ...boxAround(e, inkSize(e)), words: e.type === 'text' }));
+  taken.push({ ...HOLE_BOX, words: false });
+  const home = { x: el.x, y: el.y }, spot = (x, y, width) => (el.type === 'text' ? { x, y } : { x, y, width });
+  const here = boxAround(el, inkSize(el));
+  if (taken.every((t) => apart(here, t) >= NEW_GAP)) return spot(home.x, home.y, el.width);
+  const widths = [el.width];
+  if (shrink) for (let w = el.width - 0.25; w >= NEW_MIN_WIDTH - 1e-9; w -= 0.25) widths.push(Math.round(w * 100) / 100);
+  /* The box at each width, about the item's own place (0, 0). */
+  const shapes = widths.map((width) => ({ width, rel: boxAround({ ...el, x: 0, y: 0 }, inkSize({ ...el, width })) }));
+  /* The best height for the item centred at x: of the stretches of the
+     area its box can move through without coming within NEW_GAP of an
+     item in its way, the one that leaves it most room (up to NEW_ROOM)
+     on both sides, then the one nearest its usual height. */
+  const column = (x, rel) => {
+    const lo = NEW_AREA.y0 - rel.y0, hi = NEW_AREA.y1 - rel.y1;
+    if (hi < lo || x + rel.x0 < NEW_AREA.x0 - 1e-9 || x + rel.x1 > NEW_AREA.x1 + 1e-9) return null;
+    const blocked = taken.filter((t) => t.x0 - NEW_GAP < x + rel.x1 && x + rel.x0 < t.x1 + NEW_GAP)
+      .map((t) => [t.y0 - NEW_GAP - rel.y1, t.y1 + NEW_GAP - rel.y0]).sort((p, q) => p[0] - q[0]);
+    let best = null, from = lo;
+    const stretch = (a, z) => {
+      if (z < a) return;
+      const room = Math.min(NEW_ROOM - NEW_GAP, (z - a) / 2), y = clamp(home.y, a + room, z - room);
+      if (!best || room > best.room + 1e-9 || (room > best.room - 1e-9 && Math.abs(y - home.y) < Math.abs(best.y - home.y))) best = { y, room };
+    };
+    for (const [a, z] of blocked) { stretch(from, Math.min(a, hi)); from = Math.max(from, z); }
+    stretch(from, hi);
+    return best;
+  };
+  const better = (p, q) => !q || p.room > q.room + 1e-9 || (p.room > q.room - 1e-9 && Math.abs(p.y - home.y) < Math.abs(q.y - home.y));
+  /* Centred, at the biggest width that fits; then off to one side, as
+     little as will do, at the biggest width that fits there. */
+  for (const { width, rel } of shapes) { const c = column(BOARD.w / 2, rel); if (c) return spot(BOARD.w / 2, r1(c.y), width); }
+  for (const { width, rel } of shapes) {
+    for (let k = 0.5; BOARD.w / 2 - k + rel.x0 >= NEW_AREA.x0 - 1e-9 || BOARD.w / 2 + k + rel.x1 <= NEW_AREA.x1 + 1e-9; k += 0.5) {
+      let pick = null;
+      for (const x of [BOARD.w / 2 - k, BOARD.w / 2 + k]) { const c = column(x, rel); if (c && better(c, pick)) pick = { ...c, x }; }
+      if (pick) return spot(pick.x, r1(pick.y), width);
+    }
+  }
+  /* No room anywhere: the smallest it may be, where it covers the
+     fewest words, then the least artwork, then nearest its usual spot. */
+  const { width, rel } = shapes[shapes.length - 1];
+  const xs = [], ys = [];
+  for (let x = Math.ceil((NEW_AREA.x0 - rel.x0) * 2) / 2; x <= NEW_AREA.x1 - rel.x1 + 1e-9; x += 0.5) xs.push(x);
+  for (let y = Math.ceil((NEW_AREA.y0 - rel.y0) * 2) / 2; y <= NEW_AREA.y1 - rel.y1 + 1e-9; y += 0.5) ys.push(y);
+  let pick = null;
+  for (const x of xs.length ? xs : [home.x]) for (const y of ys.length ? ys : [home.y]) {
+    const box = { x0: x + rel.x0, x1: x + rel.x1, y0: y + rel.y0, y1: y + rel.y1 };
+    let words = 0, art = 0;
+    for (const t of taken) { const o = overlap(box, t); if (t.words) words += o; else art += o; }
+    const off = Math.abs(x - home.x) + Math.abs(y - home.y);
+    if (!pick || words < pick.words - 1e-9 || (words < pick.words + 1e-9 && (art < pick.art - 1e-9 || (art < pick.art + 1e-9 && off < pick.off)))) pick = { x, y, words, art, off };
+  }
+  return spot(pick.x, pick.y, width);
+}
 function addElement(el, tab) {
   const b = activeBoard();
   if (countOf(b, el.type) >= limitOf(el.type)) { alert('Up to ' + limitOf(el.type) + ' of those per board.'); return null; }
@@ -1725,6 +1824,7 @@ function addElement(el, tab) {
 }
 $('addtext').addEventListener('click', () => {
   const fresh = T('NEW TEXT', { size: 3, y: 36 });
+  Object.assign(fresh, placeNew(activeBoard(), fresh));
   fresh.color = defaultInk(activeBoard(), fresh);
   const el = addElement(fresh, 'text');
   if (el) { $('ttext').focus(); $('ttext').select(); }
@@ -1864,6 +1964,7 @@ $('addimage').addEventListener('change', async () => {
       return;
     }
     const el = withDefaults({ type: 'image', ...pic, width: 10, x: 12, y: 30 });
+    Object.assign(el, placeNew(target, el));
     target.elements.push(el);
     const currentTab = document.querySelector('.tabs [aria-selected="true"]')?.dataset.tab;
     const focused = document.activeElement;
@@ -2058,6 +2159,9 @@ fillClips();
 function addClip(name, o = {}) {
   if (!CLIPS[name]) return null;
   const fresh = C(name, { width: 8, x: 12, y: 36, ...o });
+  /* The art goes where there is room (placeNew) unless the caller names
+     a place; a width the caller names is kept, not made smaller. */
+  if (o.x === undefined && o.y === undefined) Object.assign(fresh, placeNew(activeBoard(), fresh, { shrink: o.width === undefined }));
   if (o.color === undefined) fresh.color = defaultInk(activeBoard(), fresh);
   const el = addElement(fresh, 'art');
   if (el) $('iwidth').focus();

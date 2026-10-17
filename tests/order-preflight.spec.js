@@ -62,7 +62,9 @@ test('a review opened during restored image loading includes that picture once i
   await page.setInputFiles('#addimage', file);
   await page.waitForFunction(() => cornhole.design.a.elements.some(el => el.type === 'image'));
   await settled(page);
-  const source = await page.evaluate(() => cornhole.design.a.elements.find(el => el.type === 'image').src);
+  /* Read where the picture landed: HELLO holds its usual spot, so it
+     goes into free room instead. */
+  const { src: source, x, y } = await page.evaluate(() => cornhole.design.a.elements.find(el => el.type === 'image'));
   // Delay one genuine restored PNG below the application cache, so the
   // browser's load/complete/naturalWidth behavior remains real.
   let release;
@@ -87,14 +89,14 @@ test('a review opened during restored image loading includes that picture once i
   await expect(page.locator('#tocheckout'), 'incomplete images cannot advance to checkout').toBeDisabled();
   release();
   await page.evaluate(() => cornhole.preloadImages(['a'], { print: false }));
-  await expect.poll(async () => page.evaluate(async () => {
+  await expect.poll(async () => page.evaluate(async ([x, y]) => {
     const img = document.querySelector('#reviewboards img');
     if (!img) return null;
     await img.decode();
     const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
     const g = c.getContext('2d'); g.drawImage(img, 0, 0);
-    return Array.from(g.getImageData(c.width / 2, c.height * 30 / 48, 1, 1).data);
-  }), 'the review preview must contain the red uploaded picture').toEqual([255, 0, 0, 255]);
+    return Array.from(g.getImageData(Math.round(c.width * x / 24), Math.round(c.height * y / 48), 1, 1).data);
+  }, [x, y]), 'the review preview must contain the red uploaded picture').toEqual([255, 0, 0, 255]);
 });
 
 test('an edit during checkout preparation returns to review before sending an order', async ({ page }) => {

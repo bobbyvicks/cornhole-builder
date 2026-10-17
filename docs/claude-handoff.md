@@ -795,6 +795,93 @@ two different boards answer false. No existing spec changed.
 Verified for that commit: 74 node tests, the TypeScript check,
 and the whole Chromium suite (398 specs) pass.
 
+## New items land in free space, not on the words
+
+From the customer-journey audits (visual polish at 390 x 844 and
+1280 x 900, a team set at 360 x 780), fixed in the commit after
+`3899681`:
+
+- New words and new clip art landed 12" across and 36" down, and a new
+  picture 30" down and 10" wide, on top of whatever was there. A new
+  picture covered a template's words on 29 of the 32 templates (on
+  Wedding 44% of SMITH and all of the date; HAPPY, USA, AHOY and JORDAN
+  entirely), and on a board with a basketball already at that spot the
+  words typed next (EST. / 2026) went inside the ball in its own
+  off-white: nothing new showed, and a tap on the ball picked the
+  hidden words.
+- `placeNew(board, el)` in `app.mjs` now decides, for the Add text
+  button, for `addClip` when it is given no place (no `x` and no `y`),
+  and for a picture as it lands. The usual spot is kept when the new
+  item's box is at least `NEW_GAP` (0.25") clear of every other item
+  and of the hole, so a blank board, and new words on the board a first
+  visit opens with, get exactly what they got before. Otherwise the
+  item goes into the area from 13" down (below the hole) to 46", 1" in
+  from the sides: first centred across the board, at its own size or,
+  for clip art and pictures, a quarter inch narrower at a time down to
+  `NEW_MIN_WIDTH` (4"); then off to one side, half an inch further at a
+  time, again at the biggest width that fits there. Of the free
+  stretches at a place it takes the one that leaves it most room above
+  and below, up to `NEW_ROOM` (2.5"), then the height nearest its usual
+  one. A board with no free room at all takes the item, at its
+  smallest, where it covers the least area of words, then of artwork.
+- Each item counts as the upright box around its ink, turned with it:
+  the size drawing gives it (words measured by `drawText`, clip art by
+  its width and aspect, a picture by its width and its pixels),
+  measured afresh rather than read from the last paint. A picture
+  filling the board takes no room; the hole is a box 0.5" around it.
+  The ink (`defaultInk`) is chosen after the place, so it is read from
+  the spot the item lands on. Clip art given a place keeps it, as the
+  creative pack spec and the others that pass `x` and `y` expect; clip
+  art given only a width keeps that width and is moved, not shrunk.
+- Where this differs from the triage: it proposed the tallest free
+  band, centred, with today's spot as the last resort. The usual spot
+  is kept whenever it is clear, not only on a blank board, so words
+  added under YOUR TEAM, or a picture added to an empty board, land
+  where they did. A stretch is chosen for its room up to 2.5" and then
+  for being near the usual height, so an item does not jump to the far
+  end of the board for a slightly taller gap. Off to one side was added
+  after shrinking: on BBQ, Brewery, Graduation or Lake days, once new
+  words are on, the only room left for a Heart 4" wide is beside the
+  art. A
+  board with no room left gets the spot that covers the fewest words,
+  not the old spot, which on most templates is on the words. The 2.5"
+  rather than 1" came from the team set: words placed 2" above YOUR
+  TEAM ran into it once EST. / 2026 took a second line.
+- Limits: words are placed by the size of NEW TEXT; longer words or
+  more lines grow from their middle and can still reach a neighbour. A
+  box is a rectangle, so the open middle of a wreath or a ring counts
+  as taken, and a new item can land on a band of the pattern. On a
+  crowded board a clip art or a picture can come in at 4" wide.
+  Duplicate, Copy to the other board and the templates are unchanged.
+  The browser suite loads no web fonts, so the boxes there are the
+  fallback face's.
+
+`tests/new-item-place.spec.js` applies all 32 templates and adds words
+with the Add text button, the Heart from the Art tab and a 900 x 600
+JPEG: each new item's box covers no more than 10% of any template
+text's box (none covers any), is clear of the hole and of the other
+two new items and on the board, and the Heart and the picture are at
+least 4" wide. On Wedding the picture is clear of Mr & Mrs, SMITH and
+the date. On a blank board the words and the Heart land at (12, 36),
+the Heart 8" wide, and the picture at (12, 30), 10" wide; with YOUR
+TEAM on the board new words still land at (12, 36). Clip art given a
+place keeps it; given a width, it keeps the width and is moved clear.
+At 360 x 780 with touch, on the board a first visit opens with, the
+basketball found by search and tapped, then Add text tapped and EST.,
+Enter, 2026 typed: the words, the ball and YOUR TEAM do not overlap,
+the words add off-white to the board, and a tap on the middle of the
+ball picks the ball. Four of the five fail before this change.
+`new-item-ink.spec.js` changed where it encoded the old spot: its fade
+case added the Heart to a board with the new words already at the
+usual spot, so the Heart landed high up, at the other end of the fade;
+each item now goes on a board with HELLO alone and is checked to land
+low down. `order-preflight.spec.js` "a review opened during restored
+image loading..." read the picture's colour at (12, 30), where HELLO
+now keeps the picture away; it reads at the picture's own place.
+
+Verified for that commit: 74 node tests, the TypeScript check,
+and the whole Chromium suite (403 specs) pass.
+
 ## Verification
 
 At the tested implementation commit `f4d456a`, the final clean `npm test`
