@@ -90,9 +90,11 @@ A site where people design their own cornhole boards and order them.
   is replaced; changes made while a file opens are preserved. Replacing a
   customized design asks first, and cancellation keeps the saved draft too.
   A design that has been worked on is never replaced by a template without
-  asking, reload or no reload. Keys that edit the artwork (arrows, plus,
-  minus, Delete) work only while its active board has the focus; browser
-  shortcuts are left alone. Undo history shares image data across snapshots
+  asking, reload or no reload; a board with a picture on it counts as
+  worked on without comparing it with every template, so with photos on
+  it the question still comes at once. Keys that edit the artwork
+  (arrows, plus, minus, Delete) work only while its active board has the
+  focus; browser shortcuts are left alone. Undo history shares image data across snapshots
   to keep repeated edits small.
 - **Pictures.** Each upload has a preview of up to 1600 px for the board,
   and a print master as big as the file came (to 4000 px on the long side)
@@ -141,12 +143,20 @@ A site where people design their own cornhole boards and order them.
 
 Everything the customer sees is static: `index.html`, `app.mjs` and the
 modules in `lib/` (`price.mjs`, `clips.mjs`, `templates.mjs`, `store.mjs`,
-`site.mjs`). Two serverless functions in `api/` do the parts that need
-secrets. No build step. The 35 web fonts come from Google Fonts through one
-stylesheet that is fetched without holding the first paint: the page draws
-straight away in system fonts, and the boards and the template thumbnails
-are drawn again as the real faces land (a `<noscript>` copy of the link
-serves a browser with scripts off).
+`site.mjs` and the rest app.mjs imports). Two serverless functions in
+`api/` do the parts that need secrets. No build step. The head of
+`index.html` names every module with `<link rel="modulepreload">`, so a
+browser asks for them all alongside `app.mjs` rather than after it; a
+module added to app.mjs's imports goes in that list too, and
+`test/module-preload.test.mjs` fails until it does. Until the script has
+run, the markup shows no total and no save status, Undo and Redo are
+off, and on a phone only one board is drawn, as it is after.
+
+The 35 web fonts come from Google Fonts through one stylesheet that is
+fetched without holding the first paint: the page draws straight away in
+system fonts, and the boards and the template thumbnails are drawn again
+as the real faces land (a `<noscript>` copy of the link serves a browser
+with scripts off).
 
 ## Business details
 

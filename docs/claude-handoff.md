@@ -716,6 +716,85 @@ the picture lands. No existing spec changed.
 Verified for that commit: 71 node tests, the TypeScript check, and the
 whole Chromium suite (394 specs) pass.
 
+## A slow phone: every module at once, nothing claimed before the script runs
+
+From the customer-journey audits (a slow phone at 375 x 812 with the
+CPU slowed 4x on Slow 3G), fixed in the commit after `042b6d6`:
+
+- The builder opened about 10 s after the page was asked for, and about
+  9 s on a return visit when every file came back 304: the nine modules
+  in `lib/` were asked for only once `app.mjs` had arrived and been
+  read, one more round trip in series. The head of `index.html` now has
+  a `<link rel="modulepreload">` for `app.mjs` and for each module it
+  imports, so they come together. Measured here with the files gzipped
+  behind a 2000 ms, 50 KB/s link and the CPU slowed 4x (the audit's
+  setting), the builder opened at 7.2 to 7.3 s instead of 10.1 to
+  10.2 s, on a first visit and a return alike.
+  `test/module-preload.test.mjs` reads the import lines of `app.mjs`,
+  and of every module they reach, and fails unless the head lists
+  exactly those modules, each once, `app.mjs` first.
+- Until the script ran, the markup said "$0.00" in the header and the
+  bar at the foot, told a returning customer whose design was saved
+  "Not saved yet", drew Undo and Redo ready, and on a phone drew two
+  grey boards that became one. `#headtotal` and `#mobiletotal` now
+  start empty (an empty chip is `visibility: hidden`, so there is no
+  blank pill), each `.savestatus` starts empty with
+  `data-state="loading"`, `#undo` and `#redo` carry `disabled`, and
+  `#boardB` starts with the `same` class and the "(same as A)" label a
+  new design has, so a phone draws one board before and after. The
+  save line in the Start pane keeps one line of height while it is
+  empty (`min-height: 1.45em`): without it the templates moved down
+  18 px under a finger as the builder opened. At 320, 375, 390 and
+  1280 px nothing in the Start pane moves when the script runs, and
+  nothing scrolls sideways.
+- `setSaveState` ignores a repeat of the state it has and `saveState`
+  started as `'new'`, so the boot's `setSaveState('new')` would have
+  left the status empty. It starts as `'loading'`, which has no text in
+  `SAVE_TEXT` and is never set again; `cornhole.saveState` reads it
+  only before `cornhole.loaded`, which the specs wait for.
+- With photos on the board `isPristine()` wrote the whole board out as
+  JSON, picture data included, twice for the default and blank boards
+  and twice for each template (about 34 times a tap): 1.7 to 2.3 s on
+  the slowed phone before "Replace your current design...?", and
+  457 ms here on a desktop CPU with four 4000 px photos. No template and
+  no blank board has a picture, so a board with one is someone's work
+  without comparing anything (a template given a picture one day would
+  only make a tap ask); otherwise the board is written out once and
+  compared with each untouched board in turn.
+- Where this differs from the triage: Board B's class and label, the
+  hidden empty chip and the reserved save line were not in it. The
+  untouched boards are still built at each call (a few milliseconds
+  with no pictures), since caching them bought nothing measurable.
+- Not done: the default board still shows for a moment before a saved
+  design takes its place (that touches the startup gate), the audit's
+  "Loading the designer" label, and versioned module addresses with a
+  long cache life, which would let a return visit skip the
+  revalidation round trips. Limits: a browser without `modulepreload`
+  loads the modules one round trip later, as before. On a wide screen
+  the header links move left as the total arrives, as they did when it
+  changed from $0.00.
+
+`tests/slow-start.spec.js`, at 375 x 812 with touch: `app.mjs` is held
+with `page.route` while the requests are recorded. Meanwhile every
+module it imports (read from its import lines) has been asked for, the
+script has not run, both totals are empty and the chip hidden, the
+three save lines are empty, Undo and Redo are disabled and one board
+shows. Held 1.5 s and let go, both totals show
+`money(quote(order).total)`, every save line reads "Not saved yet",
++ Start with blank boards has not moved, and a tap on the Wedding
+template enables Undo, whose tap brings YOUR TEAM back with Redo
+enabled. A return visit with the Wedding template saved claims nothing
+while held and reads "Saved on this device" after. At 1280 x 900, a
+board with four 4000 x 3000 photos and their masters (over 4 MB of
+JSON) answers `isPristine()` false in under 100 ms, and a template tap
+and + Start with blank boards still ask; the default board, the
+Wedding, Monogram, Team and Sunflower templates and a blank board
+answer true and are replaced with no question, and a changed word or
+two different boards answer false. No existing spec changed.
+
+Verified for that commit: 74 node tests, the TypeScript check,
+and the whole Chromium suite (398 specs) pass.
+
 ## Verification
 
 At the tested implementation commit `f4d456a`, the final clean `npm test`

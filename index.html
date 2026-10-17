@@ -10,6 +10,22 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="Cornhole Board Builder">
 <meta property="og:description" content="Design your own regulation cornhole boards - colours, fonts, clip art and your own pictures - and order the set.">
+<!-- Every module the page runs, asked for at once. Without these the
+     browser finds the ones in lib/ only when app.mjs has arrived and been
+     read, one more round trip before anything works: two to three
+     seconds on a slow phone connection, on a return visit too, where
+     each file is only checked. The list is app.mjs and the modules it imports;
+     test/module-preload.test.mjs keeps the two the same. -->
+<link rel="modulepreload" href="app.mjs">
+<link rel="modulepreload" href="lib/price.mjs">
+<link rel="modulepreload" href="lib/clips.mjs">
+<link rel="modulepreload" href="lib/templates.mjs">
+<link rel="modulepreload" href="lib/creative-pack.mjs">
+<link rel="modulepreload" href="lib/store.mjs">
+<link rel="modulepreload" href="lib/site.mjs">
+<link rel="modulepreload" href="lib/project-validation.mjs">
+<link rel="modulepreload" href="lib/history.mjs">
+<link rel="modulepreload" href="lib/png-resolution.mjs">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- The 35 web fonts must not hold the first paint. The sheet is fetched
@@ -55,6 +71,8 @@
   nav.site a { margin-left: 18px; text-decoration: none; color: var(--muted); font-weight: 600; }
   nav.site a:hover { color: var(--ink); }
   .totalchip { background: var(--accent); color: var(--accent-ink); padding: 6px 12px; border-radius: 999px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  /* Empty until the script has priced the order: no $0.00, and no blank pill. */
+  .totalchip:empty { visibility: hidden; }
 
   .hero { padding: 28px 0 10px; }
   .hero h1 { font-size: clamp(26px, 4vw, 40px); font-weight: 800; }
@@ -189,7 +207,10 @@
   .empty { color: var(--muted); font-size: 13.5px; padding: 6px 0; }
 
   .project { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: #faf8f4; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 14px; }
-  .project .savestatus { flex-basis: 100%; }
+  /* A line of its own, kept while it is still empty (until the saved
+     project has been read), so the templates do not move down under a
+     finger when the words arrive. The 1.45 is the body's line height. */
+  .project .savestatus { flex-basis: 100%; min-height: 1.45em; }
   .project > .btn { flex: 1; text-align: center; }
   .tplgroup { margin: 14px 0 6px; }
   .templates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -403,7 +424,7 @@
     <nav class="site" aria-label="Main navigation">
       <a href="#builder">Design</a>
       <a href="#how">How it works</a>
-      <span class="totalchip" id="headtotal" title="Estimated total in US dollars, before sales tax">$0.00</span>
+      <span class="totalchip" id="headtotal" title="Estimated total in US dollars, before sales tax"></span>
     </nav>
   </div>
 </header>
@@ -430,6 +451,12 @@
        that first appears with its text already in place is not read out. -->
   <span class="sr" id="savealert" role="status"></span>
   <div class="builder" id="builder">
+    <!-- Until app.mjs has run, which takes seconds on a slow phone, the
+         markup claims nothing it does not know yet: the totals and the
+         save status are empty (the script writes the quote, and "Not
+         saved yet" or "Saved on this device" once the saved project has
+         been read), Undo and Redo are off, and Board B starts as the copy
+         of Board A that a new design has, which a phone does not show. -->
     <section class="stage" aria-label="Board preview" inert>
       <div class="stagehead">
         <div class="chips" id="boardmode" role="group" aria-label="Which board to edit">
@@ -444,18 +471,18 @@
           <div class="label">Board A</div>
           <span class="sr" id="descA"></span>
         </div>
-        <div class="board" id="boardB">
+        <div class="board same" id="boardB">
           <canvas id="canvasB" data-board="b" width="480" height="960" tabindex="0" aria-label="Board B. Click or tap something on it to select it; arrow keys move the selection, plus and minus resize it, Delete removes it." aria-describedby="descB"></canvas>
-          <div class="label">Board B</div>
+          <div class="label">Board B (same as A)</div>
           <span class="sr" id="descB"></span>
         </div>
       </div>
       <div class="stagebar">
         <div class="group">
-          <button class="btn small" id="undo" title="Undo (Ctrl+Z)">Undo</button>
-          <button class="btn small" id="redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
+          <button class="btn small" id="undo" title="Undo (Ctrl+Z)" disabled>Undo</button>
+          <button class="btn small" id="redo" title="Redo (Ctrl+Shift+Z)" disabled>Redo</button>
           <button class="btn small" id="reset">Start over</button>
-          <span class="savestatus" data-state="new">Not saved yet</span>
+          <span class="savestatus" data-state="loading"></span>
           <button class="btn small" id="exportlink" hidden>Export project</button>
           <button class="btn small" type="button" id="reloadlatest" hidden>Reload</button>
         </div>
@@ -478,7 +505,7 @@
           <button role="tab" id="tabbtn-order" data-tab="order" aria-selected="false" aria-controls="tab-order" tabindex="-1">Order</button>
         </div>
         <div class="tabnotice" id="tabnotice" hidden>
-          <span class="savestatus" data-state="new">Not saved yet</span>
+          <span class="savestatus" data-state="loading"></span>
           <button class="btn small" type="button" id="tabreload">Reload</button>
         </div>
       </div>
@@ -495,7 +522,7 @@
       <p class="hint" id="uploadstatus" role="status" aria-live="polite" hidden></p>
       <div class="pane" id="tab-templates" data-open="true" role="tabpanel" aria-labelledby="tabbtn-templates">
         <div class="project" id="project">
-          <span class="savestatus" data-state="new">Not saved yet</span>
+          <span class="savestatus" data-state="loading"></span>
           <button class="btn small" id="exportbtn" title="Download an editable project file with your boards and order choices, to keep or open later">Save editable copy</button>
           <button class="btn small" type="button" id="importbtn">Open saved design</button>
           <input type="file" id="importfile" class="sr" tabindex="-1" accept="application/json,.json">
@@ -728,7 +755,7 @@
 </main>
 
 <div id="mobilebar" inert>
-  <span class="total">Estimated total, before tax <b id="mobiletotal">$0.00</b></span>
+  <span class="total">Estimated total, before tax <b id="mobiletotal"></b></span>
   <button class="btn primary" id="reviewbtn" type="button">Review order</button>
 </div>
 

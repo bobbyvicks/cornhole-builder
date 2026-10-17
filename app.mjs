@@ -186,13 +186,20 @@ const boardKeys = () => (order.product === 'set' && !design.same ? ['a', 'b'] : 
 
 /* A design nobody has touched: the page's own default, a blank board, or
    a template exactly as it came. Anything else is someone's work, and a
-   template click asks before replacing it - after a reload too. */
+   template click asks before replacing it - after a reload too.
+   No template and no blank board has a picture on it, so a board with one
+   is someone's work without comparing anything: written out, the photos'
+   data made every template tap freeze a phone for two seconds before its
+   question. Otherwise the board is written out once and compared with
+   each untouched board in turn. (A template given a picture one day
+   would only make a tap ask first, never replace work unasked.) */
 const stripIds = (b) => JSON.stringify({ ...b, elements: b.elements.map(({ id, fitReference, autoFit, ...e }) => e) });
-const sameBoard = (a, b) => stripIds(a) === stripIds(b);
 function isPristine() {
   if (!design.same) return false;
-  if (sameBoard(design.a, freshDesign().a) || sameBoard(design.a, freshBoard())) return true;
-  return TEMPLATES.some((t) => sameBoard(design.a, t.board()));
+  if (design.a.elements.some((e) => e.type === 'image')) return false;
+  const board = stripIds(design.a);
+  if (board === stripIds(freshDesign().a) || board === stripIds(freshBoard())) return true;
+  return TEMPLATES.some((t) => board === stripIds(t.board()));
 }
 function sampleWordsIn() {
   const out = new Set();
@@ -766,7 +773,12 @@ const SAVE_TEXT = {
    Where that toolbar is not pinned in view, the other-tab notice and its
    Reload sit in a line under the tabs instead (#tabnotice). */
 const NOTICE_STATES = ['error', 'waiting', 'unreadable', 'elsewhere'];
-let saveState = 'new', saveBusy = false, saveAgain = false, storageReady = false, loaded = false;
+/* The state is 'loading' until the saved project has been read. The
+   markup starts with the status empty, since until then nobody knows
+   whether the design is saved; and setSaveState ignores a repeat, so
+   starting anywhere but 'new' is what lets the boot write "Not saved
+   yet" for a first visit. 'loading' has no words and is never set again. */
+let saveState = 'loading', saveBusy = false, saveAgain = false, storageReady = false, loaded = false;
 let saveTimer = null, saveNeedsAnnouncement = false, restoreTimedOut = false;
 let startupSnapshot = null;
 let recoverySnapshot = null;
