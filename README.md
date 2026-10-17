@@ -32,22 +32,31 @@ A site where people design their own cornhole boards and order them.
   reloads. One design for both boards, or a different one each: switch
   boards above the preview or by tapping one, copy one board to the other,
   or make the other its colour opposite (offered with matching boards too,
-  where it makes Board B). On a phone, where one board shows at a time, a
-  change to the other board (Copy, opposite colours, or an Undo or Redo
-  that touched only that board) moves the preview to it; where both show,
-  neither is dimmed. On a phone the board pins under the
-  header, the handles grow to finger size, picking something up opens the
-  tab that edits it, and a bar at the foot carries the total and Review
-  order; while ordering, the board scrolls away with the page instead.
-  On the Order tab, at any width, the board shows the design without its
-  selection outline or handles, unless it has the keyboard focus.
-  Templates are grouped by occasion with a blank start; a template
-  hands over its first words selected and ready to type over, and each
-  text has a field right in the list, named by its place in it (Words 1,
-  Words 2). A field whose words are still a sample selects them when it
-  is tapped, clicked or tabbed to, so typing replaces them; words the
-  customer has changed keep the caret where it lands. Curve, spacing,
-  rotation and layers sit under "Advanced text" and "Advanced artwork".
+  where it makes Board B, and only on a board with two colours to switch,
+  so not on stained wood with no pattern or a board with nothing on it in
+  a second colour). The opposite reads every word and piece of clip art
+  against what is behind it on both boards (a disc, a pattern band, a
+  fade), and one that showed and would not takes whichever of the two
+  colours shows there; a fade with a third colour at one end becomes the
+  new board colour from end to end. Opposite colours comes before Copy in
+  the row, so the tapped button stays under the finger when Copy appears,
+  and a double tap or a double click on either counts once. On a phone,
+  where one board shows at a time, a change to the other board (Copy,
+  opposite colours, or an Undo or Redo that touched only that board)
+  moves the preview to it; where both show, neither is dimmed. On a
+  phone the board pins under the header, the handles grow to finger
+  size, picking something up opens the tab that edits it, and a bar at
+  the foot carries the total and Review order; while ordering, the
+  board scrolls away with the page instead. On the Order tab, at any
+  width, the board shows the design without its selection outline or
+  handles, unless it has the keyboard focus. Templates are grouped by
+  occasion with a blank start; a template hands over its first words
+  selected and ready to type over, and each text has a field right in
+  the list, named by its place in it (Words 1, Words 2). A field whose
+  words are still a sample selects them when it is tapped, clicked or
+  tabbed to, so typing replaces them; words the customer has changed
+  keep the caret where it lands. Curve, spacing, rotation and layers sit
+  under "Advanced text" and "Advanced artwork".
   An outline's colour, width slider and width go onto a new line
   together, so the width stays beside its slider. The swatch whose colour
   is on the board has a white frame inside a solid ring, and the one the
@@ -130,7 +139,8 @@ A site where people design their own cornhole boards and order them.
   a line for each text or clip art that will hardly show against what is
   behind it (as light or as dark as the board there, with no strong
   difference of colour to set it apart) and for each line Auto-fit shrank
-  below 60% of its template size, which warns but does not hold the
+  below 60% of its template size and to under 1 in (the templates print
+  lines of 1 to 1.5 in themselves), which warns but does not hold the
   order, and the resolution warnings. Dispatch time (from the price list)
   is kept apart from delivery time, which is never promised.
 - **Print file.** The same drawing code renders a 2400 x 4800 PNG at 100
@@ -147,7 +157,11 @@ A site where people design their own cornhole boards and order them.
   answer is brought into view under it. An order answered with an invoice
   instead of a payment page takes the button away, with the order code
   left on screen, until the design or the options change and are
-  reviewed again. Share preview and Download print file keep the focus
+  reviewed again; then the line under the button names that order as
+  already placed and says the button places a second, separate order,
+  and that order's answer names the first code too. After an invoice
+  answer the note under it no longer says payment is taken on a Stripe
+  page. Share preview and Download print file keep the focus
   the same way while they work.
 
 Everything the customer sees is static: `index.html`, `app.mjs` and the

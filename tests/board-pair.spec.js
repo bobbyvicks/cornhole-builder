@@ -125,6 +125,97 @@ test.describe('a set on a phone, 390 x 844 with touch', () => {
     await expect(page.locator('#canvasA')).toBeVisible();
     expect(await pixelAt(page, 'b', 2, 40), 'B keeps its own red').toEqual([...RED, 255]);
   });
+
+  test('a double tap on the opposite colours counts once, and the button stays under the finger', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await open(page);
+    await teamOnBoardTab(page);
+    const swap = page.locator('#swapcolours');
+    await swap.scrollIntoViewIfNeeded();
+    const r = await swap.boundingBox(), x = r.x + r.width / 2, y = r.y + r.height / 2;
+    const boardA = await page.evaluate(() => JSON.stringify(cornhole.design.a));
+    const under = () => page.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return e && e.id; }, [x, y]);
+    /* One tap: Copy appears after the button, not where the finger is. */
+    await page.touchscreen.tap(x, y);
+    expect(await state(page)).toEqual({ same: false, active: 'b' });
+    expect(await under(), 'the tapped button is still under the finger').toBe('swapcolours');
+    await expect(page.locator('#copyother')).toBeVisible();
+    await page.locator('#undo').tap();
+    expect(await state(page)).toEqual({ same: true, active: 'a' });
+    /* Two taps in quick succession at the same point: the second of the
+       pair is turned away, so A is not made again from B. */
+    await swap.scrollIntoViewIfNeeded();
+    const r2 = await swap.boundingBox(), x2 = r2.x + r2.width / 2, y2 = r2.y + r2.height / 2;
+    await page.touchscreen.tap(x2, y2);
+    await page.touchscreen.tap(x2, y2);
+    expect(await state(page)).toEqual({ same: false, active: 'b' });
+    expect(await page.evaluate(() => JSON.stringify(cornhole.design.a)), 'Board A is as the customer had it').toBe(boardA);
+    expect(await pixelAt(page, 'b', 2, 40)).toEqual([...GOLD, 255]);
+    expect(await page.evaluate(() => cornhole.design.b.elements.map((e) => e.color))).toEqual(['#1f3a93', '#1f3a93', '#1f3a93']);
+  });
+
+  /* The opposite of a design whose words sit on a disc, a pattern band
+     or a fade. The review's own check names nothing on either board. */
+  for (const [label, check] of [
+    ['Nautical', async (page) => {
+      /* A navy disc on navy and ivory stripes, its anchor and AHOY ivory. */
+      expect(await page.evaluate(() => cornhole.design.b.elements.map((e) => e.color))).toEqual(['#0b1b3a', '#fffaf0', '#fffaf0']);
+      expect(await pixelAt(page, 'b', 4.5, 25), 'inside the disc').toEqual([0x0b, 0x1b, 0x3a, 255]);
+      expect(await pixelAt(page, 'b', 1, 25), 'a stripe outside it').toEqual([0xff, 0xfa, 0xf0, 255]);
+    }],
+    ['Lake days', async (page) => {
+      /* LAKE, DAYS and the family name on the light band are dark teal. */
+      const b = await page.evaluate(() => Object.fromEntries(cornhole.design.b.elements.map((e) => [e.text || e.name, e.color])));
+      expect([b.LAKE, b.DAYS, b['THE CARTERS']]).toEqual(['#174e58', '#174e58', '#174e58']);
+      expect(b['LIFE AT THE LAKE']).toBe('#b9d8d5');
+    }],
+    ['Bachelorette', async (page) => {
+      /* The fade becomes the words' white from end to end, and every
+         word and the glass are the fade's pink. */
+      expect(await page.evaluate(() => [cornhole.design.b.base.color, cornhole.design.b.base.color2])).toEqual(['#ffffff', '#ffffff']);
+      expect(await page.evaluate(() => cornhole.design.b.elements.map((e) => e.color))).toEqual(['#e75480', '#e75480', '#e75480', '#e75480']);
+    }],
+  ]) test(`the opposite of ${label} keeps every word and piece of art in view`, async ({ page }) => {
+    await open(page);
+    await card(page, label).tap();
+    await page.evaluate(() => document.activeElement.blur());
+    await tab(page, 'Board').tap();
+    expect(await page.evaluate(() => cornhole.readabilityIssues(['a']))).toEqual([]);
+    const boardA = await page.evaluate(() => JSON.stringify(cornhole.design.a));
+    await page.locator('#swapcolours').tap();
+    expect(await state(page)).toEqual({ same: false, active: 'b' });
+    expect(await page.evaluate(() => JSON.stringify(cornhole.design.a))).toBe(boardA);
+    expect(await page.evaluate(() => cornhole.readabilityIssues(['a', 'b']))).toEqual([]);
+    await check(page);
+  });
+
+  test('the opposite colours are offered only where there are two colours to switch', async ({ page }) => {
+    await open(page);
+    page.on('dialog', (d) => d.accept());
+    /* Stained wood with no pattern: nothing to give the words. */
+    await card(page, 'The cabin').tap();
+    await page.evaluate(() => document.activeElement.blur());
+    await tab(page, 'Board').tap();
+    await expect(page.locator('#swapcolours')).toBeHidden();
+    await expect(page.locator('#boardactions'), 'no empty row is left').toBeHidden();
+    /* Blank boards: no words or art in a second colour, until some are added. */
+    await tab(page, 'Start').tap();
+    await page.locator('#startblank').tap();
+    await tab(page, 'Board').tap();
+    await expect(page.locator('#boardactions')).toBeHidden();
+    await tab(page, 'Text').tap();
+    await page.locator('#addtext').tap();
+    await page.evaluate(() => document.activeElement.blur());
+    await tab(page, 'Board').tap();
+    await expect(page.locator('#swapcolours')).toBeVisible();
+    await expect(page.locator('#swapcolours')).toHaveText('Make Board B the opposite colours');
+    /* And on Team it shows as before. */
+    await tab(page, 'Start').tap();
+    await card(page, 'Team').tap();
+    await page.evaluate(() => document.activeElement.blur());
+    await tab(page, 'Board').tap();
+    await expect(page.locator('#swapcolours')).toBeVisible();
+  });
 });
 
 for (const width of [320, 375, 390]) test.describe(`the board actions at ${width} px with touch`, () => {
@@ -167,6 +258,49 @@ test.describe('a set on a tablet, 820 x 1180', () => {
     await expect(page.locator('#boardA')).toHaveClass(/\binactive\b/);
     expect(await page.locator('#canvasA').evaluate((c) => getComputedStyle(c).opacity)).toBe('1');
   });
+});
+
+test('at 1280 x 900 a double click, or two clicks, on the opposite colours leave Board A as it was', async ({ page }) => {
+  await open(page);
+  await card(page, 'Team').click();
+  await tab(page, 'Board').click();
+  const boardA = await page.evaluate(() => JSON.stringify(cornhole.design.a));
+  const swap = page.locator('#swapcolours');
+  let r = await swap.boundingBox(), x = r.x + r.width / 2, y = r.y + r.height / 2;
+  const opposite = async () => {
+    expect(await state(page)).toEqual({ same: false, active: 'a' });
+    expect(await page.evaluate(() => JSON.stringify(cornhole.design.a)), 'Board A is as it was').toBe(boardA);
+    expect(await pixelAt(page, 'b', 2, 40), 'Board B is the opposite').toEqual([...GOLD, 255]);
+    expect(await page.evaluate(() => cornhole.design.b.elements.map((e) => e.color))).toEqual(['#1f3a93', '#1f3a93', '#1f3a93']);
+  };
+  await page.mouse.dblclick(x, y);
+  await opposite();
+  expect(await page.evaluate(([x, y]) => document.elementFromPoint(x, y).id, [x, y]), 'Copy came in after the button').toBe('swapcolours');
+  await page.locator('#undo').click();
+  expect(await state(page)).toEqual({ same: true, active: 'a' });
+  /* The click on Undo may have scrolled the page. */
+  r = await swap.boundingBox(); x = r.x + r.width / 2; y = r.y + r.height / 2;
+  await page.mouse.click(x, y);
+  await page.mouse.click(x, y);
+  await opposite();
+});
+
+test('every template that offers the opposite colours makes a Board B the review names nothing on', async ({ page }) => {
+  test.setTimeout(120_000);
+  await open(page);
+  const ids = await page.evaluate(() => cornhole.TEMPLATES.map((t) => t.id));
+  const offered = [];
+  for (const id of ids) {
+    await page.evaluate((id) => cornhole.applyTemplate(id), id);
+    await tab(page, 'Board').click();
+    if (!(await page.locator('#swapcolours').isVisible())) continue;
+    offered.push(id);
+    await page.locator('#swapcolours').click();
+    expect(await state(page), id).toEqual({ same: false, active: 'a' });
+    expect(await page.evaluate(() => cornhole.readabilityIssues(['a', 'b'])), id).toEqual([]);
+  }
+  /* All but the two on stained wood with no pattern. */
+  expect(ids.filter((id) => !offered.includes(id)).sort()).toEqual(['cabin', 'rustic']);
 });
 
 test('at 1280 x 900 the keyboard makes the opposite board from matching boards and editing stays on A', async ({ page }) => {

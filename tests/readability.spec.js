@@ -113,6 +113,28 @@ test('a long surname Auto-fit shrank hard is named with the size it prints at; a
   await expect(page.locator('#tocheckout')).toBeEnabled();
 });
 
+test('ordinary names shrunk to 1 to 2.5 in are not called very small', async ({ page }) => {
+  /* The templates print lines this size themselves (the wedding date is
+     1.4 in), so only a line under 1 in is named for its size. Each of
+     these is under 0.6 of its template line. */
+  await open(page);
+  for (const [id, row, words, template] of [
+    ['wedding', 1, 'ANDERSON', 2.5],
+    ['wedding', 0, 'Christopher & Elizabeth', 3.2],
+    ['team', 0, 'NORTHSIDE BULLDOGS', 4.5],
+  ]) {
+    await page.evaluate((id) => cornhole.applyTemplate(id), id);
+    await page.locator('#texts textarea.quick').nth(row).fill(words);
+    const size = await page.evaluate((words) => cornhole.activeBoard().elements.find((e) => e.text === words).size, words);
+    expect(size, words).toBeLessThan(0.6 * template);
+    expect(size, words).toBeGreaterThanOrEqual(1);
+    await review(page);
+    await page.check('#keepsamples');
+    await expect(page.locator('#readwarn'), words).toBeHidden();
+    await page.click('#backtoedit');
+  }
+});
+
 test('words as light as the board are named only when no strong colour sets them apart, and an outline keeps them', async ({ page }) => {
   await open(page);
   const named = await page.evaluate(() => {
@@ -156,11 +178,16 @@ test('drawing the check leaves the board\'s hit boxes as they were', async ({ pa
   await open(page);
   await card(page, 'Wedding').click();
   await page.click('#boardmode .chip[data-v="b"]');
+  /* The review reads a copy of the design, as renderReview does. With
+     every word half as big again in the copy, the check draws boxes of
+     its own; the live ones have to be put back, not merely drawn again. */
   const [before, issues, after] = await page.evaluate(() => {
     cornhole.paint();
     const read = () => JSON.stringify([...cornhole.boxes].sort());
     const was = read();
-    const said = cornhole.readabilityIssues(['a', 'b']);
+    const source = structuredClone(cornhole.design);
+    for (const k of ['a', 'b']) for (const e of source[k].elements) if (e.type === 'text') e.size *= 1.5;
+    const said = cornhole.readabilityIssues(['a', 'b'], source);
     return [was, said, read()];
   });
   expect(issues).toEqual([]);

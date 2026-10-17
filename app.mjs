@@ -728,6 +728,7 @@ function previewDataUrl(key, ppi = 10, source = design) {
    ==================================================================== */
 const snapshot = () => JSON.stringify(design);
 function commit() {
+  syncBoardActions();
   if (sameHistoryState(history[history.length - 1], design)) { save(); return; }
   const s = copyHistoryState(design);
   history.push(s); if (history.length > 60) history.shift();
@@ -1450,33 +1451,68 @@ function replaceOther(board) {
   design[other] = board; design.same = false;
   revealBoard(other); syncAll(); commit();
 }
-$('copyother').addEventListener('click', () => replaceOther(withFreshIds(activeBoard())));
+/* A double tap or a double click counts once. The tap that splits the
+   boards moves the panel to Board B on a phone, so a second tap would
+   make Board A from B, and on a wide screen a second click on Copy would
+   copy A over the new opposite board. The second click of a pair says so
+   in its detail (a key gives 0, so Enter and Space always work). */
+const onceOnly = (fn) => (ev) => { if (ev.detail > 1) return; fn(); };
+$('copyother').addEventListener('click', onceOnly(() => replaceOther(withFreshIds(activeBoard()))));
 /* The classic set: the other board is this one with its two main colours
-   exchanged - the board colour and the colour of the first text (or clip,
-   or the pattern). Everything in either colour switches, and anything
-   left that no longer reads against the new board (a second shade of the
-   old board colour, say) takes the old board colour instead. */
+   exchanged - the board colour (on wood, the pattern's, since a stain is
+   not a colour to give the words) and the colour of the first text or
+   clip art in another colour, or else the pattern's. A board without both
+   (stained wood with no pattern, or nothing on it in a second colour) has
+   no opposite: the button is not offered there, as it would only make a
+   copy. */
 const linear = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
 const lumOf = (channels) => { const [r, g, b] = channels.map(linear); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
 const lum = (hex) => lumOf(rgb(hex));
 const ratio = (la, lb) => (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
-const contrast = (a, b) => ratio(lum(a), lum(b));
+const lowHex = (c) => (c || '').toLowerCase();
+function oppositePair(b) {
+  const c1 = b.base.kind !== 'wood' ? lowHex(b.base.color) : (b.pattern.kind !== 'none' ? lowHex(b.pattern.color) : '');
+  if (!c1) return null;
+  const second = b.elements.find((e) => e.type !== 'image' && lowHex(e.color) !== c1);
+  const c2 = second ? lowHex(second.color) : (b.pattern.kind !== 'none' && lowHex(b.pattern.color) !== c1 ? lowHex(b.pattern.color) : '');
+  return c2 ? [c1, c2] : null;
+}
+/* Everything in either colour switches. A fade counts as the board
+   colour from end to end: an end in one of the two colours switches like
+   everything else, and an end in a third colour (Bachelorette's purple)
+   takes the new board colour as well, so the new board is plain where
+   the old one faded, rather than fading through shades that the words,
+   now in the old board colour, are lost on. Then what read on this board should read on the new one. Each text and
+   clip art is read against what is really behind it on both boards, in
+   layer order (a disc, a pattern band or a fade at its height, not the
+   board colour alone; see readBoard). One that stood out at READS or
+   more on this board and does not on the new one - a third colour on a
+   board that changed colour, or a switched colour on a band that did
+   not switch - takes whichever of the two colours stands out more there,
+   when that is better. An item that did not stand out to begin with (the
+   Nautical disc, ivory on ivory and navy stripes) is left as the
+   customer had it. */
+const READS = 1.8;
 function oppositeColours(src) {
-  const b = withFreshIds(src);
-  const low = (c) => (c || '').toLowerCase();
-  const c1 = b.base.kind !== 'wood' ? low(b.base.color) : (b.pattern.kind !== 'none' ? low(b.pattern.color) : '');
-  const second = b.elements.find((e) => e.type !== 'image' && low(e.color) !== c1);
-  const c2 = second ? low(second.color) : (b.pattern.kind !== 'none' && low(b.pattern.color) !== c1 ? low(b.pattern.color) : '');
-  if (!c1 || !c2) return b;
-  const sw = (c) => (low(c) === c1 ? c2 : low(c) === c2 ? c1 : c);
-  b.base.color = sw(b.base.color); b.base.color2 = sw(b.base.color2); b.pattern.color = sw(b.pattern.color);
-  for (const e of b.elements) if (e.type !== 'image') {
-    e.color = sw(e.color); e.outline = sw(e.outline);
-    if (b.base.kind !== 'wood' && isHex(e.color) && isHex(b.base.color) && contrast(e.color, b.base.color) < 1.8) e.color = c1;
-  }
+  const b = withFreshIds(src), pair = oppositePair(src);
+  if (!pair) return b;
+  const [c1, c2] = pair;
+  const sw = (c) => (lowHex(c) === c1 ? c2 : lowHex(c) === c2 ? c1 : c);
+  b.base.color2 = b.base.kind === 'gradient' && !pair.includes(lowHex(b.base.color2)) ? c2 : sw(b.base.color2);
+  b.base.color = sw(b.base.color); b.pattern.color = sw(b.pattern.color);
+  for (const e of b.elements) if (e.type !== 'image') { e.color = sw(e.color); e.outline = sw(e.outline); }
+  /* The items of the two boards are in the same order. */
+  const before = new Map(), seen = new Map();
+  readBoard(src, (el, spots) => before.set(src.elements.indexOf(el), inkContrast(spots, el.color, seen)));
+  readBoard(b, (el, spots) => {
+    const was = before.get(b.elements.indexOf(el)), now = inkContrast(spots, el.color, seen);
+    if (!(was >= READS) || now >= READS) return;
+    const [best, score] = [c1, c2].filter(isHex).map((c) => [c, inkContrast(spots, c, seen)]).sort((p, q) => q[1] - p[1])[0] || [];
+    if (score > now) el.color = best;
+  });
   return b;
 }
-$('swapcolours').addEventListener('click', () => replaceOther(oppositeColours(activeBoard())));
+$('swapcolours').addEventListener('click', onceOnly(() => replaceOther(oppositeColours(activeBoard()))));
 
 function syncBoard() {
   const b = activeBoard();
@@ -1498,16 +1534,10 @@ function syncBoard() {
   $('patsize').step = b.pattern.kind === 'border' || b.pattern.size % 0.5 !== 0 ? '0.01' : '0.5';
   $('patsize').value = b.pattern.size; $('patsizeval').textContent = b.pattern.size + '"';
   $('patternopts').style.visibility = b.pattern.kind === 'none' ? 'hidden' : 'visible';
-  const twoBoards = order.product === 'set', split = twoBoards && !design.same, other = active === 'a' ? 'b' : 'a';
+  const twoBoards = order.product === 'set', split = twoBoards && !design.same;
   setChip('boardmode', design.same ? 'same' : active);
   $('boardmode').hidden = !twoBoards;
-  // A set offers the opposite-colours board from the start; with matching
-  // boards it makes B and splits the pair. Copy needs two designs to copy
-  // between, so it shows once they are split.
-  $('boardactions').hidden = !twoBoards;
-  $('copyother').hidden = !split;
-  $('copyother').textContent = 'Copy to Board ' + other.toUpperCase();
-  $('swapcolours').textContent = 'Make Board ' + other.toUpperCase() + ' the opposite colours';
+  syncBoardActions();
   $('boardB').classList.toggle('hidden', !twoBoards);
   $('boardB').classList.toggle('same', design.same);
   for (const k of ['a', 'b']) {
@@ -1516,6 +1546,22 @@ function syncBoard() {
     box.querySelector('.label').textContent = 'Board ' + k.toUpperCase() + (editing ? ' - editing' : k === 'b' && design.same ? ' (same as A)' : '');
   }
   for (const s of document.querySelectorAll('.activename')) s.textContent = split ? 'board ' + active.toUpperCase() : 'your board';
+}
+/* A set offers the opposite-colours board from the start; with matching
+   boards it makes B and splits the pair. It is offered only where it
+   changes colours (see oppositePair), so it follows the board's words and
+   art as well as its base: commit calls this too. Copy needs two designs
+   to copy between, so it shows once they are split. The opposite colours
+   come first in the row, so the button that is tapped stays under the
+   finger when Copy appears after it. */
+function syncBoardActions() {
+  const twoBoards = order.product === 'set', split = twoBoards && !design.same, other = active === 'a' ? 'B' : 'A';
+  const noOpposite = !twoBoards || !oppositePair(activeBoard());
+  $('swapcolours').hidden = noOpposite;
+  $('copyother').hidden = !split;
+  $('boardactions').hidden = noOpposite && !split;
+  $('copyother').textContent = 'Copy to Board ' + other;
+  $('swapcolours').textContent = 'Make Board ' + other + ' the opposite colours';
 }
 
 // -- text tab
@@ -1632,10 +1678,12 @@ function defaultInk(b, el) {
    ink is lost. Comparing with the base colour alone would call items
    hidden that sit on a band of the pattern or on a shape of another
    colour, as several templates do. Pictures are not checked. A line
-   that Auto-fit took below SHRUNK of its template size is named as
-   well, with the size it prints at. The review only warns: Continue
-   stays open. */
-const READ_PPI = 8, HIDDEN_CONTRAST = 1.35, HIDDEN_COLOUR = 30, HIDDEN_SHARE = 0.8, OUTLINE_CONTRAST = 3, SHRUNK = 0.6;
+   that Auto-fit took below SHRUNK of its template size, and to under
+   SMALL_PRINT, is named as well, with the size it prints at: the
+   templates themselves print lines of about 1 to 1.5 in (a wedding
+   date, a web address), so a common surname taken from 2.5 in to 1.4 in
+   is not called very small. The review only warns: Continue stays open. */
+const READ_PPI = 8, HIDDEN_CONTRAST = 1.35, HIDDEN_COLOUR = 30, HIDDEN_SHARE = 0.8, OUTLINE_CONTRAST = 3, SHRUNK = 0.6, SMALL_PRINT = 1;
 let readCanvases = null;
 const quoted = (el) => '“' + el.text.trim().replace(/\s+/g, ' ') + '”';
 /* Lightness for the contrast ratio, and CIELAB (D65) for the colour. */
@@ -1647,73 +1695,98 @@ function colourOf([r, g, b]) {
   return { lum: Y, L: 116 * fy - 16, a: 500 * (fx - fy), b: 200 * (fy - fz) };
 }
 const colourGap = (p, q) => Math.hypot(p.a - q.a, p.b - q.b) * (p.L + q.L) / 200;
-function hiddenShare(under, alone, el, seen) {
+/* The colours of the board under an item's own ink, as 0xRRGGBB: each
+   pixel of the item drawn alone is paired with the drawing of everything
+   below it. Only the part of the board around the item is read. */
+function inkBackdrop(under, alone, el) {
   const box = boxes.get(el.id);
-  if (!box || !isHex(el.color)) return 0;
-  /* Only the part of the board around the item is read. */
+  if (!box) return [];
   const a = rad(el.rotation || 0), cos = Math.abs(Math.cos(a)), sin = Math.abs(Math.sin(a)), pad = 1;
   const cx = el.x - box.oy * Math.sin(a), cy = el.y + box.oy * Math.cos(a);
   const hw = (cos * box.w + sin * box.h) / 2 + pad, hh = (sin * box.w + cos * box.h) / 2 + pad;
   const W = alone.canvas.width, H = alone.canvas.height;
   const x0 = clamp(Math.floor((cx - hw) * READ_PPI), 0, W), x1 = clamp(Math.ceil((cx + hw) * READ_PPI), 0, W);
   const y0 = clamp(Math.floor((cy - hh) * READ_PPI), 0, H), y1 = clamp(Math.ceil((cy + hh) * READ_PPI), 0, H);
-  if (x1 <= x0 || y1 <= y0) return 0;
-  const ink = alone.getImageData(x0, y0, x1 - x0, y1 - y0).data, back = under.getImageData(x0, y0, x1 - x0, y1 - y0).data;
+  if (x1 <= x0 || y1 <= y0) return [];
+  const ink = alone.getImageData(x0, y0, x1 - x0, y1 - y0).data, back = under.getImageData(x0, y0, x1 - x0, y1 - y0).data, spots = [];
+  for (let i = 0; i < ink.length; i += 4) if (ink[i + 3] > 128 && back[i + 3] !== 0) spots.push((back[i] << 16) | (back[i + 1] << 8) | back[i + 2]);
+  return spots;
+}
+function spotColour(key, seen) {
+  let spot = seen.get(key);
+  if (!spot) { spot = colourOf([key >> 16, (key >> 8) & 255, key & 255]); seen.set(key, spot); }
+  return spot;
+}
+function hiddenShare(spots, el, seen) {
+  if (!spots.length || !isHex(el.color)) return 0;
   /* A clip art drawn as a line has no outline (see drawClip). */
   const outlined = el.outlineWidth > 0 && isHex(el.outline) && !(el.type === 'clip' && (CLIPS[el.name] || {}).mode === 'stroke');
   const fill = colourOf(rgb(el.color)), edge = outlined ? lum(el.outline) : null;
-  let n = 0, lost = 0;
-  for (let i = 0; i < ink.length; i += 4) {
-    if (ink[i + 3] <= 128 || back[i + 3] === 0) continue;
-    const key = (back[i] << 16) | (back[i + 1] << 8) | back[i + 2];
-    let spot = seen.get(key);
-    if (!spot) { spot = colourOf([back[i], back[i + 1], back[i + 2]]); seen.set(key, spot); }
-    n++;
+  let lost = 0;
+  for (const key of spots) {
+    const spot = spotColour(key, seen);
     if (ratio(fill.lum, spot.lum) < HIDDEN_CONTRAST && colourGap(fill, spot) < HIDDEN_COLOUR && (edge === null || ratio(edge, spot.lum) < OUTLINE_CONTRAST)) lost++;
   }
-  return n ? lost / n : 0;
+  return lost / spots.length;
 }
-function readabilityIssues(keys = boardKeys(), source = design) {
+/* The contrast that nine tenths of an item's ink get from what is behind
+   it in a colour, scored the way defaultInk scores an ink. */
+function inkContrast(spots, colour, seen) {
+  if (!spots.length || !isHex(colour)) return Infinity;
+  const l = lum(colour), c = spots.map((key) => ratio(l, spotColour(key, seen).lum)).sort((p, q) => p - q);
+  return c[Math.floor(c.length / 10)];
+}
+/* Draws a board at READ_PPI an item at a time, in layer order: the base,
+   the pattern and a picture filling the board, then the items. Each text
+   with words and each clip art is handed to visit with the colours under
+   its ink (inkBackdrop), the hole cut out of it, and is drawn onto the
+   board after the visit, so a visit may change its colour first. Drawing
+   sets the hit boxes and the scale the shadows use; the live board's are
+   put back after, as renderOutput does. */
+function readBoard(b, visit) {
   const W = BOARD.w * READ_PPI, H = BOARD.h * READ_PPI;
   if (!readCanvases) readCanvases = [0, 1].map(() => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; });
   const [under, alone] = readCanvases.map((c) => c.getContext('2d', { willReadFrequently: true }));
-  if (!under || !alone) return [];
-  const out = [], seen = new Map();
-  /* Drawing sets the hit boxes and the scale the shadows use; the live
-     board's are put back after, as renderOutput does. */
+  if (!under || !alone) return;
   const liveBoxes = new Map(boxes), livePpi = curPpi, livePrinting = printing;
   curPpi = READ_PPI; printing = false;
   try {
-    for (const k of keys) {
-      const b = boardFor(k, source), where = keys.length > 1 ? ' on Board ' + k.toUpperCase() : ' on your board';
-      under.setTransform(1, 0, 0, 1, 0, 0); under.clearRect(0, 0, W, H);
-      under.save(); under.scale(READ_PPI, READ_PPI); boardPath(under); under.clip();
-      drawBase(under, b.base); drawPattern(under, b.pattern);
-      const cover = coverOf(b);
-      if (cover) drawImage(under, cover);
-      for (const el of b.elements) {
-        if (el === cover) continue;
-        const draw = DRAWERS[el.type];
-        if (!draw) continue;
-        if ((el.type === 'text' && el.text.trim()) || el.type === 'clip') {
-          alone.setTransform(1, 0, 0, 1, 0, 0); alone.clearRect(0, 0, W, H);
-          alone.save(); alone.scale(READ_PPI, READ_PPI); boardPath(alone); alone.clip();
-          draw(alone, el);
-          alone.globalCompositeOperation = 'destination-out';
-          alone.beginPath(); alone.arc(BOARD.w / 2, BOARD.hole.cy, BOARD.hole.d / 2, 0, Math.PI * 2); alone.fill();
-          alone.restore();
-          const name = el.type === 'text' ? quoted(el) : 'The ' + ((CLIPS[el.name] || {}).label || 'clip art').toLowerCase() + ' artwork';
-          if (hiddenShare(under, alone, el, seen) >= HIDDEN_SHARE) out.push(name + where + ' will hardly show against what is behind it.');
-          else if (el.type === 'text' && el.autoFit && el.fitReference && el.size < SHRUNK * fittingReference(el).size) out.push(name + where + ' was shrunk to fit and will print very small (' + r1(el.size) + ' in).');
-        }
-        draw(under, el);
+    under.setTransform(1, 0, 0, 1, 0, 0); under.clearRect(0, 0, W, H);
+    under.save(); under.scale(READ_PPI, READ_PPI); boardPath(under); under.clip();
+    drawBase(under, b.base); drawPattern(under, b.pattern);
+    const cover = coverOf(b);
+    if (cover) drawImage(under, cover);
+    for (const el of b.elements) {
+      if (el === cover) continue;
+      const draw = DRAWERS[el.type];
+      if (!draw) continue;
+      if ((el.type === 'text' && el.text.trim()) || el.type === 'clip') {
+        alone.setTransform(1, 0, 0, 1, 0, 0); alone.clearRect(0, 0, W, H);
+        alone.save(); alone.scale(READ_PPI, READ_PPI); boardPath(alone); alone.clip();
+        draw(alone, el);
+        alone.globalCompositeOperation = 'destination-out';
+        alone.beginPath(); alone.arc(BOARD.w / 2, BOARD.hole.cy, BOARD.hole.d / 2, 0, Math.PI * 2); alone.fill();
+        alone.restore();
+        visit(el, inkBackdrop(under, alone, el));
       }
-      under.restore();
+      draw(under, el);
     }
+    under.restore();
   } finally {
     boxes.clear();
     for (const [id, box] of liveBoxes) boxes.set(id, box);
     curPpi = livePpi; printing = livePrinting;
+  }
+}
+function readabilityIssues(keys = boardKeys(), source = design) {
+  const out = [], seen = new Map();
+  for (const k of keys) {
+    const where = keys.length > 1 ? ' on Board ' + k.toUpperCase() : ' on your board';
+    readBoard(boardFor(k, source), (el, spots) => {
+      const name = el.type === 'text' ? quoted(el) : 'The ' + ((CLIPS[el.name] || {}).label || 'clip art').toLowerCase() + ' artwork';
+      if (hiddenShare(spots, el, seen) >= HIDDEN_SHARE) out.push(name + where + ' will hardly show against what is behind it.');
+      else if (el.type === 'text' && el.autoFit && el.fitReference && el.size < SHRUNK * fittingReference(el).size && el.size < SMALL_PRINT) out.push(name + where + ' was shrunk to fit and will print very small (' + r1(el.size) + ' in).');
+    });
   }
   return out;
 }
@@ -2367,7 +2440,13 @@ $('rushlabel').textContent = (PRICING.rush.short || PRICING.rush.label) + ' (+' 
 $('caselabel').textContent = (PRICING.carryCase.short || PRICING.carryCase.label) + ' (+' + money(PRICING.carryCase.cents) + ')';
 $('finishhint').textContent = 'The guest-book finish is a smooth matte clear coat that takes paint pens: guests sign the boards at the reception, and the signatures are sealed under a second coat of your choice afterwards (we include the kit).';
 const SHIP_NOTE = 'We ship by freight to ' + PRICING.shipping.region + ' only (' + money(PRICING.shipping.first) + ' for the first set or board, ' + money(PRICING.shipping.additional) + ' for each one after). Alaska, Hawaii and addresses outside the US are not covered by this checkout.';
-$('shipnote2').textContent = 'United States addresses in ' + PRICING.shipping.region + ' only. Payment is taken on a secure Stripe page; sales tax, where it applies, is added there.';
+/* The line under Continue to payment. The server answers with an invoice
+   instead of a payment page only when it has no card payments set up
+   (api/order.ts), so after such an answer every order in the visit will
+   be invoiced too, and the line names the region alone (see the submit
+   handler). */
+const SHIP_REGION = 'United States addresses in ' + PRICING.shipping.region + ' only.';
+$('shipnote2').textContent = SHIP_REGION + ' Payment is taken on a secure Stripe page; sales tax, where it applies, is added there.';
 /* Dispatch is ours to state; arrival is not, because freight transit depends
    on the address. The two are kept apart everywhere the page speaks of time. */
 const dispatchNote = () => 'Dispatch: about ' + PRICING.leadTimeDays + ' business days after your order (about ' + PRICING.rushDays + ' with a rush build). Delivery: freight transit is on top and depends on your address; we confirm an estimate with your order. Dates are estimates, not guarantees.';
@@ -2402,9 +2481,10 @@ let confirmedSamples = null, reviewSamples = null, reviewReady = false, reviewSe
 /* orderSubmitting holds Continue to payment from the tap until the answer.
    placedRevision is the reviewed design and options of an order the server
    took without a payment page (it will be invoiced): that order is done, so
-   the button goes until something changes and is reviewed again. payingCode
-   is the order whose payment page the browser is opening. */
-let orderSubmitting = false, placedRevision = null, payingCode = null;
+   the button goes until something changes and is reviewed again.
+   placedCode and placedAnswer are its code and the line that said so.
+   payingCode is the order whose payment page the browser is opening. */
+let orderSubmitting = false, placedRevision = null, placedCode = '', placedAnswer = '', payingCode = null;
 const sampleSignature = () => JSON.stringify(sampleWordsIn().sort());
 const samplesConfirmed = () => !sampleWordsIn().length || confirmedSamples === sampleSignature();
 const orderRevision = () => JSON.stringify({ design, order });
@@ -2428,6 +2508,15 @@ function showOrderStep(n, { focus = false } = {}) {
   // Step 3 opens only on a current review, so this compares what is about
   // to be ordered with the order already placed.
   $('checkout').hidden = placedRevision !== null && placedRevision === reviewedRevision;
+  // The line under the button speaks of the order that is placed. Once the
+  // design or the options have changed, the button is back, and a tap
+  // makes a second order: the line says so, rather than leaving "received"
+  // under it as if the button paid for that one.
+  if (n === 3 && placedRevision !== null) {
+    const [kind, line] = placedRevision === reviewedRevision ? ['ok', placedAnswer]
+      : ['info', 'Order ' + placedCode + ' is already placed. Continue to payment places a second, separate order with your changes.'];
+    if ($('orderstatus').textContent !== line) status(kind, line, { scroll: false });
+  }
   if (n === 2) renderReview();
   if (n === 3) syncOrder();
   if (focus) {
@@ -2585,9 +2674,10 @@ async function renderReview() {
 /* The answer sits under Continue to payment, which is often at the foot of
    the screen, so each message is brought into view as it is written, and
    Save editable copy with it when it is offered. */
-function status(kind, text, { offerSave = false } = {}) {
+function status(kind, text, { offerSave = false, scroll = true } = {}) {
   const s = $('orderstatus'), save = $('saveunsubmitted');
   s.dataset.kind = kind; s.textContent = text; save.hidden = !offerSave;
+  if (!scroll) return;
   s.scrollIntoView({ block: 'nearest' });
   if (offerSave) save.scrollIntoView({ block: 'nearest' });
 }
@@ -2716,9 +2806,12 @@ $('orderform').addEventListener('submit', async (ev) => {
       // Placed, to be invoiced. The button goes, so the focus it had moves
       // to the answer that replaces it, unless the customer is elsewhere.
       const here = !document.activeElement || document.activeElement === document.body || $('orderstep3').contains(document.activeElement);
-      placedRevision = sending;
+      const earlier = placedCode && placedCode !== j.code ? ' Order ' + placedCode + ' is a separate order.' : '';
+      placedRevision = sending; placedCode = j.code;
+      placedAnswer = 'Order ' + j.code + ' received. We will email you an invoice for ' + money(j.total) + ' and start once it is paid.' + earlier + files;
       $('checkout').hidden = placedRevision === reviewedRevision;
-      status('ok', 'Order ' + j.code + ' received. We will email you an invoice for ' + money(j.total) + ' and start once it is paid.' + files);
+      $('shipnote2').textContent = SHIP_REGION;
+      status('ok', placedAnswer);
       if (here && !$('orderstep3').hidden) $('orderstatus').focus({ preventScroll: true });
     }
   } catch (e) {

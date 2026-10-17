@@ -445,7 +445,8 @@ visual polish, a team set), fixed in the commit after `c618885`:
   lightness (x L/100) is under 30, and its outline, if it has one, is
   under 3:1. An item with 80% of its ink lost is named. Pictures are not
   checked. A text with Auto-fit and a `fitReference` below 0.6 of the
-  reference size is named for its size, unless it is already named as
+  reference size (and, since the review of tonight's audits below,
+  under 1 in) is named for its size, unless it is already named as
   hidden. The live hit boxes, `curPpi` and `printing` are put back after,
   as `renderOutput` does. A template's board takes a few milliseconds.
 - Where this differs from the triage: it proposed the contrast ratio
@@ -586,9 +587,11 @@ a team set at 360 x 780 and 820 x 1180), fixed in the commit after
 - `#boardactions` showed only once the boards were split, so with
   matching boards, where every template starts, the classic
   opposite-colours set could not be found. For a set with matching
-  boards the row now shows `#swapcolours` alone, reading "Make Board B
-  the opposite colours": the tap writes `oppositeColours(design.a)` to
-  B and splits the pair (`replaceOther`). Copy (`#copyother`) shows once
+  boards the row now shows `#swapcolours` alone (since the review of
+  tonight's audits below, only where the board has two colours to
+  switch, and first in the row), reading "Make Board B the opposite
+  colours": the tap writes `oppositeColours(design.a)` to B and splits
+  the pair (`replaceOther`). Copy (`#copyother`) shows once
   the boards are split, since before that there is nothing to copy
   between. Split, the button reads "Make Board A (or B) the opposite
   colours" and means what it did: it writes the other board from the
@@ -959,6 +962,109 @@ fail before this change. No existing spec changed.
 
 Verified for that commit: 74 node tests, the TypeScript check,
 and the whole Chromium suite (411 specs) pass.
+
+## Review of tonight's audits: opposite colours, the shrink warning, a second invoiced order
+
+A review of the commits from `7682e74` to `6ef876a` raised eight
+findings, two of them the same defect. All are fixed in the commit after
+`6ef876a`, each with a spec:
+
+- After the first tap on "Make Board B the opposite colours", Copy
+  appeared where the finger was: `#copyother` came before `#swapcolours`
+  in `#boardactions`, so the button wrapped onto the next line. A double
+  tap on a phone then copied B's new opposite over the customer's Board
+  A (the panel had moved to B), and a double click on a wide screen
+  copied A back over the new B. The opposite colours now come first, so
+  the tapped button stays put when Copy appears after it, and both click
+  handlers turn away the second click of a pair (`onceOnly`: `ev.detail
+  > 1`; a key gives 0, so Enter and Space always act). Both halves are
+  needed: with the order alone, the second tap of a pair on a phone made
+  A again from B, and the colour fix-up does not undo itself exactly. A
+  slow second tap is a click of its own and acts as its label says.
+- The opposite colours hid words and art on three templates, the
+  review's own check naming them: Nautical's anchor and AHOY (ivory on
+  an ivory disc), Lake days' THE CARTERS (the colour of the band under
+  it) and LAKE and DAYS (cream on that light band), and Bachelorette's
+  pink words on the lilac middle of a white-to-purple fade. The fix-up
+  compared each item with `base.color` alone and set anything under
+  1.8:1 to the old board colour, so it undid a deliberate swap (the
+  Nautical disc) and never saw a band, a disc or a fade's second colour.
+  `oppositeColours` now gets its two colours from `oppositePair`, and
+  after the swap reads every text and clip art against what is really
+  behind it on both boards, in layer order: `readBoard`, which
+  `readabilityIssues` now uses too, draws a board an item at a time and
+  hands each item the colours under its own ink (`inkBackdrop`). An item
+  that stood out at 1.8:1 or more on the source board (for nine tenths of
+  its ink, `inkContrast`, scored as `defaultInk` scores an ink) and does
+  not on the new one takes whichever of the two colours stands out more
+  there, when that is better. One that did not stand out to begin with,
+  the Nautical disc on its stripes, is left alone. A fade whose second
+  end is a third colour takes the new board colour at both ends (Board
+  B of Bachelorette is white with pink words); an end in one of the two
+  colours switches as before. On every template that offers the button
+  the review now names nothing on Board B; on Team, YOUR TEAM still
+  turns navy on gold.
+- The opposite colours were offered on stained wood with no pattern (The
+  cabin, Rustic wedding) and on blank boards, where there is no second
+  colour, and the tap only split the pair into two identical boards.
+  `syncBoardActions` hides `#swapcolours` while `oppositePair` finds no
+  pair for the board being edited, and `#boardactions` when Copy is
+  hidden too. It runs from `syncBoard` and from `commit`, so words added
+  to a blank board bring the button back.
+- The review called ordinary names "very small": ANDERSON at 1.4 in,
+  "Christopher & Elizabeth" at 1.9 in, NORTHSIDE BULLDOGS at 2.4 in,
+  while the template's own date prints at 1.4 in and is never named. A
+  line is named for its size only below 0.6 of its template size and
+  under 1 in (`SMALL_PRINT`), the audit's own figure; Fairweather-
+  Worthington (0.57 in) is still named. A hero line taken from 4.5 in
+  to 1.2 in is no longer named; it is not very small next to the
+  templates' own lines.
+- After an invoiced order, changing the design brought Continue to
+  payment back directly above the old "Order CH-... received. We will
+  email you an invoice" line, so a tap read as paying for that order and
+  silently placed a second one, whose code then replaced the first on
+  screen. The placed order's code and answer are kept (`placedCode`,
+  `placedAnswer`). When step 3 opens with the button back,
+  `#orderstatus` reads "Order CH-... is already placed. Continue to
+  payment places a second, separate order with your changes."; with the
+  placed order's review it shows that order's answer again. The second
+  answer ends "Order CH-... is a separate order." It is written without
+  scrolling (`status(..., { scroll: false })`), and only when it differs.
+- After an invoice answer, `#shipnote2` under it still said payment is
+  taken on a secure Stripe page. The server answers with an invoice only
+  when it has no Stripe key, so every later order in the visit is
+  invoiced too: the invoice branch sets the note to the region sentence
+  alone, and it is not put back.
+- The spec "drawing the check leaves the board's hit boxes as they were"
+  passed with the restore deleted, since drawing the live design again
+  writes the same boxes in inches. It now reads a copy of the design
+  with every text half as big again, as `renderReview` passes its own
+  copy; with the restore deleted it fails.
+
+`tests/board-pair.spec.js`: at 390 x 844 with touch, after one tap the
+point under the finger is still `#swapcolours`, and two quick taps there
+leave Board A as it was and B gold with navy; Nautical (a navy disc on
+the stripes, its anchor and AHOY ivory), Lake days (LAKE, DAYS and THE
+CARTERS dark teal) and Bachelorette (white at both ends, every item
+pink) each leave A unchanged and `readabilityIssues(['a', 'b'])` empty;
+the button and the row are hidden on The cabin and on blank boards
+until words are added, and shown on Team. At 1280 x 900 a double
+click, and two single clicks, leave A as it was and B the opposite, and
+each of the 30 templates that offer the button (all but The cabin and
+Rustic wedding) makes a Board B the review names nothing on.
+`tests/readability.spec.js`: ANDERSON over SMITH, "Christopher &
+Elizabeth" over Mr & Mrs and NORTHSIDE BULLDOGS over YOUR TEAM, each
+under 0.6 of its template size and 1 in or more, leave `#readwarn`
+hidden; the hit-box spec reads the enlarged copy.
+`tests/checkout-result.spec.js`: the invoice spec checks the note before
+and after the answer, the "already placed" line once the rush option
+changes, and the first code in the second answer; a new spec at 390 x
+844 places 'Emma & Jmaes', fixes it to 'Emma & James', and finds the
+"already placed" line under the button, then both codes after the tap.
+No existing assertion changed.
+
+Verified for that commit: 74 node tests, the TypeScript check, and the
+whole Chromium suite (420 specs) pass.
 
 ## Verification
 

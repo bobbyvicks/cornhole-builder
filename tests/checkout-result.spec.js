@@ -30,6 +30,8 @@ test('an order to be invoiced is sent once: the button goes, the code stays, and
     hits++;
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 'CH-TEST0' + hits, url: null, total: 72200, payment: 'invoice' }) });
   });
+  const note = page.locator('#shipnote2');
+  await expect(note).toContainText('Stripe');
   await page.locator('#checkout').focus();
   await page.keyboard.press('Enter');
   const answer = page.locator('#orderstatus');
@@ -37,6 +39,8 @@ test('an order to be invoiced is sent once: the button goes, the code stays, and
   await expect(answer).toContainText('$722.00');
   await expect(page.locator('#checkout'), 'no button offers to pay for an order that is placed').toBeHidden();
   await expect(answer, 'the focus moves from the button that went to the answer').toBeFocused();
+  /* An invoice, so the line under it no longer speaks of a payment page. */
+  await expect(note).toHaveText(/^United States addresses in .+ only\.$/);
   // Neither a script nor Enter in a field sends it again.
   await page.evaluate(() => document.getElementById('orderform').requestSubmit());
   await page.locator('#postal').focus();
@@ -57,10 +61,54 @@ test('an order to be invoiced is sent once: the button goes, the code stays, and
   await page.click('#tocheckout');
   await expect(page.locator('#checkout')).toBeVisible();
   await expect(page.locator('#checkout')).toBeEnabled();
+  /* The line under the button says the first order is placed and that
+     this is a second one, rather than "received" as if it paid for it. */
+  await expect(answer).toHaveText('Order CH-TEST01 is already placed. Continue to payment places a second, separate order with your changes.');
   await page.click('#checkout');
   await expect(answer).toContainText('CH-TEST02');
+  await expect(answer, 'the first code stays on screen').toContainText('Order CH-TEST01 is a separate order.');
   expect(hits).toBe(2);
   await expect(page.locator('#checkout')).toBeHidden();
+  await expect(note).not.toContainText('Stripe');
+});
+
+test('on a phone, a typo fixed after an invoiced order: the screen says a second order is a separate one', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open(page);
+  let hits = 0;
+  const sent = [];
+  await page.route('**/api/order', (route) => {
+    hits++;
+    sent.push(route.request().postDataJSON().design.a.elements.filter((e) => e.type === 'text').map((e) => e.text)[0]);
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 'CH-TEST0' + hits, url: null, total: 30800, payment: 'invoice' }) });
+  });
+  await page.getByRole('button', { name: 'Wedding template', exact: true }).click();
+  await page.locator('#texts textarea.quick').first().fill('Emma & Jmaes');
+  await page.getByRole('tab', { name: 'Order', exact: true }).click();
+  await page.click('#toreview');
+  await page.check('#keepsamples');
+  await page.click('#tocheckout');
+  for (const [id, value] of Object.entries({ name: 'Pat Example', email: 'pat@example.com', line1: '1 Main St', city: 'Austin', postal: '78701' })) await page.fill('#' + id, value);
+  await page.selectOption('#state', 'TX');
+  await page.click('#checkout');
+  const answer = page.locator('#orderstatus');
+  await expect(answer).toContainText('Order CH-TEST01 received.');
+  await expect(page.locator('#checkout')).toBeHidden();
+  /* The customer spots the typo and fixes it. */
+  await page.click('#backtoorder');
+  await page.click('#backtoedit');
+  await page.getByRole('tab', { name: 'Text', exact: true }).click();
+  await page.locator('#texts textarea.quick').first().fill('Emma & James');
+  await page.getByRole('tab', { name: 'Order', exact: true }).click();
+  await page.click('#toreview');
+  await page.click('#tocheckout');
+  await expect(page.locator('#checkout')).toBeVisible();
+  await expect(answer).toHaveText('Order CH-TEST01 is already placed. Continue to payment places a second, separate order with your changes.');
+  await expect(answer).not.toContainText('received');
+  await page.click('#checkout');
+  await expect(answer).toContainText('Order CH-TEST02 received.');
+  await expect(answer).toContainText('Order CH-TEST01 is a separate order.');
+  expect(sent).toEqual(['Emma & Jmaes', 'Emma & James']);
 });
 
 for (const [width, height] of [[1280, 900], [390, 844]]) {
