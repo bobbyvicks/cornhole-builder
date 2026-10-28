@@ -65,6 +65,6 @@ npm run verify
 
 The application integration module itself has no dependencies. Node dependencies are only for rebuilding previews and checking the deliverables. Browser preview files run locally without a server or network access.
 
-The application registers all 24 clips, six categories, and six templates additively in `../app.mjs`. Its runtime module is an exact copy of `integration/creative-pack.mjs`; after rebuilding the pack, copy that module to `../lib/creative-pack.mjs` as part of the update. Keep the `bbp1-` IDs stable for saved designs.
+The application registers all 24 clips, six categories, and six templates additively in `../ui/model.mjs`. Its runtime module is an exact copy of `integration/creative-pack.mjs`; after rebuilding the pack, copy that module to `../lib/creative-pack.mjs` as part of the update. Keep the `bbp1-` IDs stable for saved designs.
 
 `../tests/creative-pack.spec.js` covers all artwork buttons, SVG silhouettes and cutouts in preview and print on light and dark backgrounds, independent template layers, and recolour/undo/transform/duplicate/save/reload with separate boards. Run it from the application root with `npm exec -- playwright test tests/creative-pack.spec.js`. The browser suite blocks network fonts for deterministic rendering; the pack's own validation covers the supplied font files. Repository integration does not by itself confirm a live deployment.

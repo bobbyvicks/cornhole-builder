@@ -256,7 +256,7 @@ findings, two of them the same defect. All are fixed in the commit after
   a filling picture prints at about 83 at best. Its note now ends
   "Untick Fill the board to print it at its own size." Ordinary pictures
   keep their wording; the dpi thresholds are unchanged.
-- The comments on the words cleaning (`cleanWords` in `app.mjs`, the
+- The comments on the words cleaning (`cleanWords` in `ui/model.mjs`, the
   `words` check in `api/order.ts`) said a carriage return becomes a
   space; the code turns it, alone or before a line feed, into a line
   break, and only other control characters into spaces. The comments now
@@ -319,7 +319,7 @@ set on a phone and a tablet), fixed in the commit after `7682e74`:
   not show at all (1.03:1); Engagement, Baby shower, Brewery and Winter
   were 1.4 to 2.2:1. On The cabin's walnut every new item was charcoal,
   at 1.1:1.
-- `defaultInk(board, el)` in `app.mjs` now picks charcoal (`#36393b`)
+- `defaultInk(board, el)` in `ui/colour.mjs` now picks charcoal (`#36393b`)
   or off-white (`#f5f5f0`) from the board where the new item lands: it
   draws the base, the pattern and a picture filling the board (not the
   hole, and not the other items) at 4 pixels per inch, reads the patch
@@ -366,7 +366,7 @@ fixed in the commit after `117c138`:
   were a template's sample words and could not continue until they
   ticked "Print these words exactly as they are". EST. 2018, EST. 2015
   and any other line a template happens to use did the same.
-  `isSampleText(el)` in `app.mjs` now decides: the page's placeholders
+  `isSampleText(el)` in `ui/model.mjs` now decides: the page's placeholders
   (YOUR TEAM, NEW TEXT, YOUR NAME, YOUR WORDS) are a sample whoever
   typed them; a template's words are a sample only on a text whose
   `fitReference.text` (set by `applyTemplate`) is those same words, so
@@ -428,7 +428,7 @@ visual polish, a team set), fixed in the commit after `c618885`:
   James" at 1.00:1. The review checked only for sample words and let the
   customer carry on. Auto-fit could also take a long surname to 23% of
   its size (Fairweather-Worthington at 0.57") and say nothing there.
-- `readabilityIssues(keys, source)` in `app.mjs` runs in `renderReview`
+- `readabilityIssues(keys, source)` in `ui/colour.mjs` runs in `renderReview`
   once the board previews are ready, and `#readwarn`, beside `#reswarn`,
   holds one line per item: '"Mr & Mrs" on Board B will hardly show
   against what is behind it.' or '"Fairweather-Worthington" on your board
@@ -812,7 +812,7 @@ From the customer-journey audits (visual polish at 390 x 844 and
   words typed next (EST. / 2026) went inside the ball in its own
   off-white: nothing new showed, and a tap on the ball picked the
   hidden words.
-- `placeNew(board, el)` in `app.mjs` now decides, for the Add text
+- `placeNew(board, el)` in `ui/placement.mjs` now decides, for the Add text
   button, for `addClip` when it is given no place (no `x` and no `y`),
   and for a picture as it lands. The usual spot is kept when the new
   item's box is at least `NEW_GAP` (0.25") clear of every other item
@@ -1065,6 +1065,66 @@ No existing assertion changed.
 
 Verified for that commit: 74 node tests, the TypeScript check, and the
 whole Chromium suite (420 specs) pass.
+
+## app.mjs in parts
+
+`app.mjs` had grown to 190 KB, and sending it to Vercel in one piece
+failed: the upload of `2238ba7` was cut off part way, so that commit
+never went live. In the commit after `2238ba7` the file is in parts,
+each well under the largest file that has uploaded cleanly (about
+155 KB). Nothing in them changed: every statement and every comment of
+the old `app.mjs` is in exactly one of the new files, word for word,
+and only import and export lines were added.
+
+- `app.mjs` (about 84 KB) keeps the page's state (`design`, `active`,
+  `selected`, the save, history, order and pointer state), the event
+  wiring and everything that runs as the page loads, in the same order
+  as before.
+- `ui/model.mjs`: the board, paints, fonts and patterns, the defaults
+  for each kind of item, a fresh or migrated design, sample words.
+- `ui/draw.mjs`: drawing the boards, the print and share pictures, the
+  handles, reading a board back as pixels, the screen reader's words
+  for each board.
+- `ui/colour.mjs`: contrast, the opposite colours, a new item's ink,
+  the readability warning.
+- `ui/placement.mjs`: fitting words to their box, free space for a new
+  item.
+- `ui/pictures.mjs`: reading an upload, its preview and print copies,
+  print sharpness.
+- `ui/cards.mjs`: the template and clip art cards, their thumbnails,
+  template search.
+- `ui/panel.mjs`: the item lists, the selected item's controls, the
+  board settings and the opposite-colours offer.
+- `ui/order.mjs`: the quote, the steps' Continue buttons, the order
+  sent and the answer shown.
+
+The parts and `app.mjs` import from each other. That is safe because
+of three rules the split kept, and a change should keep them too:
+
+- A part only reads `app.mjs`'s variables. An imported variable cannot
+  be assigned, so a function that sets `design`, `active`, `selected`
+  or another `let` of `app.mjs` stays there (`setActive`, `select`,
+  `restore`, `renderReview`, `showOrderStep`, ...). A `let` lives with
+  every function that assigns it (`curPpi` and `printing` in `draw.mjs`
+  with `renderBoard`, `renderOutput` and `readBoard`).
+- What a part runs as it loads uses only its own earlier constants,
+  `lib/`, or a part that does not import it back (`placement.mjs`
+  reads `BOARD` from `model.mjs`). `app.mjs` is the page's entry, so
+  every part has loaded before `app.mjs` runs a line, and a part's
+  functions may use anything of `app.mjs` once they are called.
+- Code that does something as the page loads (event listeners, DOM
+  lookups, the startup read) stays in `app.mjs`, so it runs in the
+  order it always did.
+
+How it was checked: the statements and comments compared one for one
+with the old file; TypeScript with `checkJs` gave the same 137
+complaints about the old file and the new ones (loose types in plain
+JavaScript) and none about a missing name, an assigned import or a
+name used before it is set; `node --check` on each file; the node
+tests, the type check and the whole Chromium suite. `index.html`
+preloads the parts with the rest, and `tests/slow-start.spec.js` now
+follows the import lines of every file, so a part missing from the
+head fails it as `test/module-preload.test.mjs` does.
 
 ## Verification
 

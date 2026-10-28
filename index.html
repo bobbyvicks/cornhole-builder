@@ -11,12 +11,20 @@
 <meta property="og:title" content="Cornhole Board Builder">
 <meta property="og:description" content="Design your own regulation cornhole boards - colours, fonts, clip art and your own pictures - and order the set.">
 <!-- Every module the page runs, asked for at once. Without these the
-     browser finds the ones in lib/ only when app.mjs has arrived and been
-     read, one more round trip before anything works: two to three
+     browser finds the ones in ui/ and lib/ only when app.mjs has arrived
+     and been read, one more round trip before anything works: two to three
      seconds on a slow phone connection, on a return visit too, where
-     each file is only checked. The list is app.mjs and the modules it imports;
-     test/module-preload.test.mjs keeps the two the same. -->
+     each file is only checked. The list is app.mjs and every module it
+     reaches; test/module-preload.test.mjs keeps the two the same. -->
 <link rel="modulepreload" href="app.mjs">
+<link rel="modulepreload" href="ui/model.mjs">
+<link rel="modulepreload" href="ui/draw.mjs">
+<link rel="modulepreload" href="ui/colour.mjs">
+<link rel="modulepreload" href="ui/placement.mjs">
+<link rel="modulepreload" href="ui/pictures.mjs">
+<link rel="modulepreload" href="ui/cards.mjs">
+<link rel="modulepreload" href="ui/panel.mjs">
+<link rel="modulepreload" href="ui/order.mjs">
 <link rel="modulepreload" href="lib/price.mjs">
 <link rel="modulepreload" href="lib/clips.mjs">
 <link rel="modulepreload" href="lib/templates.mjs">

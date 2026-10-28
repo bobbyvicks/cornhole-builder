@@ -4,8 +4,8 @@ import { open, settled } from './helpers.js';
 
 /* A slow phone. On a weak signal the page's markup is on screen for
    seconds before app.mjs has run, so three things matter here.
-   The modules in lib/ are asked for alongside app.mjs (the head lists
-   them all), instead of only once app.mjs has arrived and been read.
+   The modules in ui/ and lib/ are asked for alongside app.mjs (the head
+   lists them all), instead of only once app.mjs has arrived and been read.
    Until the script runs, the markup claims nothing: no $0.00 total, no
    "Not saved yet" to a customer whose design is saved, no Undo or Redo
    that looks ready, and one board, as a phone shows once it has run.
@@ -13,8 +13,21 @@ import { open, settled } from './helpers.js';
    telling an untouched design from someone's work no longer writes the
    photos out for every template. */
 
-/* The modules app.mjs imports, read from its import lines. */
-const LIB = [...readFileSync(new URL('../app.mjs', import.meta.url), 'utf8').matchAll(/^import\s[^;]*?\sfrom\s*'\.\/(lib\/[^']+)'/gm)].map((m) => m[1]);
+/* The modules app.mjs reaches, read from the import lines of each file in
+   turn, as paths from the site's root. */
+function modulesOf(entry) {
+  const seen = new Set([entry]), queue = [entry];
+  while (queue.length) {
+    const file = queue.shift(), dir = file.includes('/') ? file.slice(0, file.lastIndexOf('/') + 1) : '';
+    for (const m of readFileSync(new URL('../' + file, import.meta.url), 'utf8').matchAll(/^import\s[^;]*?\sfrom\s*'(\.{1,2}\/[^']+)'/gm)) {
+      const path = new URL(m[1], 'http://site/' + dir).pathname.slice(1);
+      if (!seen.has(path)) { seen.add(path); queue.push(path); }
+    }
+  }
+  seen.delete(entry);
+  return [...seen];
+}
+const LIB = modulesOf('app.mjs');
 const phone = { viewport: { width: 375, height: 812 }, hasTouch: true };
 
 /* The page loaded with app.mjs held on its way, the way a slow
@@ -36,7 +49,7 @@ const visibleBoards = (page) => page.locator('.board canvas').evaluateAll((cs) =
 /* While app.mjs is held: every module is on its way, and the page says
    nothing that is not true yet. */
 async function expectNeutral(page, requested) {
-  expect(LIB.length, 'the import lines were read').toBeGreaterThanOrEqual(9);
+  expect(LIB.length, 'the import lines were read').toBeGreaterThanOrEqual(17);
   await expect.poll(() => LIB.filter((m) => !requested.has(m)), { message: 'every module was asked for while app.mjs was held' }).toEqual([]);
   expect(requested.has('app.mjs')).toBe(true);
   expect(await page.evaluate(() => typeof window.cornhole), 'the script has not run').toBe('undefined');

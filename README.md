@@ -164,13 +164,20 @@ A site where people design their own cornhole boards and order them.
   page. Share preview and Download print file keep the focus
   the same way while they work.
 
-Everything the customer sees is static: `index.html`, `app.mjs` and the
-modules in `lib/` (`price.mjs`, `clips.mjs`, `templates.mjs`, `store.mjs`,
-`site.mjs` and the rest app.mjs imports). Two serverless functions in
+Everything the customer sees is static: `index.html`, `app.mjs`, its
+parts in `ui/` and the modules in `lib/` (`price.mjs`, `clips.mjs`,
+`templates.mjs`, `store.mjs`, `site.mjs` and the rest). `app.mjs` holds
+the page's state and wiring; `ui/` holds the drawing (`draw.mjs`), the
+design's data (`model.mjs`), colours and the readability check
+(`colour.mjs`), fitting and placing items (`placement.mjs`), pictures
+(`pictures.mjs`), the template and clip art pickers (`cards.mjs`), the
+editing panel (`panel.mjs`) and the Order tab (`order.mjs`). They import
+from app.mjs and it from them; a part only reads app.mjs's variables,
+and app.mjs is the only one that changes them. Two serverless functions in
 `api/` do the parts that need secrets. No build step. The head of
 `index.html` names every module with `<link rel="modulepreload">`, so a
 browser asks for them all alongside `app.mjs` rather than after it; a
-module added to app.mjs's imports goes in that list too, and
+module added to the imports goes in that list too, and
 `test/module-preload.test.mjs` fails until it does. Until the script has
 run, the markup shows no total and no save status, Undo and Redo are
 off, and on a phone only one board is drawn, as it is after.
@@ -275,7 +282,7 @@ every template, so a broken addition fails a test rather than a customer.
 editable board templates, plus their source data, previews and font licences.
 Open [`asset-pack/preview.html`](asset-pack/preview.html) locally to browse the
 collection. The native module in `lib/creative-pack.mjs` is registered in
-`app.mjs`. [`asset-pack/CLAUDE-INTEGRATION.txt`](asset-pack/CLAUDE-INTEGRATION.txt)
+`ui/model.mjs`. [`asset-pack/CLAUDE-INTEGRATION.txt`](asset-pack/CLAUDE-INTEGRATION.txt)
 documents the format and editing contract for future changes. Deployment
 status is separate from this source integration.
 
